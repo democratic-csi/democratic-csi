@@ -1,0 +1,59 @@
+httpConnection:
+  protocol: http
+  host: server address
+  port: 80
+  username: root
+  password:
+  allowInsecure: true
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+zfs:
+  # total volume name (zvol/<datasetParentName>/<pvc name>) length cannot exceed 63 chars
+  # https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
+  # standard volume naming overhead is 46 chars
+  # datasetParentName should therefore be 17 chars or less
+  datasetParentName: tank/k8s/b/vols
+  detachedSnapshotsDatasetParentName: tanks/k8s/b/snaps
+  # "" (inherit), lz4, gzip-9, etc
+  zvolCompression:
+  # "" (inherit), on, off, verify
+  zvolDedup:
+  zvolEnableReservation: false
+  # 512, 1K, 2K, 4K, 8K, 16K, 64K, 128K default is 16K
+  zvolBlocksize:
+iscsi:
+  targetPortal: "server:3261"
+  targetPortals: []
+  # leave empty to omit usage of -I with iscsiadm
+  interface:
+  namePrefix: csi-
+  nameSuffix: "-clustera"
+  # add as many as needed
+  targetGroups:
+    # get the correct ID from the "portal" section in the UI
+    - targetGroupPortalGroup: 1
+      # get the correct ID from the "initiators" section in the UI
+      targetGroupInitiatorGroup: 1
+      # None, CHAP, or CHAP Mutual
+      targetGroupAuthType: None
+      # get the correct ID from the "Authorized Access" section of the UI
+      # only required if using Chap
+      targetGroupAuthGroup:
+
+  extentInsecureTpc: true
+  extentXenCompat: false
+  extentDisablePhysicalBlocksize: true
+  # 512, 1024, 2048, or 4096,
+  extentBlocksize: 512
+  # "" (let FreeNAS decide, currently defaults to SSD), Unknown, SSD, 5400, 7200, 10000, 15000
+  extentRpm: "SSD"
+  # 0-100 (0 == ignore)
+  extentAvailThreshold: 0

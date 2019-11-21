@@ -1,0 +1,34 @@
+{
+  "name": "democratic-csi",
+  "version": "0.1.0",
+  "description": "kubernetes csi driver framework",
+  "main": "bin/democratic-csi",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "./bin/democratic-csi"
+  },
+  "author": "Travis Glenn Hansen <travisghansen@yahoo.com>",
+  "bugs": {
+    "url": "https://github.com/democratic-csi/democratic-csi/issues"
+  },
+  "homepage": "https://github.com/democratic-csi/democratic-csi#readme",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/democratic-csi/democratic-csi.git"
+  },
+  "dependencies": {
+    "@grpc/proto-loader": "^0.5.3",
+    "bunyan": "^1.8.12",
+    "eslint": "^6.6.0",
+    "grpc": "^1.24.2",
+    "js-yaml": "^3.13.1",
+    "lru-cache": "^5.1.1",
+    "request": "^2.88.0",
+    "ssh2": "^0.8.6",
+    "uri-js": "^4.2.2",
+    "uuid": "^3.3.3",
+    "winston": "^3.2.1",
+    "yargs": "^15.0.2"
+  }
+}

@@ -1,0 +1,23 @@
+# if: tag IS present
+language: node_js
+node_js:
+- "12"
+sudo: required
+services:
+- docker
+install: true
+script: true
+deploy:
+- provider: script
+  script: bash .travis/docker-release.sh
+  skip_cleanup: true
+  on:
+    repo: democratic-csi/democratic-csi
+    all_branches: true
+    condition: $TRAVIS_BRANCH =~ ^master|next$
+- provider: script
+  script: bash .travis/docker-release.sh
+  skip_cleanup: true
+  on:
+    repo: democratic-csi/democratic-csi
+    tags: true

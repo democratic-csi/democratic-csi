@@ -1,0 +1,250 @@
+#!/usr/bin/env -S node --nouse-idle-notification --expose-gc --max-old-space-size=8192
+
+const yaml = require("js-yaml");
+const fs = require("fs");
+
+let options;
+const args = require("yargs")
+  .env("DEMOCRATIC_CSI")
+  .scriptName("democratic-csi")
+  .usage("$0 [options]")
+  .option("driver", {
+    alias: "d",
+    describe: "driver",
+    choices: ["freenas-nfs", "freenas-iscsi"]
+  })
+  .demandOption(["driver"], "driver is required")
+  .option("driver-config-file", {
+    describe: "provide a path to driver config file",
+    config: true,
+    configParser: path => {
+      try {
+        options = JSON.parse(fs.readFileSync(path, "utf-8"));
+        return true;
+      } catch (e) {}
+
+      try {
+        options = yaml.safeLoad(fs.readFileSync(path, "utf8"));
+        return true;
+      } catch (e) {}
+
+      throw new Error("failed parsing config file: " + path);
+    }
+  })
+  .demandOption(["driver-config-file"], "driver-config-file is required")
+  .option("log-level", {
+    describe: "log level",
+    choices: ["error", "warn", "info", "verbose", "debug", "silly"]
+  })
+  .option("csi-version", {
+    describe: "versin of the csi spec to load",
+    choices: ["0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"]
+  })
+  .demandOption(["csi-version"], "csi-version is required")
+  .option("csi-name", {
+    describe: "name to use for driver registration"
+  })
+  .demandOption(["csi-name"], "csi-name is required")
+  .option("csi-mode", {
+    describe: "mode of the controller",
+    choices: ["controller", "node"],
+    type: "array",
+    default: ["controller", "node"]
+  })
+  .demandOption(["csi-mode"], "csi-mode is required")
+  .option("server-address", {
+    describe: "listen address for the server",
+    default: "0.0.0.0"
+  })
+  .option("server-port", {
+    describe: "listen port for the server",
+    default: 50051,
+    type: "number"
+  })
+  .version()
+  .help().argv;
+
+const package = require("../package.json");
+args.version = package.version;
+
+const grpc = require("grpc");
+const protoLoader = require("@grpc/proto-loader");
+const LRU = require("lru-cache");
+const cache = new LRU({ max: 500 });
+const { logger } = require("../src/utils/logger");
+if (args.logLevel) {
+  logger.level = args.logLevel;
+}
+const csiVersion = process.env.CSI_VERSION || "1.1.0";
+const PROTO_PATH = __dirname + "/../csi_proto/csi-v" + csiVersion + ".proto";
+
+// Suggested options for similarity to existing grpc.load behavior
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
+
+const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
+const csi = protoDescriptor.csi.v1;
+
+// include available drivers
+const { FreeNASDriver } = require("../src/driver/freenas");
+
+logger.info("initializing csi driver: %s", args.driver);
+
+let driver;
+switch (args.driver) {
+  case "freenas-nfs":
+  case "freenas-iscsi":
+    driver = new FreeNASDriver({ logger, args, cache, package }, options);
+    break;
+  default:
+    logger.error("invalid csi driver: %s", args.driver);
+    break;
+}
+
+async function requestHandlerProxy(call, callback, serviceMethodName) {
+  try {
+    logger.debug(
+      "new request - driver: %s method: %s call: %j",
+      driver.constructor.name,
+      serviceMethodName,
+      call
+    );
+    //const response = await handler.call(driver, call);
+    const response = await driver[serviceMethodName](call);
+    logger.debug(
+      "new response - driver: %s method: %s response: %j",
+      driver.constructor.name,
+      serviceMethodName,
+      response
+    );
+    callback(null, response);
+  } catch (e) {
+    logger.error(
+      "handler error - driver: %s method: %s error: %s",
+      driver.constructor.name,
+      serviceMethodName,
+      JSON.stringify(e)
+    );
+    console.log(e);
+    if (e.name == "GrpcError") {
+      callback(e);
+    } else {
+      // TODO: only show real error string in development mode
+      const message = true
+        ? e.toString()
+        : "unknown error, please inspect service logs";
+      callback({ code: grpc.status.INTERNAL, message });
+    }
+  }
+}
+
+function getServer() {
+  var server = new grpc.Server();
+
+  // Identity Service
+  server.addService(csi.Identity.service, {
+    async GetPluginInfo(call, callback) {
+      requestHandlerProxy(call, callback, arguments.callee.name);
+    },
+    async GetPluginCapabilities(call, callback) {
+      requestHandlerProxy(call, callback, arguments.callee.name);
+    },
+    async Probe(call, callback) {
+      requestHandlerProxy(call, callback, arguments.callee.name);
+    }
+  });
+
+  // Controller Service
+  if (args.csiMode.includes("controller")) {
+    server.addService(csi.Controller.service, {
+      async CreateVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async DeleteVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ControllerPublishVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ControllerUnpublishVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ValidateVolumeCapabilities(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ListVolumes(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async GetCapacity(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ControllerGetCapabilities(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async CreateSnapshot(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async DeleteSnapshot(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ListSnapshots(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ControllerExpandVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      }
+    });
+  }
+
+  // Node Service
+  if (args.csiMode.includes("node")) {
+    server.addService(csi.Node.service, {
+      async NodeStageVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async NodeUnstageVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async NodePublishVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async NodeUnpublishVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async NodeGetVolumeStats(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async NodeExpandVolume(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async NodeGetCapabilities(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async NodeGetInfo(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      }
+    });
+  }
+
+  return server;
+}
+
+// https://grpc.github.io/grpc/node/grpc.Server.html
+const csiServer = getServer();
+let bindAddress = `${args.serverAddress}:${args.serverPort}`;
+logger.info(
+  "starting csi server - name: %s, version: %s, driver: %s, mode: %s, csi version: %s, address: %s",
+  args.csiName,
+  args.version,
+  args.driver,
+  args.csiMode.join(","),
+  args.csiVersion,
+  bindAddress
+);
+csiServer.bind(bindAddress, grpc.ServerCredentials.createInsecure());
+csiServer.start();
