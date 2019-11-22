@@ -11,9 +11,9 @@ ENV NODE_DISTRO=linux-x64
 
 RUN apt-get update && \
         apt-get install -y wget xz-utils && \
-        wget https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz && \
+        wget https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz > /dev/null 2>&1 && \
         mkdir -p /usr/local/lib/nodejs && \
-        tar -xJvf node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz -C /usr/local/lib/nodejs && \
+        tar -xJf node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz -C /usr/local/lib/nodejs && \
         rm node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz && \
         rm -rf /var/lib/apt/lists/*
 
@@ -30,8 +30,9 @@ RUN apt-get update && \
         rm -rf /var/lib/apt/lists/*
 
 # npm requirements
+# gcc and g++ required by grpc-usd until proper upstream support
 RUN apt-get update && \
-        apt-get install -y python make && \
+        apt-get install -y python make gcc g++ && \
         rm -rf /var/lib/apt/lists/*
 
 # install wrappers
