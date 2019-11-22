@@ -54,20 +54,29 @@ const args = require("yargs")
   .demandOption(["csi-mode"], "csi-mode is required")
   .option("server-address", {
     describe: "listen address for the server",
-    default: "0.0.0.0"
+    type: "string"
   })
   .option("server-port", {
     describe: "listen port for the server",
-    default: 50051,
     type: "number"
+  })
+  .option("server-socket", {
+    describe: "listen socket for the server",
+    type: "string"
   })
   .version()
   .help().argv;
 
+if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
+  console.log("must listen on tcp and/or unix socket");
+  process.exit(1);
+}
+
 const package = require("../package.json");
 args.version = package.version;
 
-const grpc = require("grpc");
+//const grpc = require("grpc");
+const grpc = require("grpc-uds");
 const protoLoader = require("@grpc/proto-loader");
 const LRU = require("lru-cache");
 const cache = new LRU({ max: 500 });
@@ -236,15 +245,51 @@ function getServer() {
 
 // https://grpc.github.io/grpc/node/grpc.Server.html
 const csiServer = getServer();
-let bindAddress = `${args.serverAddress}:${args.serverPort}`;
+let bindAddress = "";
+let bindSocket = "";
+if (args.serverAddress && args.serverPort) {
+  bindAddress = `${args.serverAddress}:${args.serverPort}`;
+}
+
+if (args.serverSocket) {
+  bindSocket = args.serverSocket || "";
+  if (!bindSocket.toLowerCase().startsWith("unix://")) {
+    bindSocket = "unix://" + bindSocket;
+  }
+}
+
 logger.info(
-  "starting csi server - name: %s, version: %s, driver: %s, mode: %s, csi version: %s, address: %s",
+  "starting csi server - name: %s, version: %s, driver: %s, mode: %s, csi version: %s, address: %s, socket: %s",
   args.csiName,
   args.version,
   args.driver,
   args.csiMode.join(","),
   args.csiVersion,
-  bindAddress
+  bindAddress,
+  bindSocket
 );
-csiServer.bind(bindAddress, grpc.ServerCredentials.createInsecure());
+
+if (bindAddress) {
+  csiServer.bind(bindAddress, grpc.ServerCredentials.createInsecure());
+}
+
+if (bindSocket) {
+  csiServer.bind(bindSocket, grpc.ServerCredentials.createInsecure());
+}
+
 csiServer.start();
+
+[`SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`].forEach(
+  eventType => {
+    process.on(eventType, code => {
+      console.log(`running server shutdown, exit code: ${code}`);
+      let socketPath = args.serverSocket || "";
+      socketPath = socketPath.replace(/^unix:\/\//g, "");
+      if (socketPath && fs.existsSync(socketPath)) {
+        fs.unlinkSync(socketPath);
+      }
+
+      process.exit(code);
+    });
+  }
+);
