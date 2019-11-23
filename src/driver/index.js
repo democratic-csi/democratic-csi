@@ -482,12 +482,34 @@ class CsiBaseDriver {
           }
 
           if (is_attached_to_session) {
-            await iscsi.iscsiadm.logout(session.target, [
-              session.persistent_portal
-            ]);
+            let timer_start;
+            let timer_max;
 
-            let timer_start = Math.round(new Date().getTime() / 1000);
-            let timer_max = 30;
+            timer_start = Math.round(new Date().getTime() / 1000);
+            timer_max = 30;
+            let loggedOut = false;
+            while (!loggedOut) {
+              try {
+                await iscsi.iscsiadm.logout(session.target, [
+                  session.persistent_portal
+                ]);
+                loggedOut = true;
+              } catch (err) {
+                await sleep(2000);
+                let current_time = Math.round(new Date().getTime() / 1000);
+                if (current_time - timer_start > timer_max) {
+                  // not throwing error for now as future invocations would not enter code path anyhow
+                  //loggedOut = true;
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
+                  );
+                }
+              }
+            }
+
+            timer_start = Math.round(new Date().getTime() / 1000);
+            timer_max = 30;
             let deletedEntry = false;
             while (!deletedEntry) {
               try {

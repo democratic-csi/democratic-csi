@@ -422,6 +422,8 @@ class ISCSI {
             .catch(err => {
               if (err.code == 21) {
                 // no matching sessions
+              } else {
+                throw err;
               }
             });
         });
