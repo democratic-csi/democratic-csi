@@ -21,6 +21,36 @@ class CsiBaseDriver {
     this.options = options;
   }
 
+  /**
+   * abstract way of retrieving values from parameters/secrets
+   * in order of preference:
+   *  - democratic-csi.org/{instance_id}/{key}
+   *  - democratic-csi.org/{driver}/{key}
+   *  - {key}
+   *
+   * @param {*} parameters
+   * @param {*} key
+   */
+  getParameterValue(parameters, key) {
+    const base_key = "democratic-csi.org";
+
+    if (
+      this.options.instance_id &&
+      parameters[`${base_key}/${this.options.instance_id}/${key}`]
+    ) {
+      return parameters[`${base_key}/${this.options.instance_id}/${key}`];
+    }
+
+    if (
+      this.options.driver &&
+      parameters[`${base_key}/${this.options.driver}/${key}`]
+    ) {
+      return parameters[`${base_key}/${this.options.driver}/${key}`];
+    }
+
+    return parameters[key];
+  }
+
   async GetPluginInfo(call) {
     return {
       name: this.ctx.args.csiName,

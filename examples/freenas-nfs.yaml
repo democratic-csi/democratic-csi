@@ -1,3 +1,5 @@
+driver: freenas-nfs
+instance_id:
 httpConnection:
   protocol: http
   host: server address

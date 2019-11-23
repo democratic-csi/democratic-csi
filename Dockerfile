@@ -53,5 +53,10 @@ COPY --chown=csi:csi . .
 
 USER root
 
+# remove build deps
+#RUN apt-get update && \
+#        apt-get purge -y python make gcc g++ && \
+#        rm -rf /var/lib/apt/lists/*
+
 EXPOSE 50051
 ENTRYPOINT [ "bin/democratic-csi" ]

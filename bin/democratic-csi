@@ -8,12 +8,6 @@ const args = require("yargs")
   .env("DEMOCRATIC_CSI")
   .scriptName("democratic-csi")
   .usage("$0 [options]")
-  .option("driver", {
-    alias: "d",
-    describe: "driver",
-    choices: ["freenas-nfs", "freenas-iscsi"]
-  })
-  .demandOption(["driver"], "driver is required")
   .option("driver-config-file", {
     describe: "provide a path to driver config file",
     config: true,
@@ -105,7 +99,7 @@ const { FreeNASDriver } = require("../src/driver/freenas");
 logger.info("initializing csi driver: %s", args.driver);
 
 let driver;
-switch (args.driver) {
+switch (options.driver) {
   case "freenas-nfs":
   case "freenas-iscsi":
     driver = new FreeNASDriver({ logger, args, cache, package }, options);

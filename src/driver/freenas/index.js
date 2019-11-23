@@ -18,7 +18,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
    * into various calls such as GetControllerCapabilities etc
    */
   getDriverZfsResourceType() {
-    switch (this.ctx.args.driver) {
+    switch (this.options.driver) {
       case "freenas-nfs":
         return "filesystem";
       case "freenas-iscsi":
@@ -35,7 +35,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   }
 
   getDriverShareType() {
-    switch (this.ctx.args.driver) {
+    switch (this.options.driver) {
       case "freenas-nfs":
         return "nfs";
       case "freenas-iscsi":
