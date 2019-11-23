@@ -455,6 +455,11 @@ class CsiBaseDriver {
       }
     }
 
+    result = await mount.pathIsMounted(normalized_staging_path);
+    if (result) {
+      result = await mount.umount(normalized_staging_path, ["--force"]);
+    }
+
     if (is_block) {
       if (block_device_info.tran == "iscsi") {
         // figure out which iscsi session this belongs to and logout
@@ -499,11 +504,11 @@ class CsiBaseDriver {
                 let current_time = Math.round(new Date().getTime() / 1000);
                 if (current_time - timer_start > timer_max) {
                   // not throwing error for now as future invocations would not enter code path anyhow
-                  //loggedOut = true;
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
-                  );
+                  loggedOut = true;
+                  //throw new GrpcError(
+                  //  grpc.status.UNKNOWN,
+                  //  `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
+                  //);
                 }
               }
             }
@@ -534,11 +539,6 @@ class CsiBaseDriver {
           }
         }
       }
-    }
-
-    result = await mount.pathIsMounted(normalized_staging_path);
-    if (result) {
-      result = await mount.umount(normalized_staging_path, ["--force"]);
     }
 
     if (access_type == "block") {
