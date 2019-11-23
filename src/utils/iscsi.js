@@ -415,23 +415,24 @@ class ISCSI {
         if (!Array.isArray(portals)) {
           portals = [portals];
         }
-        portals.forEach(p => {
-          iscsi
-            .exec(options.paths.iscsiadm, args.concat(["-p", p, "-u"]))
-            .then(() => {})
-            .catch(err => {
-              if (err.code == 21) {
-                // no matching sessions
-              } else {
-                throw err;
-              }
-            });
-        });
+        for (let i = 0; i < portals.length; i++) {
+          let p = portals[i];
+          try {
+            await iscsi.exec(
+              options.paths.iscsiadm,
+              args.concat(["-p", p, "-u"])
+            );
+          } catch (err) {
+            if (err.code == 21) {
+              // no matching sessions
+            } else {
+              throw err;
+            }
+          }
+        }
 
         return true;
-      },
-
-      async deleteDBEntry(tgtIQN) {}
+      }
     };
   }
 

@@ -69,8 +69,6 @@ if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
 const package = require("../package.json");
 args.version = package.version;
 
-console.log(args, options);
-
 //const grpc = require("grpc");
 const grpc = require("grpc-uds");
 const protoLoader = require("@grpc/proto-loader");
