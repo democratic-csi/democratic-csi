@@ -143,7 +143,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 case 1:
                   share = {
                     nfs_paths: [properties.mountpoint.value],
-                    nfs_comment: `democratic-csi (${this.options.csiName}): ${datasetName}`,
+                    nfs_comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
                     nfs_network: this.options.nfs.shareAllowedNetworks.join(
                       ","
                     ),
@@ -161,7 +161,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 case 2:
                   share = {
                     paths: [properties.mountpoint.value],
-                    comment: `democratic-csi (${this.options.csiName}): ${datasetName}`,
+                    comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
                     networks: this.options.nfs.shareAllowedNetworks,
                     hosts: this.options.nfs.shareAllowedHosts,
                     alldirs: this.options.nfs.shareAlldirs,
