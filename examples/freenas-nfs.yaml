@@ -5,7 +5,7 @@ httpConnection:
   host: server address
   port: 80
   username: root
-  password: 
+  password:
   allowInsecure: true
 sshConnection:
   host: server address

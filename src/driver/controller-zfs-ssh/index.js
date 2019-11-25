@@ -351,7 +351,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         case "snapshot":
           try {
             let tmpDetachedClone = JSON.parse(
-              driver.getParameterValue(
+              driver.getNormalizedParameterValue(
                 call.request.parameters,
                 "detachedVolumesFromSnapshots"
               )
@@ -465,7 +465,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         case "volume":
           try {
             let tmpDetachedClone = JSON.parse(
-              driver.getParameterValue(
+              driver.getNormalizedParameterValue(
                 call.request.parameters,
                 "detachedVolumesFromVolumes"
               )
@@ -1363,7 +1363,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let detachedSnapshot = false;
     try {
       let tmpDetachedSnapshot = JSON.parse(
-        driver.getParameterValue(call.request.parameters, "detachedSnapshots")
+        driver.getNormalizedParameterValue(call.request.parameters, "detachedSnapshots")
       ); // snapshot class parameter
       if (typeof tmpDetachedSnapshot === "boolean") {
         detachedSnapshot = tmpDetachedSnapshot;

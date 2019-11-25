@@ -93,33 +93,33 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 const csi = protoDescriptor.csi.v1;
 
-// include available drivers
-const { FreeNASDriver } = require("../src/driver/freenas");
-
 logger.info("initializing csi driver: %s", options.driver);
 
 let driver;
-switch (options.driver) {
-  case "freenas-nfs":
-  case "freenas-iscsi":
-    driver = new FreeNASDriver({ logger, args, cache, package }, options);
-    break;
-  default:
-    logger.error("invalid csi driver: %s", args.driver);
-    break;
+try {
+  driver = require("../src/driver/factory").factory({ logger, args, cache, package }, options);
+} catch (err) {
+  logger.error(err.toString());
+  process.exit(1);
 }
 
 async function requestHandlerProxy(call, callback, serviceMethodName) {
+  const cleansedCall = JSON.parse(JSON.stringify(call));
+  for (const key in cleansedCall.request) {
+    if (key.includes("secret")) {
+      cleansedCall.request[key] = "redacted";
+    }
+  }
   try {
-    logger.debug(
+    logger.info(
       "new request - driver: %s method: %s call: %j",
       driver.constructor.name,
       serviceMethodName,
-      call
+      cleansedCall
     );
     //const response = await handler.call(driver, call);
     const response = await driver[serviceMethodName](call);
-    logger.debug(
+    logger.info(
       "new response - driver: %s method: %s response: %j",
       driver.constructor.name,
       serviceMethodName,
@@ -133,7 +133,7 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       serviceMethodName,
       JSON.stringify(e)
     );
-    console.log(e);
+
     if (e.name == "GrpcError") {
       callback(e);
     } else {

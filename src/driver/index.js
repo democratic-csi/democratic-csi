@@ -1,5 +1,4 @@
 const os = require("os");
-const path = require("path");
 const grpc = require("grpc");
 const fs = require("fs");
 const { GrpcError } = require("../utils/grpc");
@@ -31,24 +30,40 @@ class CsiBaseDriver {
    * @param {*} parameters
    * @param {*} key
    */
-  getParameterValue(parameters, key) {
+  getNormalizedParameterValue(parameters, key) {
+    const normalized = this.getNormalizedParameters(parameters);
+    return normalized[key];
+  }
+
+  getNormalizedParameters(parameters) {
+    const normalized = JSON.parse(JSON.stringify(parameters));
     const base_key = "democratic-csi.org";
+    for (const key in parameters) {
+      let normalizedKey;
+      let prefixLength;
+      if (key.startsWith(`${base_key}/${this.options.instance_id}/`)) {
+        prefixLength = `${base_key}/${this.options.instance_id}/`.length;
+        normalizedKey = key.slice(prefixLength);
+        normalized[normalizedKey] = parameters[key];
+        delete normalized[key];
+      }
 
-    if (
-      this.options.instance_id &&
-      parameters[`${base_key}/${this.options.instance_id}/${key}`]
-    ) {
-      return parameters[`${base_key}/${this.options.instance_id}/${key}`];
+      if (key.startsWith(`${base_key}/${this.options.driver}/`)) {
+        prefixLength = `${base_key}/${this.options.driver}/`.length;
+        normalizedKey = key.slice(prefixLength);
+        normalized[normalizedKey] = parameters[key];
+        delete normalized[key];
+      }
+
+      if (key.startsWith(`${base_key}/`)) {
+        prefixLength = `${base_key}/`.length;
+        normalizedKey = key.slice(prefixLength);
+        normalized[normalizedKey] = parameters[key];
+        delete normalized[key];
+      }
     }
 
-    if (
-      this.options.driver &&
-      parameters[`${base_key}/${this.options.driver}/${key}`]
-    ) {
-      return parameters[`${base_key}/${this.options.driver}/${key}`];
-    }
-
-    return parameters[key];
+    return normalized;
   }
 
   async GetPluginInfo(call) {
