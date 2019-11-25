@@ -294,10 +294,11 @@ class CsiBaseDriver {
         // create DB entry
         let nodeDB = {};
         const nodeDBKeyPrefix = "node-db.";
-        for (const key in call.request.secrets) {
+        const normalizedSecrets = this.getNormalizedParameters(call.request.secrets);
+        for (const key in normalizedSecrets) {
           if (key.startsWith(nodeDBKeyPrefix)) {
             nodeDB[key.substr(nodeDBKeyPrefix.length)] =
-              call.request.secrets[key];
+              normalizedSecrets[key];
           }
         }
         await iscsi.iscsiadm.createNodeDBEntry(
