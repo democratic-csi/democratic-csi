@@ -21,6 +21,11 @@ const SNAPSHOT_CSI_NAME_PROPERTY_NAME = "democratic-csi:csi_snapshot_name";
 const SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME =
   "democratic-csi:csi_snapshot_source_volume_id";
 
+const VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME =
+  "democratic-csi:volume_context_provisioner_driver";
+const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
+  "democratic-csi:volume_context_provisioner_instance_id";
+
 /**
  * Base driver to provisin zfs assets over ssh.
  * Derived drivers only need to implement:
@@ -326,6 +331,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let volumeProperties = {};
     volumeProperties[VOLUME_CSI_NAME_PROPERTY_NAME] = name;
     volumeProperties[MANAGED_PROPERTY_NAME] = "true";
+    volumeProperties[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME] =
+      driver.options.driver;
+    if (driver.options.instance_id) {
+      volumeProperties[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME] =
+        driver.options.instance_id;
+    }
 
     // TODO: also set access_mode as property?
     // TODO: also set fsType as property?
@@ -677,6 +688,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]:
         "'" + JSON.stringify(volume_context) + "'"
     });
+
+    volume_context["provisioner_driver"] = driver.options.driver;
+    if (driver.options.instance_id) {
+      volume_context["provisioner_driver_instance_id"] =
+        driver.options.instance_id;
+    }
 
     // set this just before sending out response so we know if volume completed
     // this should give us a relatively sane way to clean up artifacts over time
@@ -1034,7 +1051,9 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           "volsize",
           MANAGED_PROPERTY_NAME,
           SHARE_VOLUME_CONTEXT_PROPERTY_NAME,
-          SUCCESS_PROPERTY_NAME
+          SUCCESS_PROPERTY_NAME,
+          VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME,
+          VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME
         ],
         { types, recurse: true }
       );
@@ -1064,6 +1083,25 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       }
 
       let volume_content_source;
+      let volume_context = JSON.parse(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME]);
+      if (
+        zb.helpers.isPropertyValueSet(
+          row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME]
+        )
+      ) {
+        volume_context["provisioner_driver"] =
+          row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME];
+      }
+
+      if (
+        zb.helpers.isPropertyValueSet(
+          row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME]
+        )
+      ) {
+        volume_context["provisioner_driver_instance_id"] =
+          row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME];
+      }
+
       if (
         zb.helpers.isPropertyValueSet(
           row[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME]
@@ -1096,7 +1134,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               ? row["refquota"]
               : row["volsize"],
           content_source: volume_content_source,
-          volume_context: JSON.parse(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME])
+          volume_context
         }
       });
     });
@@ -1363,7 +1401,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let detachedSnapshot = false;
     try {
       let tmpDetachedSnapshot = JSON.parse(
-        driver.getNormalizedParameterValue(call.request.parameters, "detachedSnapshots")
+        driver.getNormalizedParameterValue(
+          call.request.parameters,
+          "detachedSnapshots"
+        )
       ); // snapshot class parameter
       if (typeof tmpDetachedSnapshot === "boolean") {
         detachedSnapshot = tmpDetachedSnapshot;

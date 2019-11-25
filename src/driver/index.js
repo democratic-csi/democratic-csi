@@ -30,26 +30,33 @@ class CsiBaseDriver {
    * @param {*} parameters
    * @param {*} key
    */
-  getNormalizedParameterValue(parameters, key) {
-    const normalized = this.getNormalizedParameters(parameters);
+  getNormalizedParameterValue(parameters, key, driver, instance_id) {
+    const normalized = this.getNormalizedParameters(
+      parameters,
+      driver,
+      instance_id
+    );
     return normalized[key];
   }
 
-  getNormalizedParameters(parameters) {
+  getNormalizedParameters(parameters, driver, instance_id) {
     const normalized = JSON.parse(JSON.stringify(parameters));
     const base_key = "democratic-csi.org";
+    driver = driver || this.options.driver;
+    instance_id = instance_id || this.options.instance_id;
+
     for (const key in parameters) {
       let normalizedKey;
       let prefixLength;
-      if (key.startsWith(`${base_key}/${this.options.instance_id}/`)) {
-        prefixLength = `${base_key}/${this.options.instance_id}/`.length;
+      if (instance_id && key.startsWith(`${base_key}/${instance_id}/`)) {
+        prefixLength = `${base_key}/${instance_id}/`.length;
         normalizedKey = key.slice(prefixLength);
         normalized[normalizedKey] = parameters[key];
         delete normalized[key];
       }
 
-      if (key.startsWith(`${base_key}/${this.options.driver}/`)) {
-        prefixLength = `${base_key}/${this.options.driver}/`.length;
+      if (driver && key.startsWith(`${base_key}/${driver}/`)) {
+        prefixLength = `${base_key}/${driver}/`.length;
         normalizedKey = key.slice(prefixLength);
         normalized[normalizedKey] = parameters[key];
         delete normalized[key];
@@ -294,11 +301,14 @@ class CsiBaseDriver {
         // create DB entry
         let nodeDB = {};
         const nodeDBKeyPrefix = "node-db.";
-        const normalizedSecrets = this.getNormalizedParameters(call.request.secrets);
+        const normalizedSecrets = this.getNormalizedParameters(
+          call.request.secrets,
+          call.request.volume_context.provisioner_driver,
+          call.request.volume_context.provisioner_driver_instance_id
+        );
         for (const key in normalizedSecrets) {
           if (key.startsWith(nodeDBKeyPrefix)) {
-            nodeDB[key.substr(nodeDBKeyPrefix.length)] =
-              normalizedSecrets[key];
+            nodeDB[key.substr(nodeDBKeyPrefix.length)] = normalizedSecrets[key];
           }
         }
         await iscsi.iscsiadm.createNodeDBEntry(
