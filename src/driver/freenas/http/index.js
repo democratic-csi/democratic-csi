@@ -44,7 +44,6 @@ class Client {
 
   async get(endpoint, data) {
     const client = this;
-    // curl -X GET "http://bitness.lan/api/v2.0/core/ping" -H  "accept: */*"
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
@@ -58,7 +57,10 @@ class Client {
           "User-Agent": USER_AGENT
         },
         json: true,
-        qs: data
+        qs: data,
+        agentOptions: {
+          rejectUnauthorized: !!!client.options.allowInsecure
+        }
       };
       request(options, function(err, res, body) {
         client.log_repsonse(...arguments, options);
@@ -73,7 +75,6 @@ class Client {
 
   async post(endpoint, data) {
     const client = this;
-    // curl -X POST "http://bitness.lan/api/v2.0/core/get_methods" -H  "accept: */*" -H  "Content-Type: application/json" -d "\"string\""
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
@@ -87,7 +88,10 @@ class Client {
           "User-Agent": USER_AGENT
         },
         json: true,
-        body: data
+        body: data,
+        agentOptions: {
+          rejectUnauthorized: !!!client.options.allowInsecure
+        }
       };
       request(options, function(err, res, body) {
         client.log_repsonse(...arguments, options);
@@ -102,7 +106,6 @@ class Client {
 
   async put(endpoint, data) {
     const client = this;
-    // curl -X PUT "http://bitness.lan/api/v2.0/sharing/smb/id/1" -H  "accept: */*" -H  "Content-Type: application/json" -d "{\"path\":\"string\",\"home\":true,\"name\":\"string\",\"comment\":\"string\",\"ro\":true,\"browsable\":true,\"timemachine\":true,\"recyclebin\":true,\"showhiddenfiles\":true,\"guestok\":true,\"guestonly\":true,\"abe\":true,\"hostsallow\":[null],\"hostsdeny\":[null],\"vfsobjects\":[null],\"storage_task\":0,\"auxsmbconf\":\"string\",\"default_permissions\":true}"
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
@@ -116,7 +119,10 @@ class Client {
           "User-Agent": USER_AGENT
         },
         json: true,
-        body: data
+        body: data,
+        agentOptions: {
+          rejectUnauthorized: !!!client.options.allowInsecure
+        }
       };
       request(options, function(err, res, body) {
         client.log_repsonse(...arguments, options);
@@ -129,10 +135,8 @@ class Client {
     });
   }
 
-  //Unauthorized
   async delete(endpoint, data) {
     const client = this;
-    // curl -X DELETE "http://bitness.lan/api/v2.0/sharing/smb/id/1" -H  "accept: */*" -H  "Content-Type: application/json" -d "{}"
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
@@ -146,7 +150,10 @@ class Client {
           "User-Agent": USER_AGENT
         },
         json: true,
-        body: data
+        body: data,
+        agentOptions: {
+          rejectUnauthorized: !!!client.options.allowInsecure
+        }
       };
       request(options, function(err, res, body) {
         client.log_repsonse(...arguments, options);
