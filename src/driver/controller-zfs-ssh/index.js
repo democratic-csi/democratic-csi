@@ -38,6 +38,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   constructor(ctx, options) {
     super(...arguments);
 
+    options = options || {};
+    options.service = options.service || {};
+    options.service.identity = options.service.identity || {};
+    options.service.controller = options.service.controller || {};
+    options.service.node = options.service.node || {};
+
     options.service.identity.capabilities =
       options.service.identity.capabilities || {};
 
