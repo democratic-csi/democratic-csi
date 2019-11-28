@@ -708,9 +708,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     const res = {
       volume: {
         volume_id: name,
-        capacity_bytes: this.options.zfs.datasetEnableQuotas
-          ? capacity_bytes
-          : 0,
+        capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
+        //capacity_bytes: this.options.zfs.datasetEnableQuotas
+        //  ? capacity_bytes
+        //  : 0,
         content_source: volume_content_source,
         volume_context
       }
