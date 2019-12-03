@@ -53,8 +53,9 @@ class Client {
         method: "GET",
         url: this.getBaseURL() + endpoint,
         headers: {
-          Accept: "*/*",
-          "User-Agent": USER_AGENT
+          Accept: "application/json",
+          "User-Agent": USER_AGENT,
+          "Content-Type": "application/json"
         },
         json: true,
         qs: data,
@@ -84,8 +85,9 @@ class Client {
         method: "POST",
         url: this.getBaseURL() + endpoint,
         headers: {
-          Accept: "*/*",
-          "User-Agent": USER_AGENT
+          Accept: "application/json",
+          "User-Agent": USER_AGENT,
+          "Content-Type": "application/json"
         },
         json: true,
         body: data,
@@ -115,8 +117,9 @@ class Client {
         method: "PUT",
         url: this.getBaseURL() + endpoint,
         headers: {
-          Accept: "*/*",
-          "User-Agent": USER_AGENT
+          Accept: "application/json",
+          "User-Agent": USER_AGENT,
+          "Content-Type": "application/json"
         },
         json: true,
         body: data,
@@ -146,8 +149,9 @@ class Client {
         method: "DELETE",
         url: this.getBaseURL() + endpoint,
         headers: {
-          Accept: "*/*",
-          "User-Agent": USER_AGENT
+          Accept: "application/json",
+          "User-Agent": USER_AGENT,
+          "Content-Type": "application/json"
         },
         json: true,
         body: data,
