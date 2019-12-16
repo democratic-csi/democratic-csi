@@ -1,0 +1,33 @@
+driver: zfs-generic-nfs
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+service:
+  identity: {}
+  controller: {}
+  node: {}
+zfs:
+  datasetParentName: tank/k8s/test
+  detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
+
+  datasetEnableQuotas: true
+  datasetEnableReservation: false
+  datasetPermissionsMode: "0777"
+  datasetPermissionsUser: root
+  datasetPermissionsGroup: root
+nfs:
+  # https://docs.oracle.com/cd/E23824_01/html/821-1448/gayne.html
+  # https://www.hiroom2.com/2016/05/18/ubuntu-16-04-share-zfs-storage-via-nfs-smb/
+  shareStrategy: "setDatasetProperties"
+  shareStrategySetDatasetProperties:
+    properties:
+      sharenfs: "on"
+      # share: ""
+  shareHost: "server address"

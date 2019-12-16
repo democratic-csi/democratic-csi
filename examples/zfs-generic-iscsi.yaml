@@ -1,0 +1,60 @@
+driver: zfs-generic-iscsi
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+service:
+  identity: {}
+  controller: {}
+  node: {}
+zfs:
+  datasetParentName: tank/k8s/test
+  detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
+
+  # "" (inherit), lz4, gzip-9, etc
+  zvolCompression:
+  # "" (inherit), on, off, verify
+  zvolDedup:
+  zvolEnableReservation: false
+  # 512, 1K, 2K, 4K, 8K, 16K, 64K, 128K default is 16K
+  zvolBlocksize:
+
+iscsi:
+  shareStrategy: "targetCli"
+
+  # https://kifarunix.com/how-to-install-and-configure-iscsi-storage-server-on-ubuntu-18-04/
+  # https://kifarunix.com/how-install-and-configure-iscsi-storage-server-on-centos-7/
+  # https://linuxlasse.net/linux/howtos/ISCSI_and_ZFS_ZVOL
+  # http://www.linux-iscsi.org/wiki/ISCSI
+  # https://bugzilla.redhat.com/show_bug.cgi?id=1659195
+  # http://atodorov.org/blog/2015/04/07/how-to-configure-iscsi-target-on-red-hat-enterprise-linux-7/
+  shareStragetyTargetCli:
+    basename: "iqn.2003-01.org.linux-iscsi.ubuntu-19.x8664"
+    tpg:
+      attributes:
+        # set to 1 to enable CHAP
+        authentication: 0
+        # this is required currently as we do not register all node iqns
+        # the effective outcome of this is, allow all iqns to connect
+        generate_node_acls: 1
+        cache_dynamic_acls: 1
+        # if generate_node_acls is 1 then must turn this off as well (assuming you want write ability)
+        demo_mode_write_protect: 0
+      auth:
+        # CHAP
+        #userid: "foo"
+        #password: "bar"
+        # mutual CHAP
+        #mutual_userid: "baz"
+        #mutual_password: "bar"  
+  targetPortal: "server address"
+  targetPortals: []
+  interface: ""
+  namePrefix:
+  nameSuffix:
