@@ -295,11 +295,15 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           ? this.options.iscsi.extentRpm
           : "SSD";
 
-        const extentAvailThreshold = this.options.iscsi.hasOwnProperty(
+        let extentAvailThreshold = this.options.iscsi.hasOwnProperty(
           "extentAvailThreshold"
         )
-          ? this.options.iscsi.extentAvailThreshold
+          ? Number(this.options.iscsi.extentAvailThreshold)
           : null;
+
+        if (!(extentAvailThreshold > 0 && extentAvailThreshold <= 100)) {
+          extentAvailThreshold = null;
+        }
 
         switch (apiVersion) {
           case 1: {
