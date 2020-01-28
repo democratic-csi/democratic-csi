@@ -851,7 +851,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               response = await httpClient.get(endpoint);
 
               // assume share is gone for now
-              if ([500].includes(response.statusCode)) {
+              if ([404, 500].includes(response.statusCode)) {
               } else {
                 response = await httpClient.delete(endpoint);
 
@@ -919,7 +919,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             response = await httpClient.get(endpoint);
 
             // assume is gone for now
-            if ([500].includes(response.statusCode)) {
+            if ([404, 500].includes(response.statusCode)) {
             } else {
               response = await httpClient.delete(endpoint);
               if (![200, 204].includes(response.statusCode)) {
@@ -943,7 +943,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             response = await httpClient.get(endpoint);
 
             // assume is gone for now
-            if ([500].includes(response.statusCode)) {
+            if ([404, 500].includes(response.statusCode)) {
             } else {
               response = await httpClient.delete(endpoint);
               if (![200, 204].includes(response.statusCode)) {
