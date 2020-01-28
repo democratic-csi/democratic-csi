@@ -790,7 +790,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           node_attach_driver: "iscsi",
           portal: this.options.iscsi.targetPortal,
           portals: this.options.iscsi.targetPortals.join(","),
-          interface: this.options.iscsi.interface,
+          interface: this.options.iscsi.interface || "",
           //chapDiscoveryEnabled: this.options.iscsi.chapDiscoveryEnabled,
           //chapSessionEnabled: this.options.iscsi.chapSessionEnabled,
           iqn: iqn,
