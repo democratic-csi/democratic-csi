@@ -1,23 +1,20 @@
 FROM debian:10-slim
 
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
 RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* \
         && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
-ENV LANG en_US.utf8
+ENV LANG=en_US.utf8 NODE_VERSION=v12.15.0
+
+RUN echo "I am running on $BUILDPLATFORM, building for $TARGETPLATFORM"
 
 # install node
-ENV NODE_VERSION=v12.13.1
-ENV NODE_DISTRO=linux-x64
-
-RUN apt-get update && \
-        apt-get install -y wget xz-utils && \
-        wget https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz > /dev/null 2>&1 && \
-        mkdir -p /usr/local/lib/nodejs && \
-        tar -xJf node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz -C /usr/local/lib/nodejs && \
-        rm node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz && \
-        rm -rf /var/lib/apt/lists/*
-
-ENV PATH=/usr/local/lib/nodejs/node-${NODE_VERSION}-${NODE_DISTRO}/bin:$PATH
+RUN apt-get update && apt-get install -y wget xz-utils
+ADD docker/node-installer.sh /usr/local/sbin
+RUN chmod +x /usr/local/sbin/node-installer.sh && node-installer.sh
+ENV PATH=/usr/local/lib/nodejs/bin:$PATH
 
 # node service requirements
 RUN apt-get update && \

@@ -1,23 +1,30 @@
-# if: tag IS present
-language: node_js
-node_js:
-- "12"
+dist: bionic
 sudo: required
-services:
-- docker
-install: true
+
+before_install:
+  - curl -fsSL https://get.docker.com | sh
+  - echo '{"experimental":"enabled"}' | sudo tee /etc/docker/daemon.json
+  - mkdir -p $HOME/.docker
+  - echo '{"experimental":"enabled"}' | sudo tee $HOME/.docker/config.json
+  - sudo service docker start
+  - docker info
+install:
+  - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+  - docker buildx create --name xbuilder --use
+  - docker buildx inspect --bootstrap
+
 script: true
 deploy:
-- provider: script
-  script: bash .travis/docker-release.sh
-  skip_cleanup: true
-  on:
-    repo: democratic-csi/democratic-csi
-    all_branches: true
-    condition: $TRAVIS_BRANCH =~ ^master|next$
-- provider: script
-  script: bash .travis/docker-release.sh
-  skip_cleanup: true
-  on:
-    repo: democratic-csi/democratic-csi
-    tags: true
+  - provider: script
+    script: bash .travis/docker-release.sh
+    skip_cleanup: true
+    on:
+      repo: democratic-csi/democratic-csi
+      all_branches: true
+      condition: $TRAVIS_BRANCH =~ ^master|next$
+  - provider: script
+    script: bash .travis/docker-release.sh
+    skip_cleanup: true
+    on:
+      repo: democratic-csi/democratic-csi
+      tags: true
