@@ -1,7 +1,6 @@
-const grpc = require("grpc");
 const { CsiBaseDriver } = require("../index");
 const SshClient = require("../../utils/ssh").SshClient;
-const { GrpcError } = require("../../utils/grpc");
+const { GrpcError, grpc } = require("../../utils/grpc");
 
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 

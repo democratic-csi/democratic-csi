@@ -21,7 +21,6 @@
     "@grpc/proto-loader": "^0.5.3",
     "bunyan": "^1.8.12",
     "eslint": "^6.6.0",
-    "grpc": "^1.24.2",
     "grpc-uds": "^0.1.4",
     "js-yaml": "^3.13.1",
     "lru-cache": "^5.1.1",

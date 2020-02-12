@@ -1,7 +1,6 @@
 const os = require("os");
-const grpc = require("grpc");
 const fs = require("fs");
-const { GrpcError } = require("../utils/grpc");
+const { GrpcError, grpc } = require("../utils/grpc");
 const { Mount } = require("../utils/mount");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");

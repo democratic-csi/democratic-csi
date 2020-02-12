@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --nouse-idle-notification --expose-gc --max-old-space-size=8192
+#!/usr/bin/env -S node --nouse-idle-notification --expose-gc
 
 const yaml = require("js-yaml");
 const fs = require("fs");

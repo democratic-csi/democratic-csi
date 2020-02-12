@@ -1,6 +1,5 @@
-const grpc = require("grpc");
 const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
-const { GrpcError } = require("../../utils/grpc");
+const { GrpcError, grpc } = require("../../utils/grpc");
 
 class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
   /**

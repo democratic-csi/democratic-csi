@@ -7,3 +7,4 @@ class GrpcError {
 }
 
 module.exports.GrpcError = GrpcError;
+module.exports.grpc = require("grpc-uds");
