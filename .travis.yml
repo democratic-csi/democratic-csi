@@ -1,5 +1,9 @@
 dist: bionic
 sudo: required
+env:
+  - DOCKER_BUILD_PLATFORM=linux/amd64
+  - DOCKER_BUILD_PLATFORM=linux/arm/v7
+  - DOCKER_BUILD_PLATFORM=linux/arm64
 
 before_install:
   - curl -fsSL https://get.docker.com | sh
