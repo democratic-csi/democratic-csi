@@ -1,11 +1,18 @@
 dist: bionic
 sudo: required
-env:
-  - DOCKER_BUILD_PLATFORM=linux/amd64
-  - DOCKER_BUILD_PLATFORM=linux/arm/v7
-  - DOCKER_BUILD_PLATFORM=linux/arm64
+
+arch:
+  - amd64
+  - arm64
+
+#env:
+#  - DOCKER_BUILD_PLATFORM=linux/amd64,linux/arm/v7,linux/arm64
+#  - DOCKER_BUILD_PLATFORM=linux/arm/v7
+#  - DOCKER_BUILD_PLATFORM=linux/arm64
+#  - FOO=bar BAR=baz
 
 before_install:
+  - uname -a
   - curl -fsSL https://get.docker.com | sh
   - echo '{"experimental":"enabled"}' | sudo tee /etc/docker/daemon.json
   - mkdir -p $HOME/.docker
