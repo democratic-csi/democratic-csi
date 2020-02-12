@@ -1,3 +1,4 @@
+# https://medium.com/@quentin.mcgaw/cross-architecture-docker-builds-with-travis-ci-arm-s390x-etc-8f754e20aaef
 dist: bionic
 sudo: required
 
@@ -14,10 +15,10 @@ env:
 #    - DOCKER_BUILD_PLATFORM=linux/arm64
 #    - FOO=bar BAR=baz
 
-addons:
-  apt:
-    packages:
-      - docker-ce
+#addons:
+#  apt:
+#    packages:
+#      - docker-ce
 
 # uname -m
 #  aarch64
@@ -25,11 +26,17 @@ addons:
 #  armv7l
 before_install:
   - uname -a
+  - sudo apt-get remove docker docker-engine docker.io
+  - curl -fsSL https://get.docker.com | sh
+  - echo '{"experimental":"enabled"}' | sudo tee /etc/docker/daemon.json
+  - mkdir -p $HOME/.docker
+  - echo '{"experimental":"enabled"}' | sudo tee $HOME/.docker/config.json
+  - sudo service docker start
   - export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
   - mkdir -p ~/.docker/cli-plugins/
   - wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-${ARCH}
   - chmod a+x ~/.docker/cli-plugins/docker-buildx
-  - cat /etc/docker/daemon.json
+  - sudo cat /etc/docker/daemon.json
   - docker info
   - docker buildx version
 install:
