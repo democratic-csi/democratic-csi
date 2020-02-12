@@ -14,6 +14,11 @@ env:
 #    - DOCKER_BUILD_PLATFORM=linux/arm64
 #    - FOO=bar BAR=baz
 
+addons:
+  apt:
+    packages:
+      - docker-ce
+
 # uname -m
 #  aarch64
 #  x86_64
@@ -24,9 +29,7 @@ before_install:
   - mkdir -p ~/.docker/cli-plugins/
   - wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-${ARCH}
   - chmod a+x ~/.docker/cli-plugins/docker-buildx
-  - echo '{"experimental":"enabled"}' | sudo tee /etc/docker/daemon.json
-  - mkdir -p $HOME/.docker
-  - echo '{"experimental":"enabled"}' | sudo tee $HOME/.docker/config.json
+  - cat /etc/docker/daemon.json
   - docker info
   - docker buildx version
 install:
