@@ -30,3 +30,4 @@ jobs:
           .github/bin/docker-release.sh
         env:
           DOCKER_CLI_EXPERIMENTAL: enabled
+          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm/v7,linux/arm64
