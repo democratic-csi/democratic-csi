@@ -1,0 +1,20 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: docker build
+      run: |
+        export DOCKER_CLI_EXPERIMENTAL=enabled
+        export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
+        mkdir -p ~/.docker/cli-plugins/
+        wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-${ARCH}
+        chmod a+x ~/.docker/cli-plugins/docker-buildx
+        docker info
+        docker buildx version
