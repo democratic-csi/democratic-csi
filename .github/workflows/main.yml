@@ -16,7 +16,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: docker build
         run: |
-          env
           export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
           mkdir -p ~/.docker/cli-plugins/
           wget -qO ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-${ARCH}

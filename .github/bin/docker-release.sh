@@ -6,8 +6,11 @@ export DOCKER_ORG="democraticcsi"
 export DOCKER_PROJECT="democratic-csi"
 export DOCKER_REPO="${DOCKER_ORG}/${DOCKER_PROJECT}"
 
-export GIT_BRANCH=${GITHUB_REF#refs/heads/}
-export GIT_TAG=${GITHUB_TAG}
+if [[ $GITHUB_REF == refs/tags/* ]]; then
+  export GIT_TAG=${GITHUB_REF#refs/tags/}
+else
+  export GIT_BRANCH=${GITHUB_REF#refs/heads/}
+fi
 
 if [[ -n "${GIT_TAG}" ]]; then
   docker buildx build --progress plain --pull --push --platform "${DOCKER_BUILD_PLATFORM}" -t ${DOCKER_REPO}:${GIT_TAG} .
