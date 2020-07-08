@@ -33,6 +33,10 @@ Predominantly 2 things are needed:
 
 You should install/configure the requirements for both nfs and iscsi.
 
+If you are running Kubernetes with rancher/rke please see the following:
+
+- https://github.com/rancher/rke/issues/1846
+
 ## Helm Installation
 
 ```
