@@ -18,8 +18,14 @@ const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
  * https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/20190122-csi-inline-volumes.md
  * https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html
  *
+ * Sample calls:
+ *  - https://gcsweb.k8s.io/gcs/kubernetes-jenkins/pr-logs/pull/92387/pull-kubernetes-e2e-gce/1280784994997899264/artifacts/_sig-storage_CSI_Volumes/_Driver_csi-hostpath_/_Testpattern_inline_ephemeral_CSI_volume_ephemeral/should_create_read_write_inline_ephemeral_volume/
+ *  - https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/92387/pull-kubernetes-e2e-gce/1280784994997899264/artifacts/_sig-storage_CSI_Volumes/_Driver_csi-hostpath_/_Testpattern_inline_ephemeral_CSI_volume_ephemeral/should_create_read-only_inline_ephemeral_volume/csi-hostpathplugin-0-hostpath.log
+ *
  * inline drivers are assumed to be mount only (no block support)
  * purposely there is no native support for size contraints
+ *
+ * TODO: support creating zvols and formatting and mounting locally instead of using zfs dataset?
  *
  */
 class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
@@ -127,7 +133,8 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
   }
 
   assertCapabilities(capabilities) {
-    const driverZfsResourceType = this.getDriverZfsResourceType();
+    // hard code this for now
+    const driverZfsResourceType = "filesystem";
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
@@ -142,9 +149,17 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
 
           if (
             capability.mount.fs_type &&
-            !["nfs"].includes(capability.mount.fs_type)
+            !["zfs"].includes(capability.mount.fs_type)
           ) {
             message = `invalid fs_type ${capability.mount.fs_type}`;
+            return false;
+          }
+
+          if (
+            capability.mount.mount_flags &&
+            capability.mount.mount_flags.length > 0
+          ) {
+            message = `invalid mount_flags ${capability.mount.mount_flags}`;
             return false;
           }
 
@@ -153,9 +168,6 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
               "SINGLE_NODE_READER_ONLY",
-              "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER",
-              "MULTI_NODE_MULTI_WRITER",
             ].includes(capability.access_mode.mode)
           ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
@@ -181,8 +193,6 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
               "SINGLE_NODE_READER_ONLY",
-              "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER",
             ].includes(capability.access_mode.mode)
           ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
@@ -201,6 +211,27 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    * the mountpoint is the target_path
    *
    * Any volume_context attributes starting with property.<name> will be set as zfs properties
+   * 
+   * {
+      "target_path": "/var/lib/kubelet/pods/f8b237db-19e8-44ae-b1d2-740c9aeea702/volumes/kubernetes.io~csi/my-volume-0/mount",
+      "volume_capability": {
+        "AccessType": {
+          "Mount": {}
+        },
+        "access_mode": {
+          "mode": 1
+        }
+      },
+      "volume_context": {
+        "csi.storage.k8s.io/ephemeral": "true",
+        "csi.storage.k8s.io/pod.name": "inline-volume-tester-2ptb7",
+        "csi.storage.k8s.io/pod.namespace": "ephemeral-468",
+        "csi.storage.k8s.io/pod.uid": "f8b237db-19e8-44ae-b1d2-740c9aeea702",
+        "csi.storage.k8s.io/serviceAccount.name": "default",
+        "foo": "bar"
+      },
+      "volume_id": "csi-8228252978a824126924de00126e6aec7c989a48a39d577bd3ab718647df5555"
+    }
    *
    * @param {*} call
    */
@@ -240,6 +271,14 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
       );
     }
 
+    if (capability) {
+      const result = this.assertCapabilities([capability]);
+
+      if (result.valid !== true) {
+        throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
+      }
+    }
+
     const datasetName = datasetParentName + "/" + name;
 
     // TODO: support arbitrary values from config
@@ -271,6 +310,11 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     // NOTE: setting mountpoint will automatically create the full path as necessary so no need for mkdir etc
     volumeProperties["mountpoint"] = target_path;
 
+    // does not really make sense for ephemeral volumes..but we'll put it here in case
+    if (readonly) {
+      volumeProperties["readonly"] = "on";
+    }
+
     // set driver config properties
     if (this.options.zfs.properties) {
       Object.keys(driver.options.zfs.properties).forEach(function (key) {
@@ -296,6 +340,11 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
 
   /**
    * This should destroy the dataset and remove target_path as appropriate
+   * 
+   *{
+      "target_path": "/var/lib/kubelet/pods/f8b237db-19e8-44ae-b1d2-740c9aeea702/volumes/kubernetes.io~csi/my-volume-0/mount",
+      "volume_id": "csi-8228252978a824126924de00126e6aec7c989a48a39d577bd3ab718647df5555"
+    }
    *
    * @param {*} call
    */
