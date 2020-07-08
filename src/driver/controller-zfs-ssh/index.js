@@ -3,6 +3,7 @@ const SshClient = require("../../utils/ssh").SshClient;
 const { GrpcError, grpc } = require("../../utils/grpc");
 
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
+const uuidv4 = require("uuid").v4;
 
 // zfs common properties
 const MANAGED_PROPERTY_NAME = "democratic-csi:managed_resource";
@@ -56,7 +57,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
       options.service.identity.capabilities.service = [
         //"UNKNOWN",
-        "CONTROLLER_SERVICE"
+        "CONTROLLER_SERVICE",
         //"VOLUME_ACCESSIBILITY_CONSTRAINTS"
       ];
     }
@@ -66,7 +67,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
       options.service.identity.capabilities.volume_expansion = [
         //"UNKNOWN",
-        "ONLINE"
+        "ONLINE",
         //"OFFLINE"
       ];
     }
@@ -84,7 +85,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         "LIST_SNAPSHOTS",
         "CLONE_VOLUME",
         //"PUBLISH_READONLY",
-        "EXPAND_VOLUME"
+        "EXPAND_VOLUME",
       ];
     }
 
@@ -96,7 +97,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           options.service.node.capabilities.rpc = [
             //"UNKNOWN",
             "STAGE_UNSTAGE_VOLUME",
-            "GET_VOLUME_STATS"
+            "GET_VOLUME_STATS",
             //"EXPAND_VOLUME"
           ];
           break;
@@ -105,7 +106,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             //"UNKNOWN",
             "STAGE_UNSTAGE_VOLUME",
             "GET_VOLUME_STATS",
-            "EXPAND_VOLUME"
+            "EXPAND_VOLUME",
           ];
           break;
       }
@@ -115,7 +116,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   getSshClient() {
     return new SshClient({
       logger: this.ctx.logger,
-      connection: this.options.sshConnection
+      connection: this.options.sshConnection,
     });
   }
 
@@ -123,7 +124,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     const sshClient = this.getSshClient();
     return new Zetabyte({
       executor: new ZfsSshProcessManager(sshClient),
-      idempotent: true
+      idempotent: true,
     });
   }
 
@@ -160,7 +161,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     let message = null;
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
-    const valid = capabilities.every(capability => {
+    const valid = capabilities.every((capability) => {
       switch (driverZfsResourceType) {
         case "filesystem":
           if (capability.access_type != "mount") {
@@ -183,7 +184,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
-              "MULTI_NODE_MULTI_WRITER"
+              "MULTI_NODE_MULTI_WRITER",
             ].includes(capability.access_mode.mode)
           ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
@@ -210,7 +211,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               "SINGLE_NODE_WRITER",
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER"
+              "MULTI_NODE_SINGLE_WRITER",
             ].includes(capability.access_mode.mode)
           ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
@@ -436,12 +437,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
             // remove snapshots from target
             await this.removeSnapshotsFromDatatset(datasetName, {
-              force: true
+              force: true,
             });
           } else {
             try {
               response = await zb.zfs.clone(fullSnapshotName, datasetName, {
-                properties: volumeProperties
+                properties: volumeProperties,
               });
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
@@ -461,7 +462,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               await zb.zfs.destroy(fullSnapshotName, {
                 recurse: true,
                 force: true,
-                defer: true
+                defer: true,
               });
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
@@ -543,21 +544,21 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
             // remove snapshots from target
             await this.removeSnapshotsFromDatatset(datasetName, {
-              force: true
+              force: true,
             });
 
             // remove snapshot from source
             await zb.zfs.destroy(fullSnapshotName, {
               recurse: true,
               force: true,
-              defer: true
+              defer: true,
             });
           } else {
             // create clone
             // zfs origin property contains parent info, ie: pool0/k8s/test/PVC-111@clone-test
             try {
               response = await zb.zfs.clone(fullSnapshotName, datasetName, {
-                properties: volumeProperties
+                properties: volumeProperties,
               });
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
@@ -587,7 +588,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       await zb.zfs.create(datasetName, {
         parents: true,
         properties: volumeProperties,
-        size: driverZfsResourceType == "volume" ? capacity_bytes : false
+        size: driverZfsResourceType == "volume" ? capacity_bytes : false,
       });
     }
 
@@ -632,7 +633,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           "compression",
           VOLUME_CSI_NAME_PROPERTY_NAME,
           VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME,
-          VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME
+          VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME,
         ]);
         properties = properties[datasetName];
         driver.ctx.logger.debug("zfs props data: %j", properties);
@@ -641,7 +642,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         if (this.options.zfs.datasetPermissionsMode) {
           command = sshClient.buildCommand("chmod", [
             this.options.zfs.datasetPermissionsMode,
-            properties.mountpoint.value
+            properties.mountpoint.value,
           ]);
           driver.ctx.logger.verbose("set permission command: %s", command);
           response = await sshClient.exec(command);
@@ -660,7 +661,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               (this.options.zfs.datasetPermissionsGroup
                 ? this.options.zfs.datasetPermissionsGroup
                 : ""),
-            properties.mountpoint.value
+            properties.mountpoint.value,
           ]);
           driver.ctx.logger.verbose("set ownership command: %s", command);
           response = await sshClient.exec(command);
@@ -691,7 +692,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     volume_context = await this.createShare(call, datasetName);
     await zb.zfs.set(datasetName, {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]:
-        "'" + JSON.stringify(volume_context) + "'"
+        "'" + JSON.stringify(volume_context) + "'",
     });
 
     volume_context["provisioner_driver"] = driver.options.driver;
@@ -714,8 +715,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             ? capacity_bytes
             : 0,
         content_source: volume_content_source,
-        volume_context
-      }
+        volume_context,
+      },
     };
 
     return res;
@@ -761,7 +762,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         "origin",
         "refquota",
         "compression",
-        VOLUME_CSI_NAME_PROPERTY_NAME
+        VOLUME_CSI_NAME_PROPERTY_NAME,
       ]);
       properties = properties[datasetName];
     } catch (err) {
@@ -798,7 +799,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         await zb.zfs.destroy(properties.origin.value, {
           recurse: true,
           force: true,
-          defer: true
+          defer: true,
         });
       } catch (err) {
         if (err.toString().includes("snapshot has dependent clones")) {
@@ -939,7 +940,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     return {
       capacity_bytes: this.options.zfs.datasetEnableQuotas ? capacity_bytes : 0,
-      node_expansion_required: driverZfsResourceType == "volume" ? true : false
+      node_expansion_required: driverZfsResourceType == "volume" ? true : false,
     };
   }
 
@@ -1017,7 +1018,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         }
         const data = {
           entries: entries,
-          next_token: next_token
+          next_token: next_token,
         };
 
         return data;
@@ -1061,7 +1062,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           SHARE_VOLUME_CONTEXT_PROPERTY_NAME,
           SUCCESS_PROPERTY_NAME,
           VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME,
-          VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME
+          VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME,
         ],
         { types, recurse: true }
       );
@@ -1069,7 +1070,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       if (err.toString().includes("dataset does not exist")) {
         return {
           entries: [],
-          next_token: null
+          next_token: null,
         };
       }
 
@@ -1084,7 +1085,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     }
 
     entries = [];
-    response.indexed.forEach(row => {
+    response.indexed.forEach((row) => {
       // ignore rows were csi_name is empty
       if (row[MANAGED_PROPERTY_NAME] != "true") {
         return;
@@ -1142,8 +1143,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               ? row["refquota"]
               : row["volsize"],
           content_source: volume_content_source,
-          volume_context
-        }
+          volume_context,
+        },
       });
     });
 
@@ -1159,7 +1160,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     const data = {
       entries: entries,
-      next_token: next_token
+      next_token: next_token,
     };
 
     return data;
@@ -1205,7 +1206,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         }
         const data = {
           entries: entries,
-          next_token: next_token
+          next_token: next_token,
         };
 
         return data;
@@ -1290,7 +1291,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             "used",
             VOLUME_CSI_NAME_PROPERTY_NAME,
             SNAPSHOT_CSI_NAME_PROPERTY_NAME,
-            MANAGED_PROPERTY_NAME
+            MANAGED_PROPERTY_NAME,
           ],
           { types, recurse: true }
         );
@@ -1314,7 +1315,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         throw new GrpcError(grpc.status.FAILED_PRECONDITION, e.toString());
       }
 
-      response.indexed.forEach(row => {
+      response.indexed.forEach((row) => {
         // skip any snapshots not explicitly created by CO
         if (row[MANAGED_PROPERTY_NAME] != "true") {
           return;
@@ -1371,10 +1372,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
               creation_time: {
                 seconds: row["creation"],
-                nanos: 0
+                nanos: 0,
               },
-              ready_to_use: true
-            }
+              ready_to_use: true,
+            },
           });
       });
     }
@@ -1391,7 +1392,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     const data = {
       entries: entries,
-      next_token: next_token
+      next_token: next_token,
     };
 
     return data;
@@ -1552,7 +1553,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         {
           recurse: true,
           force: true,
-          defer: true
+          defer: true,
         }
       );
 
@@ -1560,12 +1561,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       await zb.zfs.destroy(tmpSnapshotName, {
         recurse: true,
         force: true,
-        defer: true
+        defer: true,
       });
     } else {
       try {
         await zb.zfs.snapshot(fullSnapshotName, {
-          properties: snapshotProperties
+          properties: snapshotProperties,
         });
       } catch (err) {
         if (err.toString().includes("dataset does not exist")) {
@@ -1592,7 +1593,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         VOLUME_CSI_NAME_PROPERTY_NAME,
         SNAPSHOT_CSI_NAME_PROPERTY_NAME,
         SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME,
-        MANAGED_PROPERTY_NAME
+        MANAGED_PROPERTY_NAME,
       ],
       { types }
     );
@@ -1623,10 +1624,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
         creation_time: {
           seconds: properties.creation.value,
-          nanos: 0
+          nanos: 0,
         },
-        ready_to_use: true
-      }
+        ready_to_use: true,
+      },
     };
   }
 
@@ -1673,7 +1674,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       await zb.zfs.destroy(fullSnapshotName, {
         recurse: true,
         force: true,
-        defer: zb.helpers.isZfsSnapshot(snapshot_id) // only defer when snapshot
+        defer: zb.helpers.isZfsSnapshot(snapshot_id), // only defer when snapshot
       });
     } catch (err) {
       if (err.toString().includes("snapshot has dependent clones")) {
@@ -1720,8 +1721,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       confirmed: {
         volume_context: call.request.volume_context,
         volume_capabilities: call.request.volume_capabilities, // TODO: this is a bit crude, should return *ALL* capabilities, not just what was requested
-        parameters: call.request.parameters
-      }
+        parameters: call.request.parameters,
+      },
     };
   }
 }

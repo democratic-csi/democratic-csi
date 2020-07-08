@@ -19,13 +19,17 @@ class Zetabyte {
       options.paths.sudo = "/usr/bin/sudo";
     }
 
+    if (!options.paths.chroot) {
+      options.paths.chroot = "/usr/sbin/chroot";
+    }
+
     if (!options.timeout) {
       options.timeout = 10 * 60 * 1000;
     }
 
     if (!options.executor) {
       options.executor = {
-        spawn: cp.spawn
+        spawn: cp.spawn,
       };
     }
 
@@ -36,7 +40,7 @@ class Zetabyte {
       "free",
       "cap",
       "health",
-      "altroot"
+      "altroot",
     ];
 
     zb.DEFAULT_ZFS_LIST_PROPERTIES = [
@@ -45,11 +49,11 @@ class Zetabyte {
       "avail",
       "refer",
       "type",
-      "mountpoint"
+      "mountpoint",
     ];
 
     zb.helpers = {
-      zfsErrorStr: function(error, stderr) {
+      zfsErrorStr: function (error, stderr) {
         if (!error) return null;
 
         if (error.killed) return "Process killed due to timeout.";
@@ -57,11 +61,11 @@ class Zetabyte {
         return error.message || (stderr ? stderr.toString() : "");
       },
 
-      zfsError: function(error, stderr) {
+      zfsError: function (error, stderr) {
         return new Error(zb.helpers.zfsErrorStr(error, stderr));
       },
 
-      parseTabSeperatedTable: function(data) {
+      parseTabSeperatedTable: function (data) {
         if (!data) {
           return [];
         }
@@ -86,7 +90,7 @@ class Zetabyte {
        *
        * and those fields are tab-separated.
        */
-      parsePropertyList: function(data) {
+      parsePropertyList: function (data) {
         if (!data) {
           return {};
         }
@@ -94,22 +98,22 @@ class Zetabyte {
         const lines = data.trim().split("\n");
         const properties = {};
 
-        lines.forEach(function(line) {
+        lines.forEach(function (line) {
           const fields = line.split("\t");
           if (!properties[fields[0]]) properties[fields[0]] = {};
           properties[fields[0]][fields[1]] = {
             value: fields[2],
             received: fields[3],
-            source: fields[4]
+            source: fields[4],
           };
         });
 
         return properties;
       },
 
-      listTableToPropertyList: function(properties, data) {
+      listTableToPropertyList: function (properties, data) {
         const entries = [];
-        data.forEach(row => {
+        data.forEach((row) => {
           let entry = {};
           properties.forEach((value, index) => {
             entry[value] = row[index];
@@ -120,11 +124,11 @@ class Zetabyte {
         return entries;
       },
 
-      extractSnapshotName: function(datasetName) {
+      extractSnapshotName: function (datasetName) {
         return datasetName.substring(datasetName.indexOf("@") + 1);
       },
 
-      extractDatasetName: function(datasetName) {
+      extractDatasetName: function (datasetName) {
         if (datasetName.includes("@")) {
           return datasetName.substring(0, datasetName.indexOf("@"));
         }
@@ -132,26 +136,26 @@ class Zetabyte {
         return datasetName;
       },
 
-      isZfsSnapshot: function(snapshotName) {
+      isZfsSnapshot: function (snapshotName) {
         return snapshotName.includes("@");
       },
 
-      extractPool: function(datasetName) {
+      extractPool: function (datasetName) {
         const parts = datasetName.split("/");
         return parts[0];
       },
 
-      extractParentDatasetName: function(datasetName) {
+      extractParentDatasetName: function (datasetName) {
         const parts = datasetName.split("/");
         parts.pop();
         return parts.join("/");
       },
 
-      extractLeafName: function(datasetName) {
+      extractLeafName: function (datasetName) {
         return datasetName.split("/").pop();
       },
 
-      isPropertyValueSet: function(value) {
+      isPropertyValueSet: function (value) {
         if (
           value === undefined ||
           value === null ||
@@ -164,7 +168,7 @@ class Zetabyte {
         return true;
       },
 
-      generateZvolSize: function(capacity_bytes, block_size) {
+      generateZvolSize: function (capacity_bytes, block_size) {
         block_size = "" + block_size;
         block_size = block_size.toLowerCase();
         switch (block_size) {
@@ -211,7 +215,7 @@ class Zetabyte {
           result = Number(result) + Number(block_size);
 
         return result;
-      }
+      },
     };
 
     zb.zpool = {
@@ -221,7 +225,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} vdevs
        */
-      add: function(pool, vdevs) {
+      add: function (pool, vdevs) {
         // -f force
         // -n noop
       },
@@ -233,7 +237,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} new_device
        */
-      attach: function(pool, device, new_device) {
+      attach: function (pool, device, new_device) {
         // -f      Forces use of new_device, even if its appears to be in use.
       },
 
@@ -242,7 +246,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      checkpoint: function(pool) {},
+      checkpoint: function (pool) {},
 
       /**
        * zpool clear [-F [-n]] pool [device]
@@ -250,7 +254,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      clear: function(pool, device) {},
+      clear: function (pool, device) {},
 
       /**
        * zpool create [-fnd] [-o property=value] ... [-O
@@ -261,7 +265,7 @@ class Zetabyte {
        * zpool create command, including log devices, cache devices, and hot spares.
        * The input is an object of the form produced by the disklayout library.
        */
-      create: function(pool, options) {
+      create: function (pool, options) {
         if (arguments.length != 2)
           throw Error("Invalid arguments, 2 arguments required");
 
@@ -290,10 +294,10 @@ class Zetabyte {
           if (options.tempname) args = args.concat(["-t", options.tempname]);
 
           args.push(pool);
-          options.vdevs.forEach(function(vdev) {
+          options.vdevs.forEach(function (vdev) {
             if (vdev.type) args.push(vdev.type);
             if (vdev.devices) {
-              vdev.devices.forEach(function(dev) {
+              vdev.devices.forEach(function (dev) {
                 args.push(dev.name);
               });
             } else {
@@ -303,21 +307,21 @@ class Zetabyte {
 
           if (options.spares) {
             args.push("spare");
-            options.spares.forEach(function(dev) {
+            options.spares.forEach(function (dev) {
               args.push(dev.name);
             });
           }
 
           if (options.logs) {
             args.push("log");
-            options.logs.forEach(function(dev) {
+            options.logs.forEach(function (dev) {
               args.push(dev.name);
             });
           }
 
           if (options.cache) {
             args.push("cache");
-            options.cache.forEach(function(dev) {
+            options.cache.forEach(function (dev) {
               args.push(dev.name);
             });
           }
@@ -326,7 +330,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -339,7 +343,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      destroy: function(pool) {
+      destroy: function (pool) {
         if (arguments.length != 1) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -352,7 +356,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -366,7 +370,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      detach: function(pool, device) {
+      detach: function (pool, device) {
         if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -379,7 +383,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -392,7 +396,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      export: function(pool) {
+      export: function (pool) {
         if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -400,7 +404,7 @@ class Zetabyte {
           args.push("export");
           if (options.force) args.push("-f");
           if (Array.isArray(pool)) {
-            pool.forEach(item => {
+            pool.forEach((item) => {
               args.push(item);
             });
           } else {
@@ -411,7 +415,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -422,21 +426,21 @@ class Zetabyte {
       /**
        * zpool get [-Hp] [-o field[,...]] all | property[,...] pool ...
        */
-      get: function() {},
+      get: function () {},
 
       /**
        * zpool history [-il] [pool] ...
        *
        * @param {*} pool
        */
-      history: function(pool) {
+      history: function (pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("history");
           if (options.internal) args.push("-i");
           if (options.longFormat) args.push("-l");
           if (Array.isArray(pool)) {
-            pool.forEach(item => {
+            pool.forEach((item) => {
               args.push(item);
             });
           } else {
@@ -447,7 +451,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -468,7 +472,7 @@ class Zetabyte {
        *
        * @param {*} options
        */
-      import: function(options = {}) {
+      import: function (options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("import");
@@ -480,7 +484,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -493,14 +497,14 @@ class Zetabyte {
        *
        * @param {*} options
        */
-      iostat: function(options = {}) {},
+      iostat: function (options = {}) {},
 
       /**
        * zpool labelclear [-f] device
        *
        * @param {*} device
        */
-      labelclear: function(device) {},
+      labelclear: function (device) {},
 
       /**
        * zpool list [-Hpv] [-o property[,...]] [-T d|u] [pool] ... [inverval
@@ -509,7 +513,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} options
        */
-      list: function(pool, properties, options = {}) {
+      list: function (pool, properties, options = {}) {
         if (!(arguments.length >= 1)) throw Error("Invalid arguments");
         if (!properties) properties = zb.DEFAULT_ZPOOL_LIST_PROPERTIES;
 
@@ -535,7 +539,7 @@ class Zetabyte {
           if (options.timestamp) args = args.concat(["-T", options.timestamp]);
           if (pool) {
             if (Array.isArray(pool)) {
-              pool.forEach(item => {
+              pool.forEach((item) => {
                 args.push(item);
               });
             } else {
@@ -549,7 +553,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               if (options.parse) {
                 let data = zb.helpers.parseTabSeperatedTable(stdout);
@@ -560,7 +564,7 @@ class Zetabyte {
                 return resolve({
                   properties,
                   data,
-                  indexed
+                  indexed,
                 });
               }
               return resolve({ properties, data: stdout });
@@ -576,7 +580,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} options
        */
-      offline: function(pool, device, options = {}) {
+      offline: function (pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("offline");
@@ -588,7 +592,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -603,7 +607,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} options
        */
-      online: function(pool, device, options = {}) {
+      online: function (pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("online");
@@ -615,7 +619,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -628,7 +632,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      reguid: function(pool) {
+      reguid: function (pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("reguid");
@@ -638,7 +642,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -654,7 +658,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      remove: function(pool, device, options = {}) {
+      remove: function (pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("remove");
@@ -670,7 +674,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -683,7 +687,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      reopen: function(pool) {
+      reopen: function (pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("reopen");
@@ -693,7 +697,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -708,7 +712,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} new_device
        */
-      replace: function(pool, device, new_device) {
+      replace: function (pool, device, new_device) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("replace");
@@ -723,7 +727,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -736,14 +740,14 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      scrub: function(pool) {
+      scrub: function (pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("scrub");
           if (options.stop) args.push("-s");
           if (options.pause) args.push("-p");
           if (Array.isArray(pool)) {
-            pool.forEach(item => {
+            pool.forEach((item) => {
               args.push(item);
             });
           } else {
@@ -754,7 +758,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -769,7 +773,7 @@ class Zetabyte {
        * @param {*} property
        * @param {*} value
        */
-      set: function(pool, property, value) {
+      set: function (pool, property, value) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("set");
@@ -780,7 +784,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
@@ -796,12 +800,12 @@ class Zetabyte {
        * @param {*} newpool
        * @param {*} device
        */
-      split: function(pool, newpool, device) {},
+      split: function (pool, newpool, device) {},
 
       /**
        * zpool status [-vx] [-T d|u] [pool] ... [interval [count]]
        */
-      status: function(pool, options = {}) {
+      status: function (pool, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           if (!("parse" in options)) options.parse = true;
@@ -811,7 +815,7 @@ class Zetabyte {
           if (options.timestamp) args = args.concat(["-T", options.timestamp]);
           if (pool) {
             if (Array.isArray(pool)) {
-              pool.forEach(item => {
+              pool.forEach((item) => {
                 args.push(item);
               });
             } else {
@@ -825,7 +829,7 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (options.parse) {
                 stdout = stdout.trim();
                 if (error || stdout == "no pools available\n") {
@@ -855,7 +859,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      upgrade: function(pool) {
+      upgrade: function (pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("upgrade");
@@ -863,7 +867,7 @@ class Zetabyte {
           if (options.all) args.push("-a");
           if (pool) {
             if (Array.isArray(pool)) {
-              pool.forEach(item => {
+              pool.forEach((item) => {
                 args.push(item);
               });
             } else {
@@ -875,13 +879,13 @@ class Zetabyte {
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(stderr);
               return resolve(stdout);
             }
           );
         });
-      }
+      },
     };
 
     zb.zfs = {
@@ -892,7 +896,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      create: function(dataset, options = {}) {
+      create: function (dataset, options = {}) {
         if (!(arguments.length >= 1)) throw new (Error("Invalid arguments"))();
 
         return new Promise((resolve, reject) => {
@@ -921,7 +925,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (
                 error &&
                 !(idempotent && stderr.includes("dataset already exists"))
@@ -942,7 +946,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      destroy: function(dataset, options = {}) {
+      destroy: function (dataset, options = {}) {
         if (!(arguments.length >= 1)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -969,7 +973,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (
                 error &&
                 !(
@@ -993,7 +997,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      snapshot: function(dataset, options = {}) {
+      snapshot: function (dataset, options = {}) {
         if (!(arguments.length >= 1)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1022,7 +1026,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (
                 error &&
                 !(idempotent && stderr.includes("dataset already exists"))
@@ -1040,7 +1044,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      rollback: function(dataset, options = {}) {
+      rollback: function (dataset, options = {}) {
         if (!(arguments.length >= 1)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1055,7 +1059,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               /**
                * cannot rollback to 'foo/bar/baz@foobar': more recent snapshots or bookmarks exist
                * use '-r' to force deletion of the following snapshots and bookmarks:
@@ -1074,7 +1078,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      clone: function(snapshot, dataset, options = {}) {
+      clone: function (snapshot, dataset, options = {}) {
         if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1101,7 +1105,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (
                 error &&
                 !(idempotent && stderr.includes("dataset already exists"))
@@ -1139,7 +1143,7 @@ class Zetabyte {
 
           args.push("'" + command.join(" ") + "'");
 
-          zb.exec("/bin/sh", args, { timeout: zb.options.timeout }, function(
+          zb.exec("/bin/sh", args, { timeout: zb.options.timeout }, function (
             error,
             stdout,
             stderr
@@ -1155,7 +1159,7 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      promote: function(dataset) {
+      promote: function (dataset) {
         if (arguments.length != 1) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1167,7 +1171,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               return resolve(stdout);
             }
@@ -1185,7 +1189,7 @@ class Zetabyte {
        * @param {*} target
        * @param {*} options
        */
-      rename: function(source, target, options = {}) {
+      rename: function (source, target, options = {}) {
         if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1202,7 +1206,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               return resolve(stdout);
             }
@@ -1218,7 +1222,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      list: function(dataset, properties, options = {}) {
+      list: function (dataset, properties, options = {}) {
         if (!(arguments.length >= 1)) throw Error("Invalid arguments");
         if (!properties) properties = zb.DEFAULT_ZFS_LIST_PROPERTIES;
 
@@ -1258,7 +1262,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               if (options.parse) {
                 let data = zb.helpers.parseTabSeperatedTable(stdout);
@@ -1269,7 +1273,7 @@ class Zetabyte {
                 return resolve({
                   properties,
                   data,
-                  indexed
+                  indexed,
                 });
               }
               return resolve({ properties, data: stdout });
@@ -1284,7 +1288,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} properties
        */
-      set: function(dataset, properties) {
+      set: function (dataset, properties) {
         if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1307,7 +1311,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               return resolve(stdout);
             }
@@ -1327,7 +1331,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} properties
        */
-      get: function(dataset, properties = "all", options = {}) {
+      get: function (dataset, properties = "all", options = {}) {
         if (!(arguments.length >= 2)) throw Error("Invalid arguments");
         if (!properties) properties = "all";
         if (Array.isArray(properties) && !properties.length > 0)
@@ -1344,7 +1348,7 @@ class Zetabyte {
           if (options.parse)
             args = args.concat([
               "-o",
-              ["name", "property", "value", "received", "source"]
+              ["name", "property", "value", "received", "source"],
             ]);
           if (options.fields && !options.parse) {
             let fields;
@@ -1394,7 +1398,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               if (options.parse) {
                 return resolve(zb.helpers.parsePropertyList(stdout));
@@ -1411,7 +1415,7 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} property
        */
-      inherit: function(dataset, property) {
+      inherit: function (dataset, property) {
         if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1426,7 +1430,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               return resolve(stdout);
             }
@@ -1439,7 +1443,7 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      remap: function(dataset) {
+      remap: function (dataset) {
         if (arguments.length != 1) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -1451,7 +1455,7 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               return resolve(stdout);
             }
@@ -1465,7 +1469,7 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      upgrade: function(options = {}, dataset) {
+      upgrade: function (options = {}, dataset) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("upgrade");
@@ -1481,13 +1485,13 @@ class Zetabyte {
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
-            function(error, stdout, stderr) {
+            function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               return resolve(stdout);
             }
           );
         });
-      }
+      },
     };
   }
 
@@ -1518,6 +1522,13 @@ class Zetabyte {
         break;
     }
 
+    if (zb.options.chroot) {
+      args = args || [];
+      args.unshift(command);
+      args.unshift(zb.options.chroot);
+      command = zb.options.paths.chroot;
+    }
+
     if (zb.options.sudo) {
       args = args || [];
       args.unshift(command);
@@ -1535,15 +1546,15 @@ class Zetabyte {
     }
 
     if (callback) {
-      child.stdout.on("data", function(data) {
+      child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });
 
-      child.stderr.on("data", function(data) {
+      child.stderr.on("data", function (data) {
         stderr = stderr + data;
       });
 
-      child.on("close", function(error) {
+      child.on("close", function (error) {
         if (timeout) {
           clearTimeout(timeout);
         }
@@ -1600,7 +1611,7 @@ class ZfsSshProcessManager {
 
     proxy.stdout = stdout;
     proxy.stderr = stderr;
-    proxy.kill = function(signal = "SIGTERM") {
+    proxy.kill = function (signal = "SIGTERM") {
       proxy.emit("kill", signal);
     };
 
@@ -1609,7 +1620,7 @@ class ZfsSshProcessManager {
     client.debug("ZfsProcessManager arguments: " + JSON.stringify(arguments));
     client.logger.verbose("ZfsProcessManager command: " + command);
 
-    client.exec(command, {}, proxy).catch(err => {
+    client.exec(command, {}, proxy).catch((err) => {
       proxy.stderr.emit("data", err.message);
       proxy.emit("close", 1, "SIGQUIT");
     });

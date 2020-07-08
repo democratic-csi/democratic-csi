@@ -11,7 +11,7 @@ const args = require("yargs")
   .option("driver-config-file", {
     describe: "provide a path to driver config file",
     config: true,
-    configParser: path => {
+    configParser: (path) => {
       try {
         options = JSON.parse(fs.readFileSync(path, "utf-8"));
         return true;
@@ -23,40 +23,40 @@ const args = require("yargs")
       } catch (e) {}
 
       throw new Error("failed parsing config file: " + path);
-    }
+    },
   })
   .demandOption(["driver-config-file"], "driver-config-file is required")
   .option("log-level", {
     describe: "log level",
-    choices: ["error", "warn", "info", "verbose", "debug", "silly"]
+    choices: ["error", "warn", "info", "verbose", "debug", "silly"],
   })
   .option("csi-version", {
     describe: "versin of the csi spec to load",
-    choices: ["0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"]
+    choices: ["0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"],
   })
   .demandOption(["csi-version"], "csi-version is required")
   .option("csi-name", {
-    describe: "name to use for driver registration"
+    describe: "name to use for driver registration",
   })
   .demandOption(["csi-name"], "csi-name is required")
   .option("csi-mode", {
     describe: "mode of the controller",
     choices: ["controller", "node"],
     type: "array",
-    default: ["controller", "node"]
+    default: ["controller", "node"],
   })
   .demandOption(["csi-mode"], "csi-mode is required")
   .option("server-address", {
     describe: "listen address for the server",
-    type: "string"
+    type: "string",
   })
   .option("server-port", {
     describe: "listen port for the server",
-    type: "number"
+    type: "number",
   })
   .option("server-socket", {
     describe: "listen socket for the server",
-    type: "string"
+    type: "string",
   })
   .version()
   .help().argv;
@@ -87,7 +87,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   longs: String,
   enums: String,
   defaults: true,
-  oneofs: true
+  oneofs: true,
 });
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
@@ -97,7 +97,10 @@ logger.info("initializing csi driver: %s", options.driver);
 
 let driver;
 try {
-  driver = require("../src/driver/factory").factory({ logger, args, cache, package }, options);
+  driver = require("../src/driver/factory").factory(
+    { logger, args, cache, package },
+    options
+  );
 } catch (err) {
   logger.error(err.toString());
   process.exit(1);
@@ -127,20 +130,26 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
     );
     callback(null, response);
   } catch (e) {
+    let message;
+    if (e instanceof Error) {
+      message = e.toString();
+    } else {
+      message = JSON.stringify(e);
+    }
+
     logger.error(
       "handler error - driver: %s method: %s error: %s",
       driver.constructor.name,
       serviceMethodName,
-      JSON.stringify(e)
+      message
     );
 
     if (e.name == "GrpcError") {
       callback(e);
     } else {
       // TODO: only show real error string in development mode
-      const message = true
-        ? e.toString()
-        : "unknown error, please inspect service logs";
+      message = true ? message : "unknown error, please inspect service logs";
+
       callback({ code: grpc.status.INTERNAL, message });
     }
   }
@@ -159,7 +168,7 @@ function getServer() {
     },
     async Probe(call, callback) {
       requestHandlerProxy(call, callback, arguments.callee.name);
-    }
+    },
   });
 
   // Controller Service
@@ -200,7 +209,7 @@ function getServer() {
       },
       async ControllerExpandVolume(call, callback) {
         requestHandlerProxy(call, callback, arguments.callee.name);
-      }
+      },
     });
   }
 
@@ -230,7 +239,7 @@ function getServer() {
       },
       async NodeGetInfo(call, callback) {
         requestHandlerProxy(call, callback, arguments.callee.name);
-      }
+      },
     });
   }
 
@@ -274,8 +283,8 @@ if (bindSocket) {
 csiServer.start();
 
 [`SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`].forEach(
-  eventType => {
-    process.on(eventType, code => {
+  (eventType) => {
+    process.on(eventType, (code) => {
       console.log(`running server shutdown, exit code: ${code}`);
       let socketPath = args.serverSocket || "";
       socketPath = socketPath.replace(/^unix:\/\//g, "");
