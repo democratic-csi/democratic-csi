@@ -18,17 +18,17 @@
     "url": "https://github.com/democratic-csi/democratic-csi.git"
   },
   "dependencies": {
-    "@grpc/proto-loader": "^0.5.3",
-    "bunyan": "^1.8.12",
-    "eslint": "^6.6.0",
+    "@grpc/proto-loader": "^0.5.4",
+    "bunyan": "^1.8.14",
+    "eslint": "^7.4.0",
     "grpc-uds": "^0.1.4",
-    "js-yaml": "^3.13.1",
+    "js-yaml": "^3.14.0",
     "lru-cache": "^5.1.1",
-    "request": "^2.88.0",
-    "ssh2": "^0.8.6",
+    "request": "^2.88.2",
+    "ssh2": "^0.8.9",
     "uri-js": "^4.2.2",
-    "uuid": "^3.3.3",
-    "winston": "^3.2.1",
-    "yargs": "^15.0.2"
+    "uuid": "^8.2.0",
+    "winston": "^3.3.3",
+    "yargs": "^15.4.0"
   }
 }

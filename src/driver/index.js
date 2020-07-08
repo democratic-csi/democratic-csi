@@ -298,7 +298,11 @@ class CsiBaseDriver {
         break;
       case "iscsi":
         // create DB entry
-        let nodeDB = {};
+        // https://library.netapp.com/ecmdocs/ECMP1654943/html/GUID-8EC685B4-8CB6-40D8-A8D5-031A3899BCDC.html
+        // put these options in place to force targets managed by csi to be explicitly attached (in the case of unclearn shutdown etc)
+        let nodeDB = {
+          "node.startup": "manual"
+        };
         const nodeDBKeyPrefix = "node-db.";
         const normalizedSecrets = this.getNormalizedParameters(
           call.request.secrets,
