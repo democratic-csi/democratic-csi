@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - master
+      - next
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: docker build
+        run: |
+          export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
+          mkdir -p ~/.docker/cli-plugins/
+          wget -qO ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-${ARCH}
+          chmod a+x ~/.docker/cli-plugins/docker-buildx
+          docker info
+          docker buildx version
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          docker buildx create --name xbuilder --use
+          docker buildx inspect --bootstrap
+          .github/bin/docker-release.sh
+
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKER_CLI_EXPERIMENTAL: enabled
+          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm/v7,linux/arm64
