@@ -78,12 +78,17 @@ Ensure ssh and zfs is installed on the server and that you have installed
 ```
 helm repo add democratic-csi https://democratic-csi.github.io/charts/
 helm repo update
+# helm v2
 helm search democratic-csi/
+
+# helm v3
+helm search repo democratic-csi/
 
 # copy proper values file from https://github.com/democratic-csi/charts/tree/master/stable/democratic-csi/examples
 # edit as appropriate
 # examples are from helm v2, alter as appropriate for v3
 
+# add --create-namespace for helm v3
 helm upgrade \
 --install \
 --values freenas-iscsi.yaml \
@@ -130,5 +135,5 @@ kubectl apply -f setup-snapshot-controller.yaml
 
 Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as appropriate.
 
-https://kubernetes.io/docs/concepts/storage/volume-snapshots/
-https://github.com/kubernetes-csi/external-snapshotter#usage
+- https://kubernetes.io/docs/concepts/storage/volume-snapshots/
+- https://github.com/kubernetes-csi/external-snapshotter#usage
