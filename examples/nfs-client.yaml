@@ -1,0 +1,9 @@
+driver: nfs-client
+instance_id:
+nfs:
+  shareHost: server address
+  shareBasePath: "/some/path"
+  controllerBasePath: "/storage"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: root
+  dirPermissionsGroup: wheel

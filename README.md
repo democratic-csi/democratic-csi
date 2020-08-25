@@ -17,6 +17,7 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
+  - `nfs-client` (crudely provisions storage using a shared nfs share/directory for all volumes)
 - framework for developing `csi` drivers
 
 If you have any interest in providing a `csi` driver, simply open an issue to
@@ -137,3 +138,9 @@ Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as approp
 
 - https://kubernetes.io/docs/concepts/storage/volume-snapshots/
 - https://github.com/kubernetes-csi/external-snapshotter#usage
+
+# Related
+
+- https://github.com/nmaupu/freenas-provisioner
+- https://github.com/travisghansen/freenas-iscsi-provisioner
+- https://datamattsson.tumblr.com/post/624751011659202560/welcome-truenas-core-container-storage-provider
