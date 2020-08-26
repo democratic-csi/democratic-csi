@@ -1,0 +1,71 @@
+#!/usr/bin/env -S node --nouse-idle-notification --expose-gc
+
+const yaml = require("js-yaml");
+const fs = require("fs");
+
+let options;
+const args = require("yargs")
+  .env("DEMOCRATIC_CSI")
+  .scriptName("democratic-csi")
+  .usage("$0 [options]")
+  .option("csi-version", {
+    describe: "versin of the csi spec to load",
+    choices: ["0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"],
+  })
+  .demandOption(["csi-version"], "csi-version is required")
+  .option("csi-address", {
+    describe: "address of the CSI driver (path or uri)",
+    type: "string",
+  })
+  .demandOption(["csi-address"], "csi-address is required")
+  .version()
+  .help().argv;
+
+const package = require("../package.json");
+args.version = package.version;
+
+//const grpc = require("grpc");
+const grpc = require("grpc-uds");
+const protoLoader = require("@grpc/proto-loader");
+const csiVersion = process.env.CSI_VERSION || "1.1.0";
+const PROTO_PATH = __dirname + "/../csi_proto/csi-v" + csiVersion + ".proto";
+
+// Suggested options for similarity to existing grpc.load behavior
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true,
+});
+
+const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
+const csi = protoDescriptor.csi.v1;
+
+const clientIdentity = new csi.Identity(
+  args.csiAddress,
+  grpc.credentials.createInsecure()
+);
+
+/**
+ * Probe the identity service and check for ready state
+ * 
+ * https://github.com/kubernetes-csi/livenessprobe/blob/master/cmd/livenessprobe/main.go
+ * https://github.com/kubernetes-csi/csi-lib-utils/blob/master/rpc/common.go
+ */
+clientIdentity.Probe({}, function (error, data) {
+  console.log("error: %j, data: %j", error, data);
+  if (error) {
+    process.exit(1);
+  }
+  if (data.hasOwnProperty("ready")) {
+    if (data.ready) {
+      process.exit(0);
+    } else {
+      process.exit(1);
+    }
+  } else {
+    // "If not present, the caller SHALL assume that the plugin is in a ready state"
+    process.exit(0);
+  }
+});
