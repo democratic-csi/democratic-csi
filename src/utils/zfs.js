@@ -1,6 +1,11 @@
 const events = require("events");
 const cp = require("child_process");
 
+const escapeShell = function (cmd) {
+  cmd = String(cmd);
+  return '"' + cmd.replace(/(["$`\\])/g, "\\$1") + '"';
+};
+
 class Zetabyte {
   constructor(options = {}) {
     const zb = this;
@@ -283,7 +288,8 @@ class Zetabyte {
             }
           }
           if (options.fsProperties) {
-            for (const [key, value] of Object.entries(options.fsProperties)) {
+            for (let [key, value] of Object.entries(options.fsProperties)) {
+              value = escapeShell(value);
               args.push("-O");
               args.push(`${key}=${value}`);
             }
@@ -774,6 +780,7 @@ class Zetabyte {
        * @param {*} value
        */
       set: function (pool, property, value) {
+        value = escapeShell(value);
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("set");
@@ -913,7 +920,8 @@ class Zetabyte {
           if (options.unmounted) args.push("-u");
           if (options.blocksize) args = args.concat(["-b", options.blocksize]);
           if (options.properties) {
-            for (const [key, value] of Object.entries(options.properties)) {
+            for (let [key, value] of Object.entries(options.properties)) {
+              value = escapeShell(value);
               args.push("-o");
               args.push(`${key}=${value}`);
             }
@@ -1012,7 +1020,8 @@ class Zetabyte {
           args.push("snapshot");
           if (options.recurse) args.push("-r");
           if (options.properties) {
-            for (const [key, value] of Object.entries(options.properties)) {
+            for (let [key, value] of Object.entries(options.properties)) {
+              value = escapeShell(value);
               args.push("-o");
               args.push(`${key}=${value}`);
             }
@@ -1093,7 +1102,8 @@ class Zetabyte {
           args.push("clone");
           if (options.parents) args.push("-p");
           if (options.properties) {
-            for (const [key, value] of Object.entries(options.properties)) {
+            for (let [key, value] of Object.entries(options.properties)) {
+              value = escapeShell(value);
               args.push("-o");
               args.push(`${key}=${value}`);
             }
@@ -1301,7 +1311,8 @@ class Zetabyte {
           args.push("set");
 
           if (properties) {
-            for (const [key, value] of Object.entries(properties)) {
+            for (let [key, value] of Object.entries(properties)) {
+              value = escapeShell(value);
               args.push(`${key}=${value}`);
             }
           }

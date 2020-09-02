@@ -3,6 +3,7 @@ instance_id:
 nfs:
   shareHost: server address
   shareBasePath: "/some/path"
+  # shareHost:shareBasePath should be mounted at this location in the controller container
   controllerBasePath: "/storage"
   dirPermissionsMode: "0777"
   dirPermissionsUser: root

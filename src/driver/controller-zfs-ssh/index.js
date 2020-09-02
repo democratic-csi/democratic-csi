@@ -3,6 +3,8 @@ const SshClient = require("../../utils/ssh").SshClient;
 const { GrpcError, grpc } = require("../../utils/grpc");
 
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
+
+const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
 
 // zfs common properties
@@ -122,10 +124,18 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
   getZetabyte() {
     const sshClient = this.getSshClient();
-    return new Zetabyte({
-      executor: new ZfsSshProcessManager(sshClient),
-      idempotent: true,
-    });
+    const options = {};
+    options.executor = new ZfsSshProcessManager(sshClient);
+    options.idempotent = true;
+
+    if (
+      this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli.hasOwnProperty("paths")
+    ) {
+      options.paths = this.options.zfs.cli.paths;
+    }
+
+    return new Zetabyte(options);
   }
 
   getDatasetParentName() {
@@ -335,6 +345,20 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let volume_content_source_volume_id;
     let fullSnapshotName;
     let volumeProperties = {};
+
+    // user-supplied properties
+    // put early to prevent stupid (user-supplied values overwriting system values)
+    if (driver.options.zfs.datasetProperties) {
+      for (let property in driver.options.zfs.datasetProperties) {
+        let value = driver.options.zfs.datasetProperties[property];
+        const template = Handlebars.compile(value);
+
+        volumeProperties[property] = template({
+          parameters: call.request.parameters,
+        });
+      }
+    }
+
     volumeProperties[VOLUME_CSI_NAME_PROPERTY_NAME] = name;
     volumeProperties[MANAGED_PROPERTY_NAME] = "true";
     volumeProperties[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME] =
@@ -346,7 +370,6 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     // TODO: also set access_mode as property?
     // TODO: also set fsType as property?
-    // TODO: allow for users to configure arbitrary/custom properties to add
 
     // zvol enables reservation by default
     // this implements 'sparse' zvols
@@ -691,8 +714,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     volume_context = await this.createShare(call, datasetName);
     await zb.zfs.set(datasetName, {
-      [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]:
-        "'" + JSON.stringify(volume_context) + "'",
+      [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
     });
 
     volume_context["provisioner_driver"] = driver.options.driver;

@@ -22,6 +22,7 @@
     "bunyan": "^1.8.14",
     "eslint": "^7.4.0",
     "grpc-uds": "^0.1.4",
+    "handlebars": "^4.7.6",
     "js-yaml": "^3.14.0",
     "lru-cache": "^5.1.1",
     "request": "^2.88.2",
