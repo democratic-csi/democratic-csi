@@ -2,6 +2,8 @@ const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const HttpClient = require("./http").Client;
 
+const Handlebars = require("handlebars");
+
 // freenas properties
 const FREENAS_NFS_SHARE_PROPERTY_NAME = "democratic-csi:freenas_nfs_share_id";
 const FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME =
@@ -19,8 +21,10 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   getDriverZfsResourceType() {
     switch (this.options.driver) {
       case "freenas-nfs":
+      case "truenas-nfs":
         return "filesystem";
       case "freenas-iscsi":
+      case "truenas-iscsi":
         return "volume";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
@@ -36,8 +40,10 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   getDriverShareType() {
     switch (this.options.driver) {
       case "freenas-nfs":
+      case "truenas-nfs":
         return "nfs";
       case "freenas-iscsi":
+      case "truenas-iscsi":
         return "iscsi";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
@@ -74,7 +80,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         if (response.body.length < 1) {
           break;
         }
-        response.body.some(i => {
+        response.body.some((i) => {
           let isMatch = true;
           for (let property in match) {
             if (match[property] != i[property]) {
@@ -124,7 +130,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
       case "nfs":
         properties = await zb.zfs.get(datasetName, [
           "mountpoint",
-          FREENAS_NFS_SHARE_PROPERTY_NAME
+          FREENAS_NFS_SHARE_PROPERTY_NAME,
         ]);
         properties = properties[datasetName];
         this.ctx.logger.debug("zfs props data: %j", properties);
@@ -154,7 +160,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                     nfs_maproot_group: this.options.nfs.shareMaprootGroup,
                     nfs_mapall_user: this.options.nfs.shareMapallUser,
                     nfs_mapall_group: this.options.nfs.shareMapallGroup,
-                    nfs_security: []
+                    nfs_security: [],
                   };
                   break;
                 case 2:
@@ -170,7 +176,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                     maproot_group: this.options.nfs.shareMaprootGroup,
                     mapall_user: this.options.nfs.shareMapallUser,
                     mapall_group: this.options.nfs.shareMapallGroup,
-                    security: []
+                    security: [],
                   };
                   break;
               }
@@ -184,7 +190,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               if ([200, 201].includes(response.statusCode)) {
                 //set zfs property
                 await zb.zfs.set(datasetName, {
-                  [FREENAS_NFS_SHARE_PROPERTY_NAME]: response.body.id
+                  [FREENAS_NFS_SHARE_PROPERTY_NAME]: response.body.id,
                 });
               } else {
                 /**
@@ -209,7 +215,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               let volume_context = {
                 node_attach_driver: "nfs",
                 server: this.options.nfs.shareHost,
-                share: properties.mountpoint.value
+                share: properties.mountpoint.value,
               };
               return volume_context;
 
@@ -223,7 +229,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           let volume_context = {
             node_attach_driver: "nfs",
             server: this.options.nfs.shareHost,
-            share: properties.mountpoint.value
+            share: properties.mountpoint.value,
           };
           return volume_context;
         }
@@ -232,13 +238,23 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         properties = await zb.zfs.get(datasetName, [
           FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME,
           FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
-          FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME
+          FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
         ]);
         properties = properties[datasetName];
         this.ctx.logger.debug("zfs props data: %j", properties);
 
         let basename;
-        let iscsiName = zb.helpers.extractLeafName(datasetName);
+        let iscsiName;
+
+        if (this.options.iscsi.nameTemplate) {
+          iscsiName = Handlebars.compile(this.options.iscsi.nameTemplate)({
+            name: call.request.name,
+            parameters: call.request.parameters,
+          });
+        } else {
+          iscsiName = zb.helpers.extractLeafName(datasetName);
+        }
+
         if (this.options.iscsi.namePrefix) {
           iscsiName = this.options.iscsi.namePrefix + iscsiName;
         }
@@ -247,6 +263,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           iscsiName += this.options.iscsi.nameSuffix;
         }
 
+        // According to RFC3270, 'Each iSCSI node, whether an initiator or target, MUST have an iSCSI name. Initiators and targets MUST support the receipt of iSCSI names of up to the maximum length of 223 bytes.'
+        // https://kb.netapp.com/Advice_and_Troubleshooting/Miscellaneous/What_is_the_maximum_length_of_a_iSCSI_iqn_name
+        // https://tools.ietf.org/html/rfc3720
         iscsiName = iscsiName.toLowerCase();
 
         let extentDiskName = "zvol/" + datasetName;
@@ -323,7 +342,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             // create target
             let target = {
               iscsi_target_name: iscsiName,
-              iscsi_target_alias: ""
+              iscsi_target_alias: "",
             };
 
             response = await httpClient.post("/services/iscsi/target", target);
@@ -340,7 +359,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 target = await this.findResourceByProperties(
                   "/services/iscsi/target",
                   {
-                    iscsi_target_name: iscsiName
+                    iscsi_target_name: iscsiName,
                   }
                 );
               } else {
@@ -366,7 +385,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
             // set target.id on zvol
             await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id
+              [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
             });
 
             // create targetgroup(s)
@@ -382,7 +401,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   targetGroupConfig.targetGroupPortalGroup,
                 iscsi_target_initiatorgroup:
                   targetGroupConfig.targetGroupInitiatorGroup,
-                iscsi_target_initialdigest: "Auto"
+                iscsi_target_initialdigest: "Auto",
               };
               response = await httpClient.post(
                 "/services/iscsi/targetgroup",
@@ -421,7 +440,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                       iscsi_target_portalgroup:
                         targetGroupConfig.targetGroupPortalGroup,
                       iscsi_target_initiatorgroup:
-                        targetGroupConfig.targetGroupInitiatorGroup
+                        targetGroupConfig.targetGroupInitiatorGroup,
                     }
                   );
                 } else {
@@ -463,7 +482,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               iscsi_target_extent_rpm: isNaN(Number(extentRpm))
                 ? "SSD"
                 : Number(extentRpm),
-              iscsi_target_extent_ro: false
+              iscsi_target_extent_ro: false,
             };
             response = await httpClient.post("/services/iscsi/extent", extent);
 
@@ -501,14 +520,14 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
             await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id
+              [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
             });
 
             // create targettoextent
             let targetToExtent = {
               iscsi_target: target.id,
               iscsi_extent: extent.id,
-              iscsi_lunid: 0
+              iscsi_lunid: 0,
             };
             response = await httpClient.post(
               "/services/iscsi/targettoextent",
@@ -535,7 +554,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   {
                     iscsi_target: target.id,
                     iscsi_extent: extent.id,
-                    iscsi_lunid: 0
+                    iscsi_lunid: 0,
                   }
                 );
               } else {
@@ -562,7 +581,8 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             );
 
             await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]: targetToExtent.id
+              [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
+                targetToExtent.id,
             });
 
             break;
@@ -596,14 +616,14 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                     ? targetGroupConfig.targetGroupAuthType
                         .toUpperCase()
                         .replace(" ", "_")
-                    : "NONE"
+                    : "NONE",
               });
             }
             let target = {
               name: iscsiName,
               alias: null, // cannot send "" error: handler error - driver: FreeNASDriver method: CreateVolume error: {"name":"GrpcError","code":2,"message":"received error creating iscsi target - code: 422 body: {\"iscsi_target_create.alias\":[{\"message\":\"Alias already exists\",\"errno\":22}]}"}
               mode: "ISCSI",
-              groups: targetGroups
+              groups: targetGroups,
             };
 
             response = await httpClient.post("/iscsi/target", target);
@@ -618,7 +638,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 )
               ) {
                 target = await this.findResourceByProperties("/iscsi/target", {
-                  name: iscsiName
+                  name: iscsiName,
                 });
               } else {
                 throw new GrpcError(
@@ -643,7 +663,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
             // set target.id on zvol
             await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id
+              [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
             });
 
             let extent = {
@@ -658,7 +678,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               blocksize: Number(extentBlocksize),
               pblocksize: extentDisablePhysicalBlocksize,
               rpm: "" + extentRpm, // should be a string
-              ro: false
+              ro: false,
             };
 
             response = await httpClient.post("/iscsi/extent", extent);
@@ -673,7 +693,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 )
               ) {
                 extent = await this.findResourceByProperties("/iscsi/extent", {
-                  name: iscsiName
+                  name: iscsiName,
                 });
               } else {
                 throw new GrpcError(
@@ -696,14 +716,14 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
             await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id
+              [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
             });
 
             // create targettoextent
             let targetToExtent = {
               target: target.id,
               extent: extent.id,
-              lunid: 0
+              lunid: 0,
             };
             response = await httpClient.post(
               "/iscsi/targetextent",
@@ -729,7 +749,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   {
                     target: target.id,
                     extent: extent.id,
-                    lunid: 0
+                    lunid: 0,
                   }
                 );
               } else {
@@ -756,7 +776,8 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             );
 
             await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]: targetToExtent.id
+              [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
+                targetToExtent.id,
             });
 
             break;
@@ -793,7 +814,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           //chapDiscoveryEnabled: this.options.iscsi.chapDiscoveryEnabled,
           //chapSessionEnabled: this.options.iscsi.chapSessionEnabled,
           iqn: iqn,
-          lun: 0
+          lun: 0,
         };
         return volume_context;
 
@@ -819,7 +840,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
       case "nfs":
         try {
           properties = await zb.zfs.get(datasetName, [
-            FREENAS_NFS_SHARE_PROPERTY_NAME
+            FREENAS_NFS_SHARE_PROPERTY_NAME,
           ]);
         } catch (err) {
           if (err.toString().includes("dataset does not exist")) {
@@ -884,7 +905,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           properties = await zb.zfs.get(datasetName, [
             FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME,
             FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
-            FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME
+            FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
           ]);
         } catch (err) {
           if (err.toString().includes("dataset does not exist")) {

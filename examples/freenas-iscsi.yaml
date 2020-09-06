@@ -52,6 +52,11 @@ iscsi:
   targetPortals: []
   # leave empty to omit usage of -I with iscsiadm
   interface:
+
+  # MUST ensure uniqueness
+  # full iqn limit is 223 bytes, plan accordingly
+  # default is "{{ name }}"
+  #nameTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   namePrefix: csi-
   nameSuffix: "-clustera"
   # add as many as needed

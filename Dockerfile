@@ -20,7 +20,7 @@ ENV PATH=/usr/local/lib/nodejs/bin:$PATH
 
 # node service requirements
 RUN apt-get update && \
-        apt-get install -y xfsprogs fatresize dosfstools open-iscsi lsscsi sg3-utils multipath-tools scsitools nfs-common sudo && \
+        apt-get install -y xfsprogs fatresize dosfstools open-iscsi lsscsi sg3-utils multipath-tools scsitools nfs-common cifs-utils sudo && \
         rm -rf /var/lib/apt/lists/*
 
 # controller requirements

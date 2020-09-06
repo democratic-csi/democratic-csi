@@ -291,6 +291,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       );
     }
 
+    /**
+     * NOTE: avoid the urge to templatize this given the name length limits for zvols
+     * ie: namespace-name may quite easily exceed 58 chars
+     */
     const datasetName = datasetParentName + "/" + name;
     let capacity_bytes =
       call.request.capacity_range.required_bytes ||

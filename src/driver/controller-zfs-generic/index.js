@@ -1,6 +1,8 @@
 const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
 const { GrpcError, grpc } = require("../../utils/grpc");
 
+const Handlebars = require("handlebars");
+
 class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
@@ -44,7 +46,7 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
               ) {
                 await zb.zfs.set(datasetName, {
                   [key]: this.options.nfs.shareStrategySetDatasetProperties
-                    .properties[key]
+                    .properties[key],
                 });
               }
             }
@@ -61,13 +63,23 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
         volume_context = {
           node_attach_driver: "nfs",
           server: this.options.nfs.shareHost,
-          share: properties.mountpoint.value
+          share: properties.mountpoint.value,
         };
         return volume_context;
 
       case "zfs-generic-iscsi":
         let basename;
-        let iscsiName = zb.helpers.extractLeafName(datasetName);
+        let iscsiName;
+
+        if (this.options.iscsi.nameTemplate) {
+          iscsiName = Handlebars.compile(this.options.iscsi.nameTemplate)({
+            name: call.request.name,
+            parameters: call.request.parameters,
+          });
+        } else {
+          iscsiName = zb.helpers.extractLeafName(datasetName);
+        }
+
         if (this.options.iscsi.namePrefix) {
           iscsiName = this.options.iscsi.namePrefix + iscsiName;
         }
@@ -153,7 +165,7 @@ create /backstores/block/${iscsiName}
           portals: this.options.iscsi.targetPortals.join(","),
           interface: this.options.iscsi.interface,
           iqn: iqn,
-          lun: 0
+          lun: 0,
         };
         return volume_context;
 
