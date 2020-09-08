@@ -9,8 +9,10 @@ const { ControllerNfsClientDriver } = require("./controller-nfs-client");
 function factory(ctx, options) {
   switch (options.driver) {
     case "freenas-nfs":
+    case "freenas-smb":
     case "freenas-iscsi":
     case "truenas-nfs":
+    case "truenas-smb":
     case "truenas-iscsi":
       return new FreeNASDriver(ctx, options);
     case "zfs-generic-nfs":

@@ -116,7 +116,7 @@ You may install multiple deployments of each/any driver. It requires the followi
 
 Install beta (v1.17+) CRDs (once per cluster):
 
-- https://github.com/kubernetes-csi/external-snapshotter/tree/master/config/crd
+- https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
 
 ```
 kubectl apply -f snapshot.storage.k8s.io_volumesnapshotclasses.yaml

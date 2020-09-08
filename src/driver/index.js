@@ -75,14 +75,14 @@ class CsiBaseDriver {
   async GetPluginInfo(call) {
     return {
       name: this.ctx.args.csiName,
-      vendor_version: this.ctx.args.version
+      vendor_version: this.ctx.args.version,
     };
   }
 
   async GetPluginCapabilities(call) {
     let capabilities;
     const response = {
-      capabilities: []
+      capabilities: [],
     };
 
     //UNKNOWN = 0;
@@ -104,12 +104,12 @@ class CsiBaseDriver {
     // accessible from a given node when scheduling workloads.
     //VOLUME_ACCESSIBILITY_CONSTRAINTS = 2;
     capabilities = this.options.service.identity.capabilities.service || [
-      "UNKNOWN"
+      "UNKNOWN",
     ];
 
-    capabilities.forEach(item => {
+    capabilities.forEach((item) => {
       response.capabilities.push({
-        service: { type: item }
+        service: { type: item },
       });
     });
 
@@ -155,9 +155,9 @@ class CsiBaseDriver {
     capabilities = this.options.service.identity.capabilities
       .volume_expansion || ["UNKNOWN"];
 
-    capabilities.forEach(item => {
+    capabilities.forEach((item) => {
       response.capabilities.push({
-        volume_expansion: { type: item }
+        volume_expansion: { type: item },
       });
     });
 
@@ -171,7 +171,7 @@ class CsiBaseDriver {
   async ControllerGetCapabilities(call) {
     let capabilities;
     const response = {
-      capabilities: []
+      capabilities: [],
     };
 
     //UNKNOWN = 0;
@@ -199,12 +199,12 @@ class CsiBaseDriver {
     // See VolumeExpansion for details.
     //EXPAND_VOLUME = 9;
     capabilities = this.options.service.controller.capabilities.rpc || [
-      "UNKNOWN"
+      "UNKNOWN",
     ];
 
-    capabilities.forEach(item => {
+    capabilities.forEach((item) => {
       response.capabilities.push({
-        rpc: { type: item }
+        rpc: { type: item },
       });
     });
 
@@ -214,7 +214,7 @@ class CsiBaseDriver {
   async NodeGetCapabilities(call) {
     let capabilities;
     const response = {
-      capabilities: []
+      capabilities: [],
     };
 
     //UNKNOWN = 0;
@@ -227,9 +227,9 @@ class CsiBaseDriver {
     //EXPAND_VOLUME = 3;
     capabilities = this.options.service.node.capabilities.rpc || ["UNKNOWN"];
 
-    capabilities.forEach(item => {
+    capabilities.forEach((item) => {
       response.capabilities.push({
-        rpc: { type: item }
+        rpc: { type: item },
       });
     });
 
@@ -239,7 +239,7 @@ class CsiBaseDriver {
   async NodeGetInfo(call) {
     return {
       node_id: process.env.CSI_NODE_ID || os.hostname(),
-      max_volumes_per_node: 0
+      max_volumes_per_node: 0,
     };
   }
 
@@ -296,12 +296,15 @@ class CsiBaseDriver {
       case "nfs":
         device = `${volume_context.server}:${volume_context.share}`;
         break;
+      case "smb":
+        device = `//${volume_context.server}/${volume_context.share}`;
+        break;
       case "iscsi":
         // create DB entry
         // https://library.netapp.com/ecmdocs/ECMP1654943/html/GUID-8EC685B4-8CB6-40D8-A8D5-031A3899BCDC.html
         // put these options in place to force targets managed by csi to be explicitly attached (in the case of unclearn shutdown etc)
         let nodeDB = {
-          "node.startup": "manual"
+          "node.startup": "manual",
         };
         const nodeDBKeyPrefix = "node-db.";
         const normalizedSecrets = this.getNormalizedParameters(
@@ -420,7 +423,7 @@ class CsiBaseDriver {
 
           await mount.bindMount(device, block_path, [
             "-o",
-            bind_mount_flags.join(",")
+            bind_mount_flags.join(","),
           ]);
         }
         break;
@@ -506,7 +509,7 @@ class CsiBaseDriver {
             session.attached_scsi_devices.host.devices
           ) {
             is_attached_to_session = session.attached_scsi_devices.host.devices.some(
-              device => {
+              (device) => {
                 if (device.attached_scsi_disk == block_device_info.name) {
                   return true;
                 }
@@ -525,7 +528,7 @@ class CsiBaseDriver {
             while (!loggedOut) {
               try {
                 await iscsi.iscsiadm.logout(session.target, [
-                  session.persistent_portal
+                  session.persistent_portal,
                 ]);
                 loggedOut = true;
               } catch (err) {
@@ -659,7 +662,7 @@ class CsiBaseDriver {
           if (!result) {
             await mount.bindMount(normalized_staging_path, target_path, [
               "-o",
-              bind_mount_flags.join(",")
+              bind_mount_flags.join(","),
             ]);
           } else {
             // if is mounted, ensure proper source
@@ -760,9 +763,9 @@ class CsiBaseDriver {
               available: result.avail,
               total: result.size,
               used: result.used,
-              unit: "BYTES"
-            }
-          ]
+              unit: "BYTES",
+            },
+          ],
         };
       case "block":
         result = await filesystem.getBlockDevice(device_path);
@@ -771,9 +774,9 @@ class CsiBaseDriver {
           usage: [
             {
               total: result.size,
-              unit: "BYTES"
-            }
-          ]
+              unit: "BYTES",
+            },
+          ],
         };
       default:
         throw new GrpcError(

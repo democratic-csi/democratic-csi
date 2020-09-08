@@ -6,6 +6,7 @@ const Handlebars = require("handlebars");
 
 // freenas properties
 const FREENAS_NFS_SHARE_PROPERTY_NAME = "democratic-csi:freenas_nfs_share_id";
+const FREENAS_SMB_SHARE_PROPERTY_NAME = "democratic-csi:freenas_smb_share_id";
 const FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME =
   "democratic-csi:freenas_iscsi_target_id";
 const FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME =
@@ -22,6 +23,8 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     switch (this.options.driver) {
       case "freenas-nfs":
       case "truenas-nfs":
+      case "freenas-smb":
+      case "truenas-smb":
         return "filesystem";
       case "freenas-iscsi":
       case "truenas-iscsi":
@@ -45,6 +48,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
       case "freenas-iscsi":
       case "truenas-iscsi":
         return "iscsi";
+      case "freenas-smb":
+      case "truenas-smb":
+        return "smb";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
     }
@@ -123,6 +129,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     const zb = this.getZetabyte();
 
     let properties;
+    let endpoint;
     let response;
     let share = {};
 
@@ -207,7 +214,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 } else {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
-                    `received error creating nfs share - code: ${response.statusCode} body: ${response.body}`
+                    `received error creating nfs share - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
                   );
                 }
               }
@@ -230,6 +239,179 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             node_attach_driver: "nfs",
             server: this.options.nfs.shareHost,
             share: properties.mountpoint.value,
+          };
+          return volume_context;
+        }
+        break;
+      case "smb":
+        properties = await zb.zfs.get(datasetName, [
+          "mountpoint",
+          FREENAS_SMB_SHARE_PROPERTY_NAME,
+        ]);
+        properties = properties[datasetName];
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        let smbName;
+
+        if (this.options.smb.nameTemplate) {
+          smbName = Handlebars.compile(this.options.smb.nameTemplate)({
+            name: call.request.name,
+            parameters: call.request.parameters,
+          });
+        } else {
+          smbName = zb.helpers.extractLeafName(datasetName);
+        }
+
+        if (this.options.smb.namePrefix) {
+          smbName = this.options.smb.namePrefix + smbName;
+        }
+
+        if (this.options.smb.nameSuffix) {
+          smbName += this.options.smb.nameSuffix;
+        }
+
+        smbName = smbName.toLowerCase();
+
+        this.ctx.logger.info(
+          "FreeNAS creating smb share with name: " + smbName
+        );
+
+        // create smb share
+        if (
+          !zb.helpers.isPropertyValueSet(
+            properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value
+          )
+        ) {
+          /**
+           * The only required parameters are:
+           * - path
+           * - name
+           *
+           * Note that over time it appears the list of available parameters has increased
+           * so in an effort to best support old versions of FreeNAS we should check the
+           * presense of each parameter in the config and set the corresponding parameter in
+           * the API request *only* if present in the config.
+           */
+          switch (apiVersion) {
+            case 1:
+            case 2:
+              share = {
+                name: smbName,
+                path: properties.mountpoint.value,
+              };
+
+              let propertyMapping = {
+                shareTemplate: "auxsmbconf",
+                shareHome: "home",
+                shareAllowedHosts: "hostsallow",
+                shareDeniedHosts: "hostsdeny",
+                shareDefaultPermissions: "default_permissions",
+                shareGuestOk: "guestok",
+                shareGuestOnly: "guestonly",
+                shareShowHiddenFiles: "showhiddenfiles",
+                shareRecycleBin: "recyclebin",
+                shareBrowsable: "browsable",
+                shareAccessBasedEnumeration: "abe",
+                shareTimeMachine: "timemachine",
+                shareStorageTask: "storage_task",
+              };
+
+              for (const key in propertyMapping) {
+                if (this.options.smb.hasOwnProperty(key)) {
+                  let value;
+                  switch (key) {
+                    case "shareTemplate":
+                      value = Handlebars.compile(
+                        this.options.smb.shareTemplate
+                      )({
+                        name: call.request.name,
+                        parameters: call.request.parameters,
+                      });
+                      break;
+                    default:
+                      value = this.options.smb[key];
+                      break;
+                  }
+                  share[propertyMapping[key]] = value;
+                }
+              }
+
+              switch (apiVersion) {
+                case 1:
+                  endpoint = "/sharing/cifs";
+
+                  // rename keys with cifs_ prefix
+                  for (const key in share) {
+                    share["cifs_" + key] = share[key];
+                    delete share[key];
+                  }
+
+                  // convert to comma-separated list
+                  if (share.cifs_hostsallow) {
+                    share.cifs_hostsallow = share.cifs_hostsallow.join(",");
+                  }
+
+                  // convert to comma-separated list
+                  if (share.cifs_hostsdeny) {
+                    share.cifs_hostsdeny = share.cifs_hostsdeny.join(",");
+                  }
+                  break;
+                case 2:
+                  endpoint = "/sharing/smb";
+                  break;
+              }
+
+              response = await httpClient.post(endpoint, share);
+
+              /**
+               * v1 = 201
+               * v2 = 200
+               */
+              if ([200, 201].includes(response.statusCode)) {
+                //set zfs property
+                await zb.zfs.set(datasetName, {
+                  [FREENAS_SMB_SHARE_PROPERTY_NAME]: response.body.id,
+                });
+              } else {
+                /**
+                 * v1 = 409
+                 * v2 = 422
+                 */
+                if (
+                  [409, 422].includes(response.statusCode) &&
+                  JSON.stringify(response.body).includes(
+                    "You can't share same filesystem with all hosts twice."
+                  )
+                ) {
+                  // move along
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating smb share - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              }
+
+              let volume_context = {
+                node_attach_driver: "smb",
+                server: this.options.smb.shareHost,
+                share: smbName,
+              };
+              return volume_context;
+
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
+        } else {
+          let volume_context = {
+            node_attach_driver: "smb",
+            server: this.options.smb.shareHost,
+            share: smbName,
           };
           return volume_context;
         }
@@ -835,6 +1017,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     let properties;
     let response;
     let endpoint;
+    let shareId;
 
     switch (driverShareType) {
       case "nfs":
@@ -851,7 +1034,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         properties = properties[datasetName];
         this.ctx.logger.debug("zfs props data: %j", properties);
 
-        let shareId = properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value;
+        shareId = properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value;
 
         // remove nfs share
         if (
@@ -882,6 +1065,68 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
                     `received error deleting nfs share - share: ${shareId} code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
+        }
+        break;
+      case "smb":
+        try {
+          properties = await zb.zfs.get(datasetName, [
+            FREENAS_SMB_SHARE_PROPERTY_NAME,
+          ]);
+        } catch (err) {
+          if (err.toString().includes("dataset does not exist")) {
+            return;
+          }
+          throw err;
+        }
+        properties = properties[datasetName];
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        shareId = properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value;
+
+        // remove smb share
+        if (
+          properties &&
+          properties[FREENAS_SMB_SHARE_PROPERTY_NAME] &&
+          properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value != "-"
+        ) {
+          switch (apiVersion) {
+            case 1:
+            case 2:
+              switch (apiVersion) {
+                case 1:
+                  endpoint = `/sharing/cifs/${shareId}`;
+                  break;
+                case 2:
+                  endpoint = `/sharing/smb/id/${shareId}`;
+                  break;
+              }
+
+              response = await httpClient.get(endpoint);
+
+              // assume share is gone for now
+              if ([404, 500].includes(response.statusCode)) {
+              } else {
+                response = await httpClient.delete(endpoint);
+
+                // returns a 500 if does not exist
+                // v1 = 204
+                // v2 = 200
+                if (![200, 204].includes(response.statusCode)) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error deleting smb share - share: ${shareId} code: ${
                       response.statusCode
                     } body: ${JSON.stringify(response.body)}`
                   );

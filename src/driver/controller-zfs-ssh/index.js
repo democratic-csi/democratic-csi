@@ -181,7 +181,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
           if (
             capability.mount.fs_type &&
-            !["nfs"].includes(capability.mount.fs_type)
+            !["nfs", "cifs"].includes(capability.mount.fs_type)
           ) {
             message = `invalid fs_type ${capability.mount.fs_type}`;
             return false;
@@ -694,9 +694,21 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           response = await sshClient.exec(command);
         }
 
+        // set acls
+        // TODO: this is unsfafe approach, make it better
+        if (this.options.zfs.datasetPermissionsAcls) {
+          for (const acl of this.options.zfs.datasetPermissionsAcls) {
+            command = sshClient.buildCommand("setfacl", [
+              acl,
+              properties.mountpoint.value,
+            ]);
+            driver.ctx.logger.verbose("set acl command: %s", command);
+            response = await sshClient.exec(command);
+          }
+        }
+
         break;
       case "volume":
-        // TODO: create all the necessary iscsi stuff
         // set properties
         // set reserve
         setProps = true;
