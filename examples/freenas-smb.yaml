@@ -1,0 +1,75 @@
+driver: freenas-nfs
+instance_id:
+httpConnection:
+  protocol: http
+  host: server address
+  port: 80
+  username: root
+  password:
+  allowInsecure: true
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+zfs:
+  # can be used to override defaults if necessary
+  # the example below is useful for TrueNAS 12
+  #cli:
+  #  paths:
+  #    zfs: /usr/local/sbin/zfs
+  #    zpool: /usr/local/sbin/zpool
+  #    sudo: /usr/local/bin/sudo
+  #    chroot: /usr/sbin/chroot
+  
+  # can be used to set arbitrary values on the dataset/zvol
+  # can use handlebars templates with the parameters from the storage class/CO
+  #datasetProperties:
+  #  "org.freenas:description": "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+  #  "org.freenas:test": "{{ parameters.foo }}"
+  #  "org.freenas:test2": "some value"
+
+  datasetProperties:
+    aclmode: restricted
+    casesensitivity: mixed
+
+  datasetParentName: tank/k8s/a/vols
+  detachedSnapshotsDatasetParentName: tank/k8s/a/snaps
+  datasetEnableQuotas: true
+  datasetEnableReservation: false
+  datasetPermissionsMode: "0777"
+  datasetPermissionsUser: nobody
+  datasetPermissionsGroup: nobody
+  datasetPermissionsAcls:
+  - "-m everyone@:full_set:allow"
+  #- "-m u:kube:full_set:allow"
+
+smb:
+  shareHost: server address
+  nameTemplate: ""
+  namePrefix: ""
+  nameSuffix: ""
+  
+  # if any of the shareFoo parameters do not work with your version of FreeNAS
+  # simply comment the param (and use the configuration template if necessary)
+
+  shareAuxiliaryConfigurationTemplate: |
+    #guest ok = yes
+    #guest only = yes
+  shareHome: false
+  shareAllowedHosts: []
+  shareDeniedHosts: []
+  #shareDefaultPermissions: true
+  shareGuestOk: true
+  #shareGuestOnly: true
+  #shareShowHiddenFiles: true
+  shareRecycleBin: true
+  shareBrowsable: false
+  shareAccessBasedEnumeration: true
+  shareTimeMachine: false
+  #shareStorageTask:
