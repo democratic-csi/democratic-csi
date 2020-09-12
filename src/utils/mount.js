@@ -111,7 +111,7 @@ class Mount {
    */
   async deviceIsMountedAtPath(device, path) {
     const filesystem = new Filesystem();
-    if (device.startsWith("/")) {
+    if (device.startsWith("/") && !device.startsWith("//")) {
       device = await filesystem.realpath(device);
     }
 

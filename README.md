@@ -14,6 +14,7 @@ have access to resizing, snapshots, clones, etc functionality.
 - several implementations of `csi` drivers
   - `freenas-nfs` (manages zfs datasets to share over nfs)
   - `freenas-iscsi` (manages zfs zvols to share over iscsi)
+  - `freenas-smb` (manages zfs datasets to share over smb)
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
@@ -43,6 +44,16 @@ If you are running Kubernetes with rancher/rke please see the following:
 
 - https://github.com/rancher/rke/issues/1846
 
+### freenas-smb
+
+If using with Windows based machines you may need to enable guest access (even
+if you are connecting with credentiasl)
+
+```
+Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters AllowInsecureGuestAuth -Value 1
+Restart-Service LanmanWorkstation -Force
+```
+
 ### zfs-local-ephemeral-inline
 
 This `driver` provisions node-local ephemeral storage on a per-pod basis. Each
@@ -58,13 +69,15 @@ necessary.
 
 Server preparation depends slightly on which `driver` you are using.
 
-### FreeNAS (freenas-nfs, freenas-iscsi)
+### FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb)
 
 Ensure the following services are configurged and running:
 
 - ssh (if you use a password for authentication make sure it is allowed)
+- ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
 - nfs
 - iscsi
+- smb
 
 ### ZoL (zfs-generic-nfs, zfs-generic-iscsi)
 

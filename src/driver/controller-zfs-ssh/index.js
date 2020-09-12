@@ -696,6 +696,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
         // set acls
         // TODO: this is unsfafe approach, make it better
+        // probably could see if ^-.*\s and split and then shell escape
         if (this.options.zfs.datasetPermissionsAcls) {
           for (const acl of this.options.zfs.datasetPermissionsAcls) {
             command = sshClient.buildCommand("setfacl", [

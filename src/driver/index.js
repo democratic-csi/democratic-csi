@@ -272,9 +272,19 @@ class CsiBaseDriver {
     const bind_mount_flags = [];
     bind_mount_flags.push("defaults");
 
+    const normalizedSecrets = this.getNormalizedParameters(
+      call.request.secrets,
+      call.request.volume_context.provisioner_driver,
+      call.request.volume_context.provisioner_driver_instance_id
+    );
+
     if (access_type == "mount") {
       fs_type = capability.mount.fs_type;
       mount_flags = capability.mount.mount_flags || [];
+      // add secrets mount_flags
+      if (normalizedSecrets.mount_flags) {
+        mount_flags.push(normalizedSecrets.mount_flags);
+      }
       mount_flags.push("defaults");
     }
 
@@ -307,11 +317,6 @@ class CsiBaseDriver {
           "node.startup": "manual",
         };
         const nodeDBKeyPrefix = "node-db.";
-        const normalizedSecrets = this.getNormalizedParameters(
-          call.request.secrets,
-          call.request.volume_context.provisioner_driver,
-          call.request.volume_context.provisioner_driver_instance_id
-        );
         for (const key in normalizedSecrets) {
           if (key.startsWith(nodeDBKeyPrefix)) {
             nodeDB[key.substr(nodeDBKeyPrefix.length)] = normalizedSecrets[key];
@@ -355,24 +360,31 @@ class CsiBaseDriver {
 
     switch (access_type) {
       case "mount":
-        if (await filesystem.isBlockDevice(device)) {
-          // format
-          result = await filesystem.deviceIsFormatted(device);
-          if (!result) {
-            await filesystem.formatDevice(device, fs_type);
-          }
+        switch (node_attach_driver) {
+          // block specific logic
+          case "iscsi":
+            if (await filesystem.isBlockDevice(device)) {
+              // format
+              result = await filesystem.deviceIsFormatted(device);
+              if (!result) {
+                await filesystem.formatDevice(device, fs_type);
+              }
 
-          let fs_info = await filesystem.getDeviceFilesystemInfo(device);
-          fs_type = fs_info.type;
+              let fs_info = await filesystem.getDeviceFilesystemInfo(device);
+              fs_type = fs_info.type;
 
-          // fsck
-          result = await mount.deviceIsMountedAtPath(
-            device,
-            staging_target_path
-          );
-          if (!result) {
-            await filesystem.checkFilesystem(device, fs_type);
-          }
+              // fsck
+              result = await mount.deviceIsMountedAtPath(
+                device,
+                staging_target_path
+              );
+              if (!result) {
+                await filesystem.checkFilesystem(device, fs_type);
+              }
+            }
+            break;
+          default:
+            break;
         }
 
         result = await mount.deviceIsMountedAtPath(device, staging_target_path);
@@ -614,6 +626,7 @@ class CsiBaseDriver {
 
     switch (node_attach_driver) {
       case "nfs":
+      case "smb":
       case "iscsi":
         // ensure appropriate directories/files
         switch (access_type) {

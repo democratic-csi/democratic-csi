@@ -38,6 +38,10 @@ zfs:
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: root
   datasetPermissionsGroup: root
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
+  #- "-m u:kube:full_set:allow"
+
 nfs:
   # https://docs.oracle.com/cd/E23824_01/html/821-1448/gayne.html
   # https://www.hiroom2.com/2016/05/18/ubuntu-16-04-share-zfs-storage-via-nfs-smb/

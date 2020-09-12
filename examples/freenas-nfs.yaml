@@ -41,6 +41,10 @@ zfs:
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: root
   datasetPermissionsGroup: wheel
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
+  #- "-m u:kube:full_set:allow"
+
 nfs:
   shareHost: server address
   shareAlldirs: false

@@ -45,12 +45,12 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
       case "freenas-nfs":
       case "truenas-nfs":
         return "nfs";
-      case "freenas-iscsi":
-      case "truenas-iscsi":
-        return "iscsi";
       case "freenas-smb":
       case "truenas-smb":
         return "smb";
+      case "freenas-iscsi":
+      case "truenas-iscsi":
+        return "iscsi";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
     }
@@ -301,7 +301,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               };
 
               let propertyMapping = {
-                shareTemplate: "auxsmbconf",
+                shareAuxiliaryConfigurationTemplate: "auxsmbconf",
                 shareHome: "home",
                 shareAllowedHosts: "hostsallow",
                 shareDeniedHosts: "hostsdeny",
@@ -320,9 +320,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 if (this.options.smb.hasOwnProperty(key)) {
                   let value;
                   switch (key) {
-                    case "shareTemplate":
+                    case "shareAuxiliaryConfigurationTemplate":
                       value = Handlebars.compile(
-                        this.options.smb.shareTemplate
+                        this.options.smb.shareAuxiliaryConfigurationTemplate
                       )({
                         name: call.request.name,
                         parameters: call.request.parameters,

@@ -22,7 +22,7 @@ class Filesystem {
 
     if (!options.executor) {
       options.executor = {
-        spawn: cp.spawn
+        spawn: cp.spawn,
       };
     }
   }
@@ -35,13 +35,20 @@ class Filesystem {
   async isBlockDevice(device) {
     const filesystem = this;
 
+    // nfs paths
     if (!device.startsWith("/")) {
       return false;
     }
+
+    // smb paths
+    if (device.startsWith("//")) {
+      return false;
+    }
+
     const device_path = await filesystem.realpath(device);
     const blockdevices = await filesystem.getAllBlockDevices();
 
-    return blockdevices.some(i => {
+    return blockdevices.some((i) => {
       if (i.path == device_path) {
         return true;
       }
@@ -192,7 +199,7 @@ class Filesystem {
       const entries = result.stdout.trim().split("\n");
       const properties = {};
       let fields, key, value;
-      entries.forEach(entry => {
+      entries.forEach((entry) => {
         fields = entry.split("=");
         key = fields[0].toLowerCase();
         value = fields[1];
@@ -440,15 +447,15 @@ class Filesystem {
     }
 
     return new Promise((resolve, reject) => {
-      child.stdout.on("data", function(data) {
+      child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });
 
-      child.stderr.on("data", function(data) {
+      child.stderr.on("data", function (data) {
         stderr = stderr + data;
       });
 
-      child.on("close", function(code) {
+      child.on("close", function (code) {
         const result = { code, stdout, stderr };
         if (timeout) {
           clearTimeout(timeout);
