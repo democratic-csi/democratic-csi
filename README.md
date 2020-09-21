@@ -125,7 +125,8 @@ microk8s helm upgrade \
   --install \
   --values freenas-nfs.yaml \
   --set node.kubeletHostPath="/var/snap/microk8s/common/var/lib/kubelet"  \
-  --namespace democratic-csi zfs-nfs democratic-csi/democratic-csi
+  --namespace democratic-csi \
+  zfs-nfs democratic-csi/democratic-csi
 ```
 
 ## Multiple Deployments
