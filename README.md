@@ -115,6 +115,14 @@ helm upgrade \
 --namespace democratic-csi \
 zfs-nfs democratic-csi/democratic-csi
 ```
+## A note on non standard kubelet paths
+
+Some distrobutions, such as `minikube` and `microk8s` uses a non-standard kubelet path. 
+In such cases it is necessary to provide a new kubelet host path, microk8s example below:
+
+```bash
+microk8s helm upgrade --install --values freenas-nfs.yaml --set node.kubeletHostPath="/var/snap/microk8s/common/var/lib/kubelet"  --namespace democratic-csi zfs-nfs democratic-csi/democratic-csi
+```
 
 ## Multiple Deployments
 
