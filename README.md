@@ -79,6 +79,18 @@ Ensure the following services are configurged and running:
 - iscsi
 - smb
 
+#### Rootless SSH
+
+If you don't want to use the root user for logging in via SSH, it's also possible to create a separate user for managing the ZFS datasets. 
+
+First create a new user, let's call it `csi`. Next it needs write permissions on the parent dataset to create new mount points (easiest is to set it as owner of the dataset) and also specific ZFS permissions to create new child datasets, which can be set by executing:
+
+`zfs allow csi create,destroy,mount,refquota,snapshot,userprop,refreservation tank/k8s/a/vols`
+
+Finally you need to enable usermount by executing: `sysctl vfs.usermount=1`. This can be set persistantly via the FreeNAS Web UI at `System` -> `Tunables` (make sure changing type `SYSCTL`).
+
+Now you can use the `csi` user for the SSH connection instead of root.
+
 ### ZoL (zfs-generic-nfs, zfs-generic-iscsi)
 
 Ensure ssh and zfs is installed on the server and that you have installed
