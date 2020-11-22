@@ -260,14 +260,21 @@ delete ${iscsiName}
     const sshClient = this.getSshClient();
     data = data.trim();
 
+    let command = "sh";
     let args = ["-c"];
-    let command = [];
-    command.push(`echo "${data}"`.trim());
-    command.push("|");
-    command.push("targetcli");
+    let taregetCliCommand = [];
+    taregetCliCommand.push(`echo "${data}"`.trim());
+    taregetCliCommand.push("|");
+    taregetCliCommand.push("targetcli");
 
-    args.push("'" + command.join(" ") + "'");
-    return sshClient.exec(sshClient.buildCommand("sh", args));
+    if (this.options.iscsi.shareStragetyTargetCli.sudoEnabled) {
+      command = "sudo";
+      args.unshift("sh");
+    }
+
+    args.push("'" + taregetCliCommand.join(" ") + "'");
+
+    return sshClient.exec(sshClient.buildCommand(command, args));
   }
 }
 

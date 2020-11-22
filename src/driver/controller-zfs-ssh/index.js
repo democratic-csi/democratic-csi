@@ -135,7 +135,22 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       options.paths = this.options.zfs.cli.paths;
     }
 
+    if (
+      this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli.hasOwnProperty("sudoEnabled")
+    ) {
+      options.sudo = this.getSudoEnabled();
+    }
+
     return new Zetabyte(options);
+  }
+
+  getSudoEnabled() {
+    return this.options.zfs.cli.sudoEnabled === true;
+  }
+
+  getSudoPath() {
+    return this.options.zfs.cli.paths.sudo || "/usr/bin/sudo";
   }
 
   getDatasetParentName() {
@@ -671,6 +686,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             this.options.zfs.datasetPermissionsMode,
             properties.mountpoint.value,
           ]);
+          if (this.getSudoEnabled()) {
+            command = this.getSudoPath() + " " + command;
+          }
+
           driver.ctx.logger.verbose("set permission command: %s", command);
           response = await sshClient.exec(command);
         }
@@ -690,6 +709,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
                 : ""),
             properties.mountpoint.value,
           ]);
+          if (this.getSudoEnabled()) {
+            command = this.getSudoPath() + " " + command;
+          }
+
           driver.ctx.logger.verbose("set ownership command: %s", command);
           response = await sshClient.exec(command);
         }
@@ -703,6 +726,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               acl,
               properties.mountpoint.value,
             ]);
+            if (this.getSudoEnabled()) {
+              command = this.getSudoPath() + " " + command;
+            }
+
             driver.ctx.logger.verbose("set acl command: %s", command);
             response = await sshClient.exec(command);
           }

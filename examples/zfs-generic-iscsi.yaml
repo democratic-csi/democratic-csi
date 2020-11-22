@@ -51,6 +51,7 @@ iscsi:
   # https://bugzilla.redhat.com/show_bug.cgi?id=1659195
   # http://atodorov.org/blog/2015/04/07/how-to-configure-iscsi-target-on-red-hat-enterprise-linux-7/
   shareStragetyTargetCli:
+    #sudoEnabled: true
     basename: "iqn.2003-01.org.linux-iscsi.ubuntu-19.x8664"
     tpg:
       attributes:
