@@ -13,6 +13,8 @@ const FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME =
   "democratic-csi:freenas_iscsi_extent_id";
 const FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME =
   "democratic-csi:freenas_iscsi_targettoextent_id";
+const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
+  "democratic-csi:freenas_iscsi_assets_name";
 
 class FreeNASDriver extends ControllerZfsSshBaseDriver {
   /**
@@ -524,7 +526,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             // create target
             let target = {
               iscsi_target_name: iscsiName,
-              iscsi_target_alias: "",
+              iscsi_target_alias: "", // TODO: allow template for this
             };
 
             response = await httpClient.post("/services/iscsi/target", target);
@@ -651,7 +653,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             }
 
             let extent = {
-              iscsi_target_extent_comment: "",
+              iscsi_target_extent_comment: "", // TODO: allow template for this value
               iscsi_target_extent_type: "Disk", // Disk/File, after save Disk becomes "ZVOL"
               iscsi_target_extent_name: iscsiName,
               iscsi_target_extent_insecure_tpc: extentInsecureTpc,
@@ -849,7 +851,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             });
 
             let extent = {
-              comment: "",
+              comment: "", // TODO: allow this to be templated
               type: "DISK", // Disk/File, after save Disk becomes "ZVOL"
               name: iscsiName,
               //iscsi_target_extent_naa: "0x3822690834aae6c5",
@@ -973,6 +975,11 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         // iqn = target
         let iqn = basename + ":" + iscsiName;
         this.ctx.logger.info("FreeNAS iqn: " + iqn);
+
+        // store this off to make delete process more bullet proof
+        await zb.zfs.set(datasetName, {
+          [FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME]: iscsiName,
+        });
 
         // iscsiadm -m discovery -t st -p 172.21.26.81
         // iscsiadm -m node -T iqn.2011-03.lan.bitness.istgt:test -p bitness.lan -l
@@ -1151,6 +1158,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME,
             FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
             FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
+            FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME,
           ]);
         } catch (err) {
           if (err.toString().includes("dataset does not exist")) {
@@ -1164,6 +1172,10 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
         let targetId = properties[FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME].value;
         let extentId = properties[FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME].value;
+        let iscsiName =
+          properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+        let assetName;
+        let deleteAsset;
 
         switch (apiVersion) {
           case 1:
@@ -1186,13 +1198,41 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             // assume is gone for now
             if ([404, 500].includes(response.statusCode)) {
             } else {
-              response = await httpClient.delete(endpoint);
-              if (![200, 204].includes(response.statusCode)) {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error deleting iscsi target - extent: ${targetId} code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
+              deleteAsset = true;
+              assetName = null;
+
+              // checking if set for backwards compatibility
+              if (zb.helpers.isPropertyValueSet(iscsiName)) {
+                switch (apiVersion) {
+                  case 1:
+                    assetName = response.body.iscsi_target_name;
+                    break;
+                  case 2:
+                    assetName = response.body.name;
+                    break;
+                }
+
+                if (assetName != iscsiName) {
+                  deleteAsset = false;
+                }
+              }
+
+              if (deleteAsset) {
+                response = await httpClient.delete(endpoint);
+                if (![200, 204].includes(response.statusCode)) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error deleting iscsi target - extent: ${targetId} code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                this.ctx.logger.debug(
+                  "not deleting iscsitarget asset as it appears ID %s has been re-used: zfs name - %s, iscsitarget name - %s",
+                  targetId,
+                  iscsiName,
+                  assetName
                 );
               }
             }
@@ -1210,13 +1250,41 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             // assume is gone for now
             if ([404, 500].includes(response.statusCode)) {
             } else {
-              response = await httpClient.delete(endpoint);
-              if (![200, 204].includes(response.statusCode)) {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error deleting iscsi extent - extent: ${extentId} code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
+              deleteAsset = true;
+              assetName = null;
+
+              // checking if set for backwards compatibility
+              if (zb.helpers.isPropertyValueSet(iscsiName)) {
+                switch (apiVersion) {
+                  case 1:
+                    assetName = response.body.iscsi_target_extent_name;
+                    break;
+                  case 2:
+                    assetName = response.body.name;
+                    break;
+                }
+
+                if (assetName != iscsiName) {
+                  deleteAsset = false;
+                }
+              }
+
+              if (deleteAsset) {
+                response = await httpClient.delete(endpoint);
+                if (![200, 204].includes(response.statusCode)) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error deleting iscsi extent - extent: ${extentId} code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                this.ctx.logger.debug(
+                  "not deleting iscsiextent asset as it appears ID %s has been re-used: zfs name - %s, iscsiextent name - %s",
+                  extentId,
+                  iscsiName,
+                  assetName
                 );
               }
             }
