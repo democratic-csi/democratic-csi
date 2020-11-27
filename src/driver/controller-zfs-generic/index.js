@@ -26,7 +26,7 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
    * @param {*} datasetName
    */
   async createShare(call, datasetName) {
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
     const sshClient = this.getSshClient();
 
     let properties;
@@ -105,25 +105,25 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
 
         switch (this.options.iscsi.shareStrategy) {
           case "targetCli":
-            basename = this.options.iscsi.shareStragetyTargetCli.basename;
+            basename = this.options.iscsi.shareStrategyTargetCli.basename;
             let setAttributesText = "";
             let setAuthText = "";
-            if (this.options.iscsi.shareStragetyTargetCli.tpg) {
-              if (this.options.iscsi.shareStragetyTargetCli.tpg.attributes) {
+            if (this.options.iscsi.shareStrategyTargetCli.tpg) {
+              if (this.options.iscsi.shareStrategyTargetCli.tpg.attributes) {
                 for (const attributeName in this.options.iscsi
-                  .shareStragetyTargetCli.tpg.attributes) {
+                  .shareStrategyTargetCli.tpg.attributes) {
                   const attributeValue = this.options.iscsi
-                    .shareStragetyTargetCli.tpg.attributes[attributeName];
+                    .shareStrategyTargetCli.tpg.attributes[attributeName];
                   setAttributesText += "\n";
                   setAttributesText += `set attribute ${attributeName}=${attributeValue}`;
                 }
               }
 
-              if (this.options.iscsi.shareStragetyTargetCli.tpg.auth) {
+              if (this.options.iscsi.shareStrategyTargetCli.tpg.auth) {
                 for (const attributeName in this.options.iscsi
-                  .shareStragetyTargetCli.tpg.auth) {
+                  .shareStrategyTargetCli.tpg.auth) {
                   const attributeValue = this.options.iscsi
-                    .shareStragetyTargetCli.tpg.auth[attributeName];
+                    .shareStrategyTargetCli.tpg.auth[attributeName];
                   setAttributesText += "\n";
                   setAttributesText += `set auth ${attributeName}=${attributeValue}`;
                 }
@@ -178,7 +178,7 @@ create /backstores/block/${iscsiName}
   }
 
   async deleteShare(call, datasetName) {
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
     const sshClient = this.getSshClient();
 
     let response;
@@ -210,7 +210,7 @@ create /backstores/block/${iscsiName}
         iscsiName = iscsiName.toLowerCase();
         switch (this.options.iscsi.shareStrategy) {
           case "targetCli":
-            basename = this.options.iscsi.shareStragetyTargetCli.basename;
+            basename = this.options.iscsi.shareStrategyTargetCli.basename;
             response = await this.targetCliCommand(
               `
 cd /iscsi
@@ -267,7 +267,7 @@ delete ${iscsiName}
     taregetCliCommand.push("|");
     taregetCliCommand.push("targetcli");
 
-    if (this.options.iscsi.shareStragetyTargetCli.sudoEnabled) {
+    if (this.options.iscsi.shareStrategyTargetCli.sudoEnabled) {
       command = "sudo";
       args.unshift("sh");
     }

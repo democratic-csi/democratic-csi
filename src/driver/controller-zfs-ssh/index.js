@@ -122,7 +122,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     });
   }
 
-  getZetabyte() {
+  async getZetabyte() {
     const sshClient = this.getSshClient();
     const options = {};
     options.executor = new ZfsSshProcessManager(sshClient);
@@ -130,6 +130,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     if (
       this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli &&
       this.options.zfs.cli.hasOwnProperty("paths")
     ) {
       options.paths = this.options.zfs.cli.paths;
@@ -137,20 +138,26 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     if (
       this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli &&
       this.options.zfs.cli.hasOwnProperty("sudoEnabled")
     ) {
       options.sudo = this.getSudoEnabled();
+    }
+
+    if (typeof this.setZetabyteCustomOptions === "function") {
+      await this.setZetabyteCustomOptions(options);
     }
 
     return new Zetabyte(options);
   }
 
   getSudoEnabled() {
-    return this.options.zfs.cli.sudoEnabled === true;
+    return this.options.zfs.cli && this.options.zfs.cli.sudoEnabled === true;
   }
 
-  getSudoPath() {
-    return this.options.zfs.cli.paths.sudo || "/usr/bin/sudo";
+  async getSudoPath() {
+    const zb = await this.getZetabyte();
+    return zb.options.paths.sudo || "/usr/bin/sudo";
   }
 
   getDatasetParentName() {
@@ -175,7 +182,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   }
 
   async removeSnapshotsFromDatatset(datasetName, options = {}) {
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     await zb.zfs.destroy(datasetName + "@%", options);
   }
@@ -265,7 +272,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const sshClient = this.getSshClient();
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
@@ -687,7 +694,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             properties.mountpoint.value,
           ]);
           if (this.getSudoEnabled()) {
-            command = this.getSudoPath() + " " + command;
+            command = (await this.getSudoPath()) + " " + command;
           }
 
           driver.ctx.logger.verbose("set permission command: %s", command);
@@ -710,7 +717,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             properties.mountpoint.value,
           ]);
           if (this.getSudoEnabled()) {
-            command = this.getSudoPath() + " " + command;
+            command = (await this.getSudoPath()) + " " + command;
           }
 
           driver.ctx.logger.verbose("set ownership command: %s", command);
@@ -727,7 +734,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               properties.mountpoint.value,
             ]);
             if (this.getSudoEnabled()) {
-              command = this.getSudoPath() + " " + command;
+              command = (await this.getSudoPath()) + " " + command;
             }
 
             driver.ctx.logger.verbose("set acl command: %s", command);
@@ -799,7 +806,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
    */
   async DeleteVolume(call) {
     const driver = this;
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let name = call.request.volume_id;
@@ -904,7 +911,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   async ControllerExpandVolume(call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let name = call.request.volume_id;
@@ -1017,7 +1024,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
    */
   async GetCapacity(call) {
     const driver = this;
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let datasetParentName = this.getVolumeParentDatasetName();
 
@@ -1054,7 +1061,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   async ListVolumes(call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let entries = [];
@@ -1239,7 +1246,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   async ListSnapshots(call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let entries = [];
     let entries_length = 0;
@@ -1471,7 +1478,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   async CreateSnapshot(call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let detachedSnapshot = false;
     try {
@@ -1705,7 +1712,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
    */
   async DeleteSnapshot(call) {
     const driver = this;
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     const snapshot_id = call.request.snapshot_id;
 

@@ -15,7 +15,6 @@ const FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME =
   "democratic-csi:freenas_iscsi_targettoextent_id";
 const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
   "democratic-csi:freenas_iscsi_assets_name";
-
 class FreeNASDriver extends ControllerZfsSshBaseDriver {
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
@@ -36,9 +35,30 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     }
   }
 
-  getHttpClient() {
+  async setZetabyteCustomOptions(options) {
+    if (!options.hasOwnProperty("paths")) {
+      const majorMinor = await this.getSystemVersionMajorMinor();
+      const isScale = await this.getIsScale();
+      if (!isScale && Number(majorMinor) >= 12) {
+        options.paths = {
+          zfs: "/usr/local/sbin/zfs",
+          zpool: "/usr/local/sbin/zpool",
+          sudo: "/usr/local/bin/sudo",
+          chroot: "/usr/sbin/chroot",
+        };
+      }
+    }
+  }
+
+  async getHttpClient(autoDetectVersion = true) {
     const client = new HttpClient(this.options.httpConnection);
     client.logger = this.ctx.logger;
+
+    if (autoDetectVersion && !!!this.options.httpConnection.apiVersion) {
+      const apiVersion = await this.getApiVersion();
+      client.setApiVersion(apiVersion);
+    }
+
     return client;
   }
 
@@ -62,7 +82,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     if (!match || Object.keys(match).length < 1) {
       return;
     }
-    const httpClient = this.getHttpClient();
+    const httpClient = await this.getHttpClient();
     let target;
     let page = 0;
 
@@ -126,9 +146,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
    */
   async createShare(call, datasetName) {
     const driverShareType = this.getDriverShareType();
-    const httpClient = this.getHttpClient();
+    const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let properties;
     let endpoint;
@@ -1017,19 +1037,22 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
   async deleteShare(call, datasetName) {
     const driverShareType = this.getDriverShareType();
-    const httpClient = this.getHttpClient();
+    const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
-    const zb = this.getZetabyte();
+    const zb = await this.getZetabyte();
 
     let properties;
     let response;
     let endpoint;
     let shareId;
+    let deleteAsset;
+    let sharePaths;
 
     switch (driverShareType) {
       case "nfs":
         try {
           properties = await zb.zfs.get(datasetName, [
+            "mountpoint",
             FREENAS_NFS_SHARE_PROPERTY_NAME,
           ]);
         } catch (err) {
@@ -1063,18 +1086,33 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               // assume share is gone for now
               if ([404, 500].includes(response.statusCode)) {
               } else {
-                response = await httpClient.delete(endpoint);
+                switch (apiVersion) {
+                  case 1:
+                    sharePaths = response.body.nfs_paths;
+                    break;
+                  case 2:
+                    sharePaths = response.body.paths;
+                    break;
+                }
 
-                // returns a 500 if does not exist
-                // v1 = 204
-                // v2 = 200
-                if (![200, 204].includes(response.statusCode)) {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `received error deleting nfs share - share: ${shareId} code: ${
-                      response.statusCode
-                    } body: ${JSON.stringify(response.body)}`
-                  );
+                deleteAsset = sharePaths.some((value) => {
+                  return value == properties.mountpoint.value;
+                });
+
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+
+                  // returns a 500 if does not exist
+                  // v1 = 204
+                  // v2 = 200
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting nfs share - share: ${shareId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
                 }
               }
               break;
@@ -1089,6 +1127,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
       case "smb":
         try {
           properties = await zb.zfs.get(datasetName, [
+            "mountpoint",
             FREENAS_SMB_SHARE_PROPERTY_NAME,
           ]);
         } catch (err) {
@@ -1125,18 +1164,33 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               // assume share is gone for now
               if ([404, 500].includes(response.statusCode)) {
               } else {
-                response = await httpClient.delete(endpoint);
+                switch (apiVersion) {
+                  case 1:
+                    sharePaths = [response.body.cifs_path];
+                    break;
+                  case 2:
+                    sharePaths = [response.body.path];
+                    break;
+                }
 
-                // returns a 500 if does not exist
-                // v1 = 204
-                // v2 = 200
-                if (![200, 204].includes(response.statusCode)) {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `received error deleting smb share - share: ${shareId} code: ${
-                      response.statusCode
-                    } body: ${JSON.stringify(response.body)}`
-                  );
+                deleteAsset = sharePaths.some((value) => {
+                  return value == properties.mountpoint.value;
+                });
+
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+
+                  // returns a 500 if does not exist
+                  // v1 = 204
+                  // v2 = 200
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting smb share - share: ${shareId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
                 }
               }
               break;
@@ -1175,7 +1229,6 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         let iscsiName =
           properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
         let assetName;
-        let deleteAsset;
 
         switch (apiVersion) {
           case 1:
@@ -1310,10 +1363,18 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
     switch (driverShareType) {
       case "iscsi":
-        this.ctx.logger.verbose("FreeNAS reloading ctld");
-        await sshClient.exec(
-          sshClient.buildCommand("/etc/rc.d/ctld", ["reload"])
-        );
+        const isScale = this.getIsScale();
+        if (isScale) {
+          this.ctx.logger.verbose("FreeNAS reloading scst");
+          await sshClient.exec(
+            sshClient.buildCommand("systemctl", ["reload", "scst"])
+          );
+        } else {
+          this.ctx.logger.verbose("FreeNAS reloading ctld");
+          await sshClient.exec(
+            sshClient.buildCommand("/etc/rc.d/ctld", ["reload"])
+          );
+        }
         break;
     }
   }
@@ -1321,11 +1382,120 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   async getApiVersion() {
     const systemVersion = await this.getSystemVersion();
 
+    if (systemVersion.v2) {
+      return 2;
+    }
+
     return 1;
   }
 
+  async getIsFreeNAS() {
+    const systemVersion = await this.getSystemVersion();
+    let version;
+
+    if (systemVersion.v2) {
+      version = systemVersion.v2;
+    } else {
+      version = systemVersion.v1.fullversion;
+    }
+
+    if (version.toLowerCase().includes("freenas")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  async getIsTrueNAS() {
+    const systemVersion = await this.getSystemVersion();
+    let version;
+
+    if (systemVersion.v2) {
+      version = systemVersion.v2;
+    } else {
+      version = systemVersion.v1.fullversion;
+    }
+
+    if (version.toLowerCase().includes("truenas")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  async getIsScale() {
+    const systemVersion = await this.getSystemVersion();
+
+    if (systemVersion.v2 && systemVersion.v2.toLowerCase().includes("scale")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  async getSystemVersionMajorMinor() {
+    const systemVersion = await this.getSystemVersion();
+    let parts;
+    let parts_i;
+    let version;
+
+    /*
+    systemVersion.v2 = "FreeNAS-11.2-U5";
+    systemVersion.v2 = "TrueNAS-SCALE-20.11-MASTER-20201127-092915";
+    systemVersion.v1 = {
+      fullversion: "FreeNAS-9.3-STABLE-201503200528",
+      fullversion: "FreeNAS-11.2-U5 (c129415c52)",
+    };
+
+    systemVersion.v2 = null;
+    */
+
+    if (systemVersion.v2) {
+      version = systemVersion.v2;
+    } else {
+      version = systemVersion.v1.fullversion;
+    }
+
+    if (version) {
+      parts = version.split("-");
+      parts_i = [];
+      parts.forEach((value) => {
+        let i = value.replace(/[^\d.]/g, "");
+        if (i.length > 0) {
+          parts_i.push(i);
+        }
+      });
+
+      // join and resplit to deal with single elements which contain a decimal
+      parts_i = parts_i.join(".").split(".");
+      parts_i.splice(2);
+      return parts_i.join(".");
+    }
+  }
+
+  async getSystemVersionMajor() {
+    const majorMinor = await this.getSystemVersionMajorMinor();
+    return majorMinor.split(".")[0];
+  }
+
+  async setVersionInfoCache(versionInfo) {
+    const driver = this;
+    this.cache = this.cache || {};
+    this.cache.versionInfo = versionInfo;
+
+    // crude timeout
+    setTimeout(function () {
+      driver.cache.versionInfo = null;
+    }, 60 * 1000);
+  }
+
   async getSystemVersion() {
-    const httpClient = this.getHttpClient();
+    this.cache = this.cache || {};
+    if (this.cache.versionInfo) {
+      return this.cache.versionInfo;
+    }
+
+    const httpClient = await this.getHttpClient(false);
     const endpoint = "/system/version/";
     let response;
     const startApiVersion = httpClient.getApiVersion();
@@ -1334,12 +1504,18 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     httpClient.setApiVersion(2);
     /**
      * FreeNAS-11.2-U5
+     * TrueNAS-12.0-RELEASE
+     * TrueNAS-SCALE-20.11-MASTER-20201127-092915
      */
     try {
       response = await httpClient.get(endpoint);
       if (response.statusCode == 200) {
         versionInfo.v2 = response.body;
       }
+
+      // return immediately to save on resources and silly requests
+      await this.setVersionInfoCache(versionInfo);
+      return versionInfo;
     } catch (e) {}
 
     httpClient.setApiVersion(1);
@@ -1357,6 +1533,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     // reset apiVersion
     httpClient.setApiVersion(startApiVersion);
 
+    await this.setVersionInfoCache(versionInfo);
     return versionInfo;
   }
 }

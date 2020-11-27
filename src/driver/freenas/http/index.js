@@ -4,7 +4,7 @@ const USER_AGENT = "democratic-csi-driver";
 
 class Client {
   constructor(options = {}) {
-    this.options = options;
+    this.options = JSON.parse(JSON.stringify(options));
     this.logger = console;
 
     // default to v1.0 for now
