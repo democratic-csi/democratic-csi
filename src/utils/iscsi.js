@@ -25,7 +25,7 @@ class ISCSI {
 
     if (!options.executor) {
       options.executor = {
-        spawn: cp.spawn
+        spawn: cp.spawn,
       };
     }
 
@@ -47,7 +47,7 @@ class ISCSI {
         const entries = result.stdout.trim().split("\n");
         const interfaces = [];
         let fields;
-        entries.forEach(entry => {
+        entries.forEach((entry) => {
           fields = entry.split(" ");
           interfaces.push({
             iface_name: fields[0],
@@ -55,7 +55,7 @@ class ISCSI {
             hwaddress: getIscsiValue(fields[1].split(",")[1]),
             ipaddress: getIscsiValue(fields[1].split(",")[2]),
             net_ifacename: getIscsiValue(fields[1].split(",")[3]),
-            initiatorname: getIscsiValue(fields[1].split(",")[4])
+            initiatorname: getIscsiValue(fields[1].split(",")[4]),
           });
         });
 
@@ -75,7 +75,7 @@ class ISCSI {
         const entries = result.stdout.trim().split("\n");
         const i = {};
         let fields, key, value;
-        entries.forEach(entry => {
+        entries.forEach((entry) => {
           if (entry.startsWith("#")) return;
           fields = entry.split("=");
           key = fields[0].trim();
@@ -103,7 +103,7 @@ class ISCSI {
           "-p",
           portal,
           "-o",
-          "new"
+          "new",
         ]);
         await iscsi.exec(options.paths.iscsiadm, args);
         for (let attribute in attributes) {
@@ -120,7 +120,7 @@ class ISCSI {
             "--name",
             attribute,
             "--value",
-            attributes[attribute]
+            attributes[attribute],
           ]);
           await iscsi.exec(options.paths.iscsiadm, args);
         }
@@ -142,7 +142,7 @@ class ISCSI {
           "-p",
           portal,
           "-o",
-          "delete"
+          "delete",
         ]);
         await iscsi.exec(options.paths.iscsiadm, args);
       },
@@ -174,7 +174,7 @@ class ISCSI {
         const entries = result.stdout.trim().split("\n");
         const sessions = [];
         let fields;
-        entries.forEach(entry => {
+        entries.forEach((entry) => {
           fields = entry.split(" ");
           sessions.push({
             protocol: entry.split(":")[0],
@@ -182,7 +182,7 @@ class ISCSI {
             portal: fields[2].split(",")[0],
             target_portal_group_tag: fields[2].split(",")[1],
             iqn: fields[3].split(":")[0],
-            target: fields[3].split(":")[1]
+            target: fields[3].split(":")[1],
           });
         });
 
@@ -212,6 +212,7 @@ class ISCSI {
           return [];
         }
 
+        let currentTarget;
         let sessionGroups = [];
         let currentSession = [];
 
@@ -221,13 +222,21 @@ class ISCSI {
         entries.shift();
         entries.shift();
 
+        // this should break up the lines into groups of lines
+        // where each group is the full details of a single session
+        // note that the output of the command bundles/groups all sessions
+        // by target so extra logic is needed to hanle that
+        // alternatively we could get all sessions using getSessions()
+        // and then invoke `iscsiadm -m session -P 3 -r <session id>` in a loop
         for (let i = 0; i < entries.length; i++) {
           let entry = entries[i];
           if (entry.startsWith("Target:")) {
+            currentTarget = entry;
+          } else if (entry.trim().startsWith("Current Portal:")) {
             if (currentSession.length > 0) {
               sessionGroups.push(currentSession);
             }
-            currentSession = [entry];
+            currentSession = [currentTarget, entry];
           } else {
             currentSession.push(entry);
           }
@@ -261,11 +270,7 @@ class ISCSI {
               .trim()
               .replace(/ /g, "_")
               .replace(/\W/g, "");
-            let value = line
-              .split(":")
-              .slice(1)
-              .join(":")
-              .trim();
+            let value = line.split(":").slice(1).join(":").trim();
 
             if (currentSection) {
               session[currentSection] = session[currentSection] || {};
@@ -282,7 +287,7 @@ class ISCSI {
                         .split(":")
                         .slice(1)
                         .join(":")
-                        .trim()
+                        .trim(),
                     };
                     while (
                       sessionLines[j + 1] &&
@@ -308,7 +313,7 @@ class ISCSI {
                             .split(":")
                             .slice(1)
                             .join(":")
-                            .trim()
+                            .trim(),
                         });
                       }
 
@@ -322,7 +327,7 @@ class ISCSI {
                   key = key.charAt(0).toLowerCase() + key.slice(1);
                   key = key.replace(
                     /[A-Z]/g,
-                    letter => `_${letter.toLowerCase()}`
+                    (letter) => `_${letter.toLowerCase()}`
                   );
                   break;
               }
@@ -367,12 +372,12 @@ class ISCSI {
 
         const entries = result.stdout.trim().split("\n");
         const targets = [];
-        entries.forEach(entry => {
+        entries.forEach((entry) => {
           targets.push({
             portal: entry.split(",")[0],
             target_portal_group_tag: entry.split(" ")[0].split(",")[1],
             iqn: entry.split(" ")[1].split(":")[0],
-            target: entry.split(" ")[1].split(":")[1]
+            target: entry.split(" ")[1].split(":")[1],
           });
         });
 
@@ -432,7 +437,7 @@ class ISCSI {
         }
 
         return true;
-      }
+      },
     };
   }
 
@@ -460,15 +465,15 @@ class ISCSI {
     }
 
     return new Promise((resolve, reject) => {
-      child.stdout.on("data", function(data) {
+      child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });
 
-      child.stderr.on("data", function(data) {
+      child.stderr.on("data", function (data) {
         stderr = stderr + data;
       });
 
-      child.on("close", function(code) {
+      child.on("close", function (code) {
         const result = { code, stdout, stderr };
         if (timeout) {
           clearTimeout(timeout);
