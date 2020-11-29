@@ -95,6 +95,9 @@ class Filesystem {
       result = await filesystem.exec("sh", args);
 
       for (const dm of result.stdout.trim().split("\n")) {
+        if (dm.length < 1) {
+          continue;
+        }
         devices.push("/dev/" + dm.split(":")[0].trim());
       }
       return devices;
@@ -116,6 +119,9 @@ class Filesystem {
       result = await filesystem.exec("sh", args);
 
       for (const dm of result.stdout.trim().split("\n")) {
+        if (dm.length < 1) {
+          continue;
+        }
         const realDevices = dm
           .split(":")[1]
           .split(" ")
@@ -173,6 +179,9 @@ class Filesystem {
     result = await filesystem.exec("sh", args);
 
     for (const dm of result.stdout.trim().split("\n")) {
+      if (dm.length < 1) {
+        continue;
+      }
       const dmDevice = "/dev/" + dm.split(":")[0].trim();
       const realDevices = dm
         .split(":")[1]
