@@ -8,7 +8,7 @@ ARG BUILDPLATFORM
 RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* \
         && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
-ENV LANG=en_US.utf8 NODE_VERSION=v12.15.0
+ENV LANG=en_US.utf8 NODE_VERSION=v12.20.0
 
 RUN echo "I am running on $BUILDPLATFORM, building for $TARGETPLATFORM"
 
@@ -20,7 +20,7 @@ ENV PATH=/usr/local/lib/nodejs/bin:$PATH
 
 # node service requirements
 RUN apt-get update && \
-        apt-get install -y xfsprogs fatresize dosfstools open-iscsi lsscsi sg3-utils multipath-tools scsitools nfs-common cifs-utils sudo && \
+        apt-get install -y e2fsprogs xfsprogs fatresize dosfstools nfs-common cifs-utils sudo && \
         rm -rf /var/lib/apt/lists/*
 
 # controller requirements
@@ -54,11 +54,6 @@ RUN npm install
 COPY --chown=csi:csi . .
 
 USER root
-
-# remove build deps
-#RUN apt-get update && \
-#        apt-get purge -y python make gcc g++ && \
-#        rm -rf /var/lib/apt/lists/*
 
 EXPOSE 50051
 ENTRYPOINT [ "bin/democratic-csi" ]
