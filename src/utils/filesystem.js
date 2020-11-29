@@ -415,12 +415,19 @@ class Filesystem {
       );
     }
 
+    let is_device_mapper_device = await filesystem.isDeviceMapperDevice(device);
     result = await filesystem.realpath(device);
-    device_name = result.split("/").pop();
 
-    // echo 1 > /sys/block/sdb/device/rescan
-    const sys_file = `/sys/block/${device_name}/device/rescan`;
-    fs.writeFileSync(sys_file, "1");
+    if (is_device_mapper_device) {
+      // multipath -r /dev/dm-0
+      result = await filesystem.exec("multipath", ["-r", device]);
+    } else {
+      device_name = result.split("/").pop();
+
+      // echo 1 > /sys/block/sdb/device/rescan
+      const sys_file = `/sys/block/${device_name}/device/rescan`;
+      fs.writeFileSync(sys_file, "1");
+    }
   }
 
   /**

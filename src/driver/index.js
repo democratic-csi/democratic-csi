@@ -395,6 +395,10 @@ class CsiBaseDriver {
           }
         }
 
+        // let things settle
+        // this will help in dm scenarios
+        await sleep(2000);
+
         // filter duplicates
         iscsiDevices = iscsiDevices.filter((value, index, self) => {
           return self.indexOf(value) === index;
@@ -936,6 +940,7 @@ class CsiBaseDriver {
     let is_block = false;
     let is_formatted;
     let fs_type;
+    let is_device_mapper = false;
 
     const volume_id = call.request.volume_id;
     const volume_path = call.request.volume_path;
@@ -972,7 +977,24 @@ class CsiBaseDriver {
     }
 
     if (is_block) {
-      await filesystem.rescanDevice(device);
+      let rescan_devices = [];
+      // detect if is a multipath device
+      is_device_mapper = await filesystem.isDeviceMapperDevice(device);
+      if (is_device_mapper) {
+        // NOTE: want to make sure we scan the dm device *after* all the underlying slaves
+        rescan_devices = await filesystem.getDeviceMapperDeviceSlaves(device);
+      }
+
+      rescan_devices.push(device);
+
+      for (let sdevice of rescan_devices) {
+        await filesystem.rescanDevice(sdevice);
+      }
+
+      // let things settle
+      // it appears the dm devices can take a second to figure things out
+      await sleep(2000);
+
       if (is_formatted && access_type == "mount") {
         fs_info = await filesystem.getDeviceFilesystemInfo(device);
         fs_type = fs_info.type;

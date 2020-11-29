@@ -38,6 +38,9 @@ RUN apt-get update && \
 ADD docker/iscsiadm /usr/local/sbin
 RUN chmod +x /usr/local/sbin/iscsiadm
 
+ADD docker/multipath /usr/local/sbin
+RUN chmod +x /usr/local/sbin/multipath
+
 # Run as a non-root user
 RUN useradd --create-home csi \
         && mkdir /home/csi/app \
