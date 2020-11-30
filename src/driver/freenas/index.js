@@ -1388,20 +1388,35 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   async expandVolume(call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const sshClient = this.getSshClient();
+    let response;
 
     switch (driverShareType) {
       case "iscsi":
-        const isScale = this.getIsScale();
+        const isScale = await this.getIsScale();
         if (isScale) {
           this.ctx.logger.verbose("FreeNAS reloading scst");
-          await sshClient.exec(
+          response = await sshClient.exec(
             sshClient.buildCommand("systemctl", ["reload", "scst"])
           );
+
+          if (response.code != 0) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `error reloading scst: ${JSON.stringify(response)}`
+            );
+          }
         } else {
           this.ctx.logger.verbose("FreeNAS reloading ctld");
-          await sshClient.exec(
+          response = await sshClient.exec(
             sshClient.buildCommand("/etc/rc.d/ctld", ["reload"])
           );
+
+          if (response.code != 0) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `error reloading ctld: ${JSON.stringify(response)}`
+            );
+          }
         }
         break;
     }
