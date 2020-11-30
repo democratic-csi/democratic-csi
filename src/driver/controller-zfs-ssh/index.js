@@ -1012,7 +1012,11 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     await this.expandVolume(call, datasetName);
 
     return {
-      capacity_bytes: this.options.zfs.datasetEnableQuotas ? capacity_bytes : 0,
+      capacity_bytes:
+        this.options.zfs.datasetEnableQuotas ||
+        driverZfsResourceType == "volume"
+          ? capacity_bytes
+          : 0,
       node_expansion_required: driverZfsResourceType == "volume" ? true : false,
     };
   }

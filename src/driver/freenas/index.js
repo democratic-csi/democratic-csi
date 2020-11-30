@@ -1066,12 +1066,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
         shareId = properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value;
 
-        // remove nfs share
-        if (
-          properties &&
-          properties[FREENAS_NFS_SHARE_PROPERTY_NAME] &&
-          properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value != "-"
-        ) {
+        // only remove if the process has not succeeded already
+        if (zb.helpers.isPropertyValueSet(shareId)) {
+          // remove nfs share
           switch (apiVersion) {
             case 1:
             case 2:
@@ -1113,6 +1110,13 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                       } body: ${JSON.stringify(response.body)}`
                     );
                   }
+
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await zb.zfs.inherit(
+                    datasetName,
+                    FREENAS_NFS_SHARE_PROPERTY_NAME
+                  );
                 }
               }
               break;
@@ -1141,12 +1145,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
         shareId = properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value;
 
-        // remove smb share
-        if (
-          properties &&
-          properties[FREENAS_SMB_SHARE_PROPERTY_NAME] &&
-          properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value != "-"
-        ) {
+        // only remove if the process has not succeeded already
+        if (zb.helpers.isPropertyValueSet(shareId)) {
+          // remove smb share
           switch (apiVersion) {
             case 1:
             case 2:
@@ -1191,6 +1192,13 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                       } body: ${JSON.stringify(response.body)}`
                     );
                   }
+
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await zb.zfs.inherit(
+                    datasetName,
+                    FREENAS_SMB_SHARE_PROPERTY_NAME
+                  );
                 }
               }
               break;
@@ -1233,112 +1241,132 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         switch (apiVersion) {
           case 1:
           case 2:
-            // https://jira.ixsystems.com/browse/NAS-103952
+            // only remove if the process has not succeeded already
+            if (zb.helpers.isPropertyValueSet(targetId)) {
+              // https://jira.ixsystems.com/browse/NAS-103952
 
-            // v1 - /services/iscsi/target/{id}/
-            // v2 - /iscsi/target/id/{id}
-            endpoint = "";
-            if (apiVersion == 1) {
-              endpoint += "/services";
-            }
-            endpoint += "/iscsi/target/";
-            if (apiVersion == 2) {
-              endpoint += "id/";
-            }
-            endpoint += targetId;
-            response = await httpClient.get(endpoint);
-
-            // assume is gone for now
-            if ([404, 500].includes(response.statusCode)) {
-            } else {
-              deleteAsset = true;
-              assetName = null;
-
-              // checking if set for backwards compatibility
-              if (zb.helpers.isPropertyValueSet(iscsiName)) {
-                switch (apiVersion) {
-                  case 1:
-                    assetName = response.body.iscsi_target_name;
-                    break;
-                  case 2:
-                    assetName = response.body.name;
-                    break;
-                }
-
-                if (assetName != iscsiName) {
-                  deleteAsset = false;
-                }
+              // v1 - /services/iscsi/target/{id}/
+              // v2 - /iscsi/target/id/{id}
+              endpoint = "";
+              if (apiVersion == 1) {
+                endpoint += "/services";
               }
+              endpoint += "/iscsi/target/";
+              if (apiVersion == 2) {
+                endpoint += "id/";
+              }
+              endpoint += targetId;
+              response = await httpClient.get(endpoint);
 
-              if (deleteAsset) {
-                response = await httpClient.delete(endpoint);
-                if (![200, 204].includes(response.statusCode)) {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `received error deleting iscsi target - extent: ${targetId} code: ${
-                      response.statusCode
-                    } body: ${JSON.stringify(response.body)}`
+              // assume is gone for now
+              if ([404, 500].includes(response.statusCode)) {
+              } else {
+                deleteAsset = true;
+                assetName = null;
+
+                // checking if set for backwards compatibility
+                if (zb.helpers.isPropertyValueSet(iscsiName)) {
+                  switch (apiVersion) {
+                    case 1:
+                      assetName = response.body.iscsi_target_name;
+                      break;
+                    case 2:
+                      assetName = response.body.name;
+                      break;
+                  }
+
+                  if (assetName != iscsiName) {
+                    deleteAsset = false;
+                  }
+                }
+
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting iscsi target - extent: ${targetId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
+
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await zb.zfs.inherit(
+                    datasetName,
+                    FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME
+                  );
+                } else {
+                  this.ctx.logger.debug(
+                    "not deleting iscsitarget asset as it appears ID %s has been re-used: zfs name - %s, iscsitarget name - %s",
+                    targetId,
+                    iscsiName,
+                    assetName
                   );
                 }
+              }
+            }
+
+            // only remove if the process has not succeeded already
+            if (zb.helpers.isPropertyValueSet(extentId)) {
+              // v1 - /services/iscsi/targettoextent/{id}/
+              // v2 - /iscsi/targetextent/id/{id}
+              if (apiVersion == 1) {
+                endpoint = "/services/iscsi/extent/";
               } else {
-                this.ctx.logger.debug(
-                  "not deleting iscsitarget asset as it appears ID %s has been re-used: zfs name - %s, iscsitarget name - %s",
-                  targetId,
-                  iscsiName,
-                  assetName
-                );
+                endpoint = "/iscsi/extent/id/";
               }
-            }
+              endpoint += extentId;
+              response = await httpClient.get(endpoint);
 
-            // v1 - /services/iscsi/targettoextent/{id}/
-            // v2 - /iscsi/targetextent/id/{id}
-            if (apiVersion == 1) {
-              endpoint = "/services/iscsi/extent/";
-            } else {
-              endpoint = "/iscsi/extent/id/";
-            }
-            endpoint += extentId;
-            response = await httpClient.get(endpoint);
+              // assume is gone for now
+              if ([404, 500].includes(response.statusCode)) {
+              } else {
+                deleteAsset = true;
+                assetName = null;
 
-            // assume is gone for now
-            if ([404, 500].includes(response.statusCode)) {
-            } else {
-              deleteAsset = true;
-              assetName = null;
+                // checking if set for backwards compatibility
+                if (zb.helpers.isPropertyValueSet(iscsiName)) {
+                  switch (apiVersion) {
+                    case 1:
+                      assetName = response.body.iscsi_target_extent_name;
+                      break;
+                    case 2:
+                      assetName = response.body.name;
+                      break;
+                  }
 
-              // checking if set for backwards compatibility
-              if (zb.helpers.isPropertyValueSet(iscsiName)) {
-                switch (apiVersion) {
-                  case 1:
-                    assetName = response.body.iscsi_target_extent_name;
-                    break;
-                  case 2:
-                    assetName = response.body.name;
-                    break;
+                  if (assetName != iscsiName) {
+                    deleteAsset = false;
+                  }
                 }
 
-                if (assetName != iscsiName) {
-                  deleteAsset = false;
-                }
-              }
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting iscsi extent - extent: ${extentId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
 
-              if (deleteAsset) {
-                response = await httpClient.delete(endpoint);
-                if (![200, 204].includes(response.statusCode)) {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `received error deleting iscsi extent - extent: ${extentId} code: ${
-                      response.statusCode
-                    } body: ${JSON.stringify(response.body)}`
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await zb.zfs.inherit(
+                    datasetName,
+                    FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME
+                  );
+                } else {
+                  this.ctx.logger.debug(
+                    "not deleting iscsiextent asset as it appears ID %s has been re-used: zfs name - %s, iscsiextent name - %s",
+                    extentId,
+                    iscsiName,
+                    assetName
                   );
                 }
-              } else {
-                this.ctx.logger.debug(
-                  "not deleting iscsiextent asset as it appears ID %s has been re-used: zfs name - %s, iscsiextent name - %s",
-                  extentId,
-                  iscsiName,
-                  assetName
-                );
               }
             }
             break;
