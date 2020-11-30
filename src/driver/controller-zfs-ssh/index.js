@@ -699,6 +699,14 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
           driver.ctx.logger.verbose("set permission command: %s", command);
           response = await sshClient.exec(command);
+          if (response.code != 0) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `error setting permissions on dataset: ${JSON.stringify(
+                response
+              )}`
+            );
+          }
         }
 
         // set ownership
@@ -722,6 +730,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
           driver.ctx.logger.verbose("set ownership command: %s", command);
           response = await sshClient.exec(command);
+          if (response.code != 0) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `error setting ownership on dataset: ${JSON.stringify(response)}`
+            );
+          }
         }
 
         // set acls
@@ -739,6 +753,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
             driver.ctx.logger.verbose("set acl command: %s", command);
             response = await sshClient.exec(command);
+            if (response.code != 0) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `error setting acl on dataset: ${JSON.stringify(response)}`
+              );
+            }
           }
         }
 
