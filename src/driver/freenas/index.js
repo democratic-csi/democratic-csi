@@ -746,12 +746,12 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               // Extent is already in this target.
               if (
                 response.statusCode == 409 &&
-                JSON.stringify(response.body).includes(
+                (JSON.stringify(response.body).includes(
                   "Extent is already in this target."
-                ) &&
-                JSON.stringify(response.body).includes(
-                  "LUN ID is already being used for this target."
-                )
+                ) ||
+                  JSON.stringify(response.body).includes(
+                    "LUN ID is already being used for this target."
+                  ))
               ) {
                 targetToExtent = await this.findResourceByProperties(
                   "/services/iscsi/targettoextent",
@@ -941,12 +941,12 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               // Extent is already in this target.
               if (
                 response.statusCode == 422 &&
-                JSON.stringify(response.body).includes(
+                (JSON.stringify(response.body).includes(
                   "Extent is already in this target."
-                ) &&
-                JSON.stringify(response.body).includes(
-                  "LUN ID is already being used for this target."
-                )
+                ) ||
+                  JSON.stringify(response.body).includes(
+                    "LUN ID is already being used for this target."
+                  ))
               ) {
                 targetToExtent = await this.findResourceByProperties(
                   "/iscsi/targetextent",
@@ -1388,7 +1388,6 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   async expandVolume(call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const sshClient = this.getSshClient();
-    let response;
 
     switch (driverShareType) {
       case "iscsi":
@@ -1413,7 +1412,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             command
           );
 
-          response = await sshClient.exec(command);
+          let response = await sshClient.exec(command);
           if (response.code != 0) {
             throw new GrpcError(
               grpc.status.UNKNOWN,
