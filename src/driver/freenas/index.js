@@ -79,18 +79,25 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   }
 
   async findResourceByProperties(endpoint, match) {
-    if (!match || Object.keys(match).length < 1) {
+    if (!match) {
       return;
     }
+
+    if (typeof match === "object" && Object.keys(match).length < 1) {
+      return;
+    }
+
     const httpClient = await this.getHttpClient();
     let target;
     let page = 0;
+    let lastReponse;
 
     // loop and find target
     let queryParams = {};
     // TODO: relax this using getSystemVersion perhaps
     // https://jira.ixsystems.com/browse/NAS-103916
-    if (httpClient.getApiVersion() == 1) {
+    // NOTE: if using apiVersion 2 with 11.2 you will have issues
+    if (httpClient.getApiVersion() == 1 || httpClient.getApiVersion() == 2) {
       queryParams.limit = 100;
       queryParams.offset = 0;
     }
@@ -102,7 +109,14 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         queryParams.offset = queryParams.limit * page;
       }
 
+      // crude stoppage attempt
       let response = await httpClient.get(endpoint, queryParams);
+      if (lastReponse) {
+        if (JSON.stringify(lastReponse) == JSON.stringify(response)) {
+          break;
+        }
+      }
+      lastReponse = response;
 
       if (response.statusCode == 200) {
         if (response.body.length < 1) {
@@ -110,10 +124,15 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         }
         response.body.some((i) => {
           let isMatch = true;
-          for (let property in match) {
-            if (match[property] != i[property]) {
-              isMatch = false;
-              break;
+
+          if (typeof match === "function") {
+            isMatch = match(i);
+          } else {
+            for (let property in match) {
+              if (match[property] != i[property]) {
+                isMatch = false;
+                break;
+              }
             }
           }
 
@@ -217,6 +236,26 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                * v2 = 200
                */
               if ([200, 201].includes(response.statusCode)) {
+                let sharePaths;
+                switch (apiVersion) {
+                  case 1:
+                    sharePaths = response.body.nfs_paths;
+                    break;
+                  case 2:
+                    sharePaths = response.body.paths;
+                    break;
+                }
+
+                // FreeNAS responding with bad data
+                if (!sharePaths.includes(properties.mountpoint.value)) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `FreeNAS responded with incorrect share data: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+
                 //set zfs property
                 await zb.zfs.set(datasetName, {
                   [FREENAS_NFS_SHARE_PROPERTY_NAME]: response.body.id,
@@ -228,11 +267,41 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                  */
                 if (
                   [409, 422].includes(response.statusCode) &&
-                  JSON.stringify(response.body).includes(
+                  (JSON.stringify(response.body).includes(
                     "You can't share same filesystem with all hosts twice."
-                  )
+                  ) ||
+                    JSON.stringify(response.body).includes(
+                      "Another NFS share already exports this dataset for some network"
+                    ))
                 ) {
-                  // move along
+                  let lookupShare = await this.findResourceByProperties(
+                    "/sharing/nfs",
+                    (item) => {
+                      if (
+                        (item.nfs_paths &&
+                          item.nfs_paths.includes(
+                            properties.mountpoint.value
+                          )) ||
+                        (item.paths &&
+                          item.paths.includes(properties.mountpoint.value))
+                      ) {
+                        return true;
+                      }
+                      return false;
+                    }
+                  );
+
+                  if (!lookupShare) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `FreeNAS failed to find matching share`
+                    );
+                  }
+
+                  //set zfs property
+                  await zb.zfs.set(datasetName, {
+                    [FREENAS_NFS_SHARE_PROPERTY_NAME]: lookupShare.id,
+                  });
                 } else {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
@@ -406,6 +475,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   )
                 ) {
                   // move along
+                  // TODO: need to set the shareId here for sure
                 } else {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
@@ -1428,6 +1498,9 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     const systemVersion = await this.getSystemVersion();
 
     if (systemVersion.v2) {
+      if ((await this.getSystemVersionMajorMinor()) == 11.2) {
+        return 1;
+      }
       return 2;
     }
 
