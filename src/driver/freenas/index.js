@@ -1,6 +1,7 @@
 const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const HttpClient = require("./http").Client;
+const sleep = require("../../utils/general").sleep;
 
 const Handlebars = require("handlebars");
 
@@ -955,6 +956,47 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               );
             }
 
+            // handle situations/race conditions where groups failed to be added/created on the target
+            // groups":[{"portal":1,"initiator":1,"auth":null,"authmethod":"NONE"},{"portal":2,"initiator":1,"auth":null,"authmethod":"NONE"}]
+            // TODO: this logic could be more intelligent but this should do for now as it appears in the failure scenario no groups are added
+            // in other words, I have never seen them invalid, only omitted so this should be enough
+            if (target.groups.length != targetGroups.length) {
+              response = await httpClient.put(`/iscsi/target/id/${target.id}`, {
+                groups: targetGroups,
+              });
+
+              if (response.statusCode != 200) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `failed setting target groups`
+                );
+              } else {
+                target = response.body;
+
+                // re-run sanity checks
+                if (!target) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `unknown error creating iscsi target`
+                  );
+                }
+
+                if (target.name != iscsiName) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `mismatch name error creating iscsi target`
+                  );
+                }
+
+                if (target.groups.length != targetGroups.length) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `failed setting target groups`
+                  );
+                }
+              }
+            }
+
             this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
             // set target.id on zvol
@@ -1519,6 +1561,103 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               `error reloading iscsi daemon: ${JSON.stringify(response)}`
             );
           }
+        }
+        break;
+    }
+  }
+
+  async failedAttachHelper(call, err) {
+    const driverShareType = this.getDriverShareType();
+    const sshClient = this.getSshClient();
+    let response;
+
+    // not fully implemented
+    return;
+
+    switch (driverShareType) {
+      case "iscsi":
+        const isScale = await this.getIsScale();
+        const majorMinor = await this.getSystemVersionMajorMinor();
+
+        // only works for BSD-based and 11.3+
+        if (!isScale && majorMinor >= 11.3) {
+          const sudoEnabled = this.getSudoEnabled();
+          const sudoPath = await this.getSudoPath();
+          let command;
+
+          //19 - encountered non-retryable iSCSI login failure
+          // ^ could be missing groups on the target
+
+          //cat /var/run/ctld.pid
+          // ps -p <pid> | grep ctld
+          // ps -p `cat /var/run/ctld.pid` | grep ctld (if 0 exit status it's running, otherwise no)
+
+          // random settle time
+          // this could be getting invoked by other instances of the same controller
+          // or other deployments of controllers in the same of different clusters
+          // altogether
+          let maxSettleTime = 10000;
+          let settleTime = Math.floor(Math.random() * maxSettleTime + 1);
+          await sleep(settleTime);
+
+          // test if config is bad
+          // if so regen
+          command = sshClient.buildCommand("/usr/sbin/ctld", ["-d"]);
+          if (sudoEnabled) {
+            command = sudoPath + " " + command;
+          }
+
+          this.ctx.logger.verbose("FailedAttachHelper command: %s", command);
+
+          response = await sshClient.exec(command);
+          let configError = false;
+          let serviceRunning = false;
+          if (response.stderr.includes("configuration error")) {
+            configError = true;
+          }
+
+          // NOTE: this will not be in the output if the config file has an error
+          if (response.stderr.includes("daemon already running")) {
+            serviceRunning = true;
+          }
+
+          if (configError) {
+            this.ctx.logger.warn(
+              "FailedAttachHelper: ctld appears to have a bad configuration file, attempting to regenerate"
+            );
+            // regen config
+            // midclt call etc.generate ctld
+            command = sshClient.buildCommand("midclt", [
+              "call",
+              "etc.generate",
+              "ctld",
+            ]);
+            if (sudoEnabled) {
+              command = sudoPath + " " + command;
+            }
+
+            this.ctx.logger.verbose("FailedAttachHelper command: %s", command);
+            response = await sshClient.exec(command);
+
+            // reload service (may not be enough)
+            command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
+            if (sudoEnabled) {
+              command = sudoPath + " " + command;
+            }
+
+            this.ctx.logger.verbose("FailedAttachHelper command: %s", command);
+            response = await sshClient.exec(command);
+
+          }
+
+          // note, when the 'bad' state is entered, the status still shows as running
+          // check if service is running
+          // /etc/rc.d/ctld status ...exits 0 if running
+          //command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
+
+          // if service is not running attempt a restart
+          // /etc/rc.d/ctld restart
+          //command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
         }
         break;
     }
