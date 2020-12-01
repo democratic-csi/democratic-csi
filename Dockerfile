@@ -1,6 +1,7 @@
 FROM debian:10-slim AS build
-
 #FROM --platform=$BUILDPLATFORM debian:10-slim AS build
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -40,6 +41,8 @@ RUN rm -rf docker
 # actual image
 ######################
 FROM debian:10-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
