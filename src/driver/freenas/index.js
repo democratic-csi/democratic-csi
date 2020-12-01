@@ -655,6 +655,13 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               );
             }
 
+            if (target.iscsi_target_name != iscsiName) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `mismatch name error creating iscsi target`
+              );
+            }
+
             this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
             // set target.id on zvol
@@ -791,6 +798,14 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 `unknown error creating iscsi extent`
               );
             }
+
+            if (extent.iscsi_target_extent_name != iscsiName) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `mismatch name error creating iscsi extent`
+              );
+            }
+
             this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
             await zb.zfs.set(datasetName, {
@@ -933,6 +948,13 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               );
             }
 
+            if (target.name != iscsiName) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `mismatch name error creating iscsi target`
+              );
+            }
+
             this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
             // set target.id on zvol
@@ -987,6 +1009,14 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 `unknown error creating iscsi extent`
               );
             }
+
+            if (extent.name != iscsiName) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `mismatch name error creating iscsi extent`
+              );
+            }
+
             this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
             await zb.zfs.set(datasetName, {
