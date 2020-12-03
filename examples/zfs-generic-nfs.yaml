@@ -17,6 +17,7 @@ zfs:
   # can be used to override defaults if necessary
   # the example below is useful for TrueNAS 12
   #cli:
+  #  sudoEnabled: true
   #  paths:
   #    zfs: /usr/local/sbin/zfs
   #    zpool: /usr/local/sbin/zpool

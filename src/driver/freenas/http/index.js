@@ -4,7 +4,7 @@ const USER_AGENT = "democratic-csi-driver";
 
 class Client {
   constructor(options = {}) {
-    this.options = options;
+    this.options = JSON.parse(JSON.stringify(options));
     this.logger = console;
 
     // default to v1.0 for now
@@ -19,7 +19,7 @@ class Client {
       host: server.host,
       port: server.port,
       //userinfo: server.username + ":" + server.password,
-      path: server.apiVersion == 1 ? "/api/v1.0" : "/api/v2.0"
+      path: server.apiVersion == 1 ? "/api/v1.0" : "/api/v2.0",
     };
     return URI.serialize(options);
   }
@@ -55,22 +55,27 @@ class Client {
         headers: {
           Accept: "application/json",
           "User-Agent": USER_AGENT,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         json: true,
         qs: data,
         agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure
-        }
+          rejectUnauthorized: !!!client.options.allowInsecure,
+        },
       };
-      request(options, function(err, res, body) {
+      request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
 
         resolve(res);
-      }).auth(client.options.username, client.options.password);
+      }).auth(
+        client.options.username,
+        client.options.password,
+        true,
+        client.options.apiKey
+      );
     });
   }
 
@@ -87,22 +92,27 @@ class Client {
         headers: {
           Accept: "application/json",
           "User-Agent": USER_AGENT,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         json: true,
         body: data,
         agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure
-        }
+          rejectUnauthorized: !!!client.options.allowInsecure,
+        },
       };
-      request(options, function(err, res, body) {
+      request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
 
         resolve(res);
-      }).auth(client.options.username, client.options.password);
+      }).auth(
+        client.options.username,
+        client.options.password,
+        true,
+        client.options.apiKey
+      );
     });
   }
 
@@ -119,22 +129,27 @@ class Client {
         headers: {
           Accept: "application/json",
           "User-Agent": USER_AGENT,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         json: true,
         body: data,
         agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure
-        }
+          rejectUnauthorized: !!!client.options.allowInsecure,
+        },
       };
-      request(options, function(err, res, body) {
+      request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
 
         resolve(res);
-      }).auth(client.options.username, client.options.password);
+      }).auth(
+        client.options.username,
+        client.options.password,
+        true,
+        client.options.apiKey
+      );
     });
   }
 
@@ -151,22 +166,27 @@ class Client {
         headers: {
           Accept: "application/json",
           "User-Agent": USER_AGENT,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         json: true,
         body: data,
         agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure
-        }
+          rejectUnauthorized: !!!client.options.allowInsecure,
+        },
       };
-      request(options, function(err, res, body) {
+      request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
 
         resolve(res);
-      }).auth(client.options.username, client.options.password);
+      }).auth(
+        client.options.username,
+        client.options.password,
+        true,
+        client.options.apiKey
+      );
     });
   }
 }

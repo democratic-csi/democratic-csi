@@ -254,6 +254,7 @@ class CsiBaseDriver {
    * @param {*} call
    */
   async NodeStageVolume(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     const iscsi = new ISCSI();
@@ -310,46 +311,145 @@ class CsiBaseDriver {
         device = `//${volume_context.server}/${volume_context.share}`;
         break;
       case "iscsi":
-        // create DB entry
-        // https://library.netapp.com/ecmdocs/ECMP1654943/html/GUID-8EC685B4-8CB6-40D8-A8D5-031A3899BCDC.html
-        // put these options in place to force targets managed by csi to be explicitly attached (in the case of unclearn shutdown etc)
-        let nodeDB = {
-          "node.startup": "manual",
-        };
-        const nodeDBKeyPrefix = "node-db.";
-        for (const key in normalizedSecrets) {
-          if (key.startsWith(nodeDBKeyPrefix)) {
-            nodeDB[key.substr(nodeDBKeyPrefix.length)] = normalizedSecrets[key];
-          }
+        let portals = [];
+        if (volume_context.portal) {
+          portals.push(volume_context.portal.trim());
         }
-        await iscsi.iscsiadm.createNodeDBEntry(
-          volume_context.iqn,
-          volume_context.portal,
-          nodeDB
-        );
-        // login
-        await iscsi.iscsiadm.login(volume_context.iqn, volume_context.portal);
 
-        // find device name
-        device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
+        if (volume_context.portals) {
+          volume_context.portals.split(",").forEach((portal) => {
+            portals.push(portal.trim());
+          });
+        }
 
-        // can take some time for device to show up, loop for some period
-        result = await filesystem.pathExists(device);
-        let timer_start = Math.round(new Date().getTime() / 1000);
-        let timer_max = 30;
-        while (!result) {
-          await sleep(2000);
+        // ensure full portal value
+        portals = portals.map((value) => {
+          if (!value.includes(":")) {
+            value += ":3260";
+          }
+
+          return value.trim();
+        });
+
+        // ensure unique entries only
+        portals = [...new Set(portals)];
+
+        let iscsiDevices = [];
+
+        for (let portal of portals) {
+          // create DB entry
+          // https://library.netapp.com/ecmdocs/ECMP1654943/html/GUID-8EC685B4-8CB6-40D8-A8D5-031A3899BCDC.html
+          // put these options in place to force targets managed by csi to be explicitly attached (in the case of unclearn shutdown etc)
+          let nodeDB = {
+            "node.startup": "manual",
+          };
+          const nodeDBKeyPrefix = "node-db.";
+          for (const key in normalizedSecrets) {
+            if (key.startsWith(nodeDBKeyPrefix)) {
+              nodeDB[key.substr(nodeDBKeyPrefix.length)] =
+                normalizedSecrets[key];
+            }
+          }
+          await iscsi.iscsiadm.createNodeDBEntry(
+            volume_context.iqn,
+            portal,
+            nodeDB
+          );
+          // login
+          await iscsi.iscsiadm.login(volume_context.iqn, portal);
+
+          // find device name
+          device = `/dev/disk/by-path/ip-${portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
+          let deviceByPath = device;
+
+          // can take some time for device to show up, loop for some period
           result = await filesystem.pathExists(device);
-          let current_time = Math.round(new Date().getTime() / 1000);
-          if (!result && current_time - timer_start > timer_max) {
-            throw new GrpcError(
-              grpc.status.UNKNOWN,
-              `hit timeout waiting for device node to appear: ${device}`
+          let timer_start = Math.round(new Date().getTime() / 1000);
+          let timer_max = 30;
+          let deviceCreated = result;
+          while (!result) {
+            await sleep(2000);
+            result = await filesystem.pathExists(device);
+
+            if (result) {
+              deviceCreated = true;
+              break;
+            }
+
+            let current_time = Math.round(new Date().getTime() / 1000);
+            if (!result && current_time - timer_start > timer_max) {
+              driver.ctx.logger.warn(
+                `hit timeout waiting for device node to appear: ${device}`
+              );
+              break;
+            }
+          }
+
+          if (deviceCreated) {
+            device = await filesystem.realpath(device);
+            iscsiDevices.push(device);
+
+            driver.ctx.logger.info(
+              `successfully logged into portal ${portal} and created device ${deviceByPath} with realpath ${device}`
             );
           }
         }
 
-        device = await filesystem.realpath(device);
+        // let things settle
+        // this will help in dm scenarios
+        await sleep(2000);
+
+        // filter duplicates
+        iscsiDevices = iscsiDevices.filter((value, index, self) => {
+          return self.indexOf(value) === index;
+        });
+
+        // only throw an error if we were not able to attach to *any* devices
+        if (iscsiDevices.length < 1) {
+          throw new GrpcError(
+            grpc.status.UNKNOWN,
+            `unable to attach any iscsi devices`
+          );
+        }
+
+        if (iscsiDevices.length != portals.length) {
+          driver.ctx.logger.warn(
+            `failed to attach all iscsi devices/targets/portals`
+          );
+
+          // TODO: allow a parameter to control this behavior in some form
+          if (false) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `unable to attach all iscsi devices`
+            );
+          }
+        }
+
+        // compare all device-mapper slaves with the newly created devices
+        // if any of the new devices are device-mapper slaves treat this as a
+        // multipath scenario
+        let allDeviceMapperSlaves = await filesystem.getAllDeviceMapperSlaveDevices();
+        let commonDevices = allDeviceMapperSlaves.filter((value) =>
+          iscsiDevices.includes(value)
+        );
+
+        const useMultipath = portals.length > 1 || commonDevices.length > 0;
+
+        // discover multipath device to use
+        if (useMultipath) {
+          device = await filesystem.getDeviceMapperDeviceFromSlaves(
+            iscsiDevices,
+            false
+          );
+
+          if (!device) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `failed to discover multipath device`
+            );
+          }
+        }
         break;
       default:
         throw new GrpcError(
@@ -463,6 +563,7 @@ class CsiBaseDriver {
     const iscsi = new ISCSI();
     let result;
     let is_block = false;
+    let is_device_mapper = false;
     let block_device_info;
     let access_type = "mount";
 
@@ -505,78 +606,100 @@ class CsiBaseDriver {
     }
 
     if (is_block) {
-      if (block_device_info.tran == "iscsi") {
-        // figure out which iscsi session this belongs to and logout
-        // scan /dev/disk/by-path/ip-*?
-        // device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
-        // parse output from `iscsiadm -m session -P 3`
-        let sessions = await iscsi.iscsiadm.getSessionsDetails();
-        for (let i = 0; i < sessions.length; i++) {
-          let session = sessions[i];
-          let is_attached_to_session = false;
+      let realBlockDeviceInfos = [];
+      // detect if is a multipath device
+      is_device_mapper = await filesystem.isDeviceMapperDevice(
+        block_device_info.path
+      );
 
-          if (
-            session.attached_scsi_devices &&
-            session.attached_scsi_devices.host &&
-            session.attached_scsi_devices.host.devices
-          ) {
-            is_attached_to_session = session.attached_scsi_devices.host.devices.some(
-              (device) => {
-                if (device.attached_scsi_disk == block_device_info.name) {
-                  return true;
+      if (is_device_mapper) {
+        let realBlockDevices = await filesystem.getDeviceMapperDeviceSlaves(
+          block_device_info.path
+        );
+        for (const realBlockDevice of realBlockDevices) {
+          realBlockDeviceInfos.push(
+            await filesystem.getBlockDevice(realBlockDevice)
+          );
+        }
+      } else {
+        realBlockDeviceInfos = [block_device_info];
+      }
+
+      // TODO: this could be made async to detach all simultaneously
+      for (const block_device_info_i of realBlockDeviceInfos) {
+        if (block_device_info_i.tran == "iscsi") {
+          // figure out which iscsi session this belongs to and logout
+          // scan /dev/disk/by-path/ip-*?
+          // device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
+          // parse output from `iscsiadm -m session -P 3`
+          let sessions = await iscsi.iscsiadm.getSessionsDetails();
+          for (let i = 0; i < sessions.length; i++) {
+            let session = sessions[i];
+            let is_attached_to_session = false;
+
+            if (
+              session.attached_scsi_devices &&
+              session.attached_scsi_devices.host &&
+              session.attached_scsi_devices.host.devices
+            ) {
+              is_attached_to_session = session.attached_scsi_devices.host.devices.some(
+                (device) => {
+                  if (device.attached_scsi_disk == block_device_info_i.name) {
+                    return true;
+                  }
+                  return false;
                 }
-                return false;
-              }
-            );
-          }
-
-          if (is_attached_to_session) {
-            let timer_start;
-            let timer_max;
-
-            timer_start = Math.round(new Date().getTime() / 1000);
-            timer_max = 30;
-            let loggedOut = false;
-            while (!loggedOut) {
-              try {
-                await iscsi.iscsiadm.logout(session.target, [
-                  session.persistent_portal,
-                ]);
-                loggedOut = true;
-              } catch (err) {
-                await sleep(2000);
-                let current_time = Math.round(new Date().getTime() / 1000);
-                if (current_time - timer_start > timer_max) {
-                  // not throwing error for now as future invocations would not enter code path anyhow
-                  loggedOut = true;
-                  //throw new GrpcError(
-                  //  grpc.status.UNKNOWN,
-                  //  `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
-                  //);
-                }
-              }
+              );
             }
 
-            timer_start = Math.round(new Date().getTime() / 1000);
-            timer_max = 30;
-            let deletedEntry = false;
-            while (!deletedEntry) {
-              try {
-                await iscsi.iscsiadm.deleteNodeDBEntry(
-                  session.target,
-                  session.persistent_portal
-                );
-                deletedEntry = true;
-              } catch (err) {
-                await sleep(2000);
-                let current_time = Math.round(new Date().getTime() / 1000);
-                if (current_time - timer_start > timer_max) {
-                  // not throwing error for now as future invocations would not enter code path anyhow
+            if (is_attached_to_session) {
+              let timer_start;
+              let timer_max;
+
+              timer_start = Math.round(new Date().getTime() / 1000);
+              timer_max = 30;
+              let loggedOut = false;
+              while (!loggedOut) {
+                try {
+                  await iscsi.iscsiadm.logout(session.target, [
+                    session.persistent_portal,
+                  ]);
+                  loggedOut = true;
+                } catch (err) {
+                  await sleep(2000);
+                  let current_time = Math.round(new Date().getTime() / 1000);
+                  if (current_time - timer_start > timer_max) {
+                    // not throwing error for now as future invocations would not enter code path anyhow
+                    loggedOut = true;
+                    //throw new GrpcError(
+                    //  grpc.status.UNKNOWN,
+                    //  `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
+                    //);
+                  }
+                }
+              }
+
+              timer_start = Math.round(new Date().getTime() / 1000);
+              timer_max = 30;
+              let deletedEntry = false;
+              while (!deletedEntry) {
+                try {
+                  await iscsi.iscsiadm.deleteNodeDBEntry(
+                    session.target,
+                    session.persistent_portal
+                  );
                   deletedEntry = true;
-                  //throw new GrpcError(
-                  //  grpc.status.UNKNOWN,
-                  //  `hit timeout trying to delete iscsi node DB entry: ${session.target}, ${session.persistent_portal}`
-                  //);
+                } catch (err) {
+                  await sleep(2000);
+                  let current_time = Math.round(new Date().getTime() / 1000);
+                  if (current_time - timer_start > timer_max) {
+                    // not throwing error for now as future invocations would not enter code path anyhow
+                    deletedEntry = true;
+                    //throw new GrpcError(
+                    //  grpc.status.UNKNOWN,
+                    //  `hit timeout trying to delete iscsi node DB entry: ${session.target}, ${session.persistent_portal}`
+                    //);
+                  }
                 }
               }
             }
@@ -817,6 +940,7 @@ class CsiBaseDriver {
     let is_block = false;
     let is_formatted;
     let fs_type;
+    let is_device_mapper = false;
 
     const volume_id = call.request.volume_id;
     const volume_path = call.request.volume_path;
@@ -853,7 +977,24 @@ class CsiBaseDriver {
     }
 
     if (is_block) {
-      await filesystem.rescanDevice(device);
+      let rescan_devices = [];
+      // detect if is a multipath device
+      is_device_mapper = await filesystem.isDeviceMapperDevice(device);
+      if (is_device_mapper) {
+        // NOTE: want to make sure we scan the dm device *after* all the underlying slaves
+        rescan_devices = await filesystem.getDeviceMapperDeviceSlaves(device);
+      }
+
+      rescan_devices.push(device);
+
+      for (let sdevice of rescan_devices) {
+        await filesystem.rescanDevice(sdevice);
+      }
+
+      // let things settle
+      // it appears the dm devices can take a second to figure things out
+      await sleep(2000);
+
       if (is_formatted && access_type == "mount") {
         fs_info = await filesystem.getDeviceFilesystemInfo(device);
         fs_type = fs_info.type;

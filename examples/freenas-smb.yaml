@@ -4,9 +4,16 @@ httpConnection:
   protocol: http
   host: server address
   port: 80
+  # use only 1 of apiKey or username/password
+  # if both are present, apiKey is preferred
+  # apiKey is only available starting in TrueNAS-12
+  #apiKey:
   username: root
   password:
   allowInsecure: true
+  # use apiVersion 2 for TrueNAS-12 and up (will work on 11.x in some scenarios as well)
+  # leave unset for auto-detection
+  #apiVersion: 2
 sshConnection:
   host: server address
   port: 22
@@ -21,6 +28,9 @@ zfs:
   # can be used to override defaults if necessary
   # the example below is useful for TrueNAS 12
   #cli:
+  #  sudoEnabled: true
+  #
+  #  leave paths unset for auto-detection
   #  paths:
   #    zfs: /usr/local/sbin/zfs
   #    zpool: /usr/local/sbin/zpool

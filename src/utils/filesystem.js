@@ -48,12 +48,163 @@ class Filesystem {
     const device_path = await filesystem.realpath(device);
     const blockdevices = await filesystem.getAllBlockDevices();
 
-    return blockdevices.some((i) => {
-      if (i.path == device_path) {
+    return blockdevices.some(async (i) => {
+      if ((await filesystem.realpath(i.path)) == device_path) {
         return true;
       }
       return false;
     });
+  }
+
+  /**
+   * Attempt to discover if the device is a device-mapper device
+   *
+   * @param {*} device
+   */
+  async isDeviceMapperDevice(device) {
+    const filesystem = this;
+    const isBlock = await filesystem.isBlockDevice(device);
+
+    if (!isBlock) {
+      return false;
+    }
+
+    device = await filesystem.realpath(device);
+
+    return device.includes("dm-");
+  }
+
+  async isDeviceMapperSlaveDevice(device) {
+    const filesystem = this;
+    device = await filesystem.realpath(device);
+  }
+
+  /**
+   * Get all device-mapper devices (ie: dm-0, dm-1, dm-N...)
+   */
+  async getAllDeviceMapperDevices() {
+    const filesystem = this;
+    let result;
+    let devices = [];
+    let args = [
+      "-c",
+      'for file in $(ls -la /dev/mapper/* | grep "\\->" | grep -oP "\\-> .+" | grep -oP " .+"); do echo $(F=$(echo $file | grep -oP "[a-z0-9-]+");echo $F":"$(ls "/sys/block/${F}/slaves/");); done;',
+    ];
+
+    try {
+      result = await filesystem.exec("sh", args);
+
+      for (const dm of result.stdout.trim().split("\n")) {
+        if (dm.length < 1) {
+          continue;
+        }
+        devices.push("/dev/" + dm.split(":")[0].trim());
+      }
+      return devices;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async getAllDeviceMapperSlaveDevices() {
+    const filesystem = this;
+    let result;
+    let args = [
+      "-c",
+      'for file in $(ls -la /dev/mapper/* | grep "\\->" | grep -oP "\\-> .+" | grep -oP " .+"); do echo $(F=$(echo $file | grep -oP "[a-z0-9-]+");echo $F":"$(ls "/sys/block/${F}/slaves/");); done;',
+    ];
+    let slaves = [];
+
+    try {
+      result = await filesystem.exec("sh", args);
+
+      for (const dm of result.stdout.trim().split("\n")) {
+        if (dm.length < 1) {
+          continue;
+        }
+        const realDevices = dm
+          .split(":")[1]
+          .split(" ")
+          .map((value) => {
+            return "/dev/" + value.trim();
+          });
+        slaves.push(...realDevices);
+      }
+      return slaves;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
+   * Get all slave devices connected to a device-mapper device
+   *
+   * @param {*} device
+   */
+  async getDeviceMapperDeviceSlaves(device) {
+    const filesystem = this;
+    device = await filesystem.realpath(device);
+    let device_info = await filesystem.getBlockDevice(device);
+    const slaves = [];
+
+    let result;
+    let args = [`/sys/block/${device_info.kname}/slaves/`];
+
+    try {
+      result = await filesystem.exec("ls", args);
+
+      for (const entry of result.stdout.split("\n")) {
+        if (entry.trim().length < 1) {
+          continue;
+        }
+
+        slaves.push("/dev/" + entry.trim());
+      }
+      return slaves;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async getDeviceMapperDeviceFromSlaves(slaves, matchAll = true) {
+    const filesystem = this;
+    let result;
+
+    // get mapping of dm devices to real devices
+    let args = [
+      "-c",
+      'for file in $(ls -la /dev/mapper/* | grep "\\->" | grep -oP "\\-> .+" | grep -oP " .+"); do echo $(F=$(echo $file | grep -oP "[a-z0-9-]+");echo $F":"$(ls "/sys/block/${F}/slaves/");); done;',
+    ];
+
+    result = await filesystem.exec("sh", args);
+
+    for (const dm of result.stdout.trim().split("\n")) {
+      if (dm.length < 1) {
+        continue;
+      }
+      const dmDevice = "/dev/" + dm.split(":")[0].trim();
+      const realDevices = dm
+        .split(":")[1]
+        .split(" ")
+        .map((value) => {
+          return "/dev/" + value.trim();
+        });
+      const intersectDevices = slaves.filter((value) =>
+        realDevices.includes(value)
+      );
+
+      if (matchAll === false && intersectDevices.length > 0) {
+        return dmDevice;
+      }
+
+      // if all 3 have the same elements we have a winner
+      if (
+        intersectDevices.length == realDevices.length &&
+        realDevices.length == slaves.length
+      ) {
+        return dmDevice;
+      }
+    }
   }
 
   /**
@@ -264,12 +415,19 @@ class Filesystem {
       );
     }
 
+    let is_device_mapper_device = await filesystem.isDeviceMapperDevice(device);
     result = await filesystem.realpath(device);
-    device_name = result.split("/").pop();
 
-    // echo 1 > /sys/block/sdb/device/rescan
-    const sys_file = `/sys/block/${device_name}/device/rescan`;
-    fs.writeFileSync(sys_file, "1");
+    if (is_device_mapper_device) {
+      // multipath -r /dev/dm-0
+      result = await filesystem.exec("multipath", ["-r", device]);
+    } else {
+      device_name = result.split("/").pop();
+
+      // echo 1 > /sys/block/sdb/device/rescan
+      const sys_file = `/sys/block/${device_name}/device/rescan`;
+      fs.writeFileSync(sys_file, "1");
+    }
   }
 
   /**

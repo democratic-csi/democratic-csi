@@ -40,6 +40,9 @@ You should install/configure the requirements for both nfs and iscsi.
 
 Follow the instructions here: https://netapp-trident.readthedocs.io/en/stable-v20.04/kubernetes/operations/tasks/worker.html
 
+Note that `multipath` is supported for the `iscsi`-based drivers. Simply setup
+multipath to your liking and set multiple portals in the config as appropriate.
+
 If you are running Kubernetes with rancher/rke please see the following:
 
 - https://github.com/rancher/rke/issues/1846
@@ -71,13 +74,42 @@ Server preparation depends slightly on which `driver` you are using.
 
 ### FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb)
 
+The recommended version of FreeNAS is 11.3+, however the driver should work
+with much older versions as well.
+
 Ensure the following services are configurged and running:
 
 - ssh (if you use a password for authentication make sure it is allowed)
 - ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
 - nfs
 - iscsi
+  - when using the FreeNAS API concurrently the `/etc/ctl.conf` file on the
+    server can become invalid, some sample scripts are provided in the
+    `contrib` directory to clean things up
+    ie: copy the script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`
+    please read the scripts and set the variables as appropriate for your server.
+  - ensure you have pre-emptively created portal, group, auth
 - smb
+
+In addition, if you want to use a non-root user for the ssh operations you may
+create a `csi` user and then run `visudo` directly from the console. Make sure
+the line for the `csi` user has `NOPASSWD` added (note this can get reset by
+FreeNAS if you alter the user via the GUI later):
+
+```
+csi ALL=(ALL) NOPASSWD:ALL
+```
+
+Starting with TrueNAS CORE 12 it is also possible to use an `apiKey` instead of
+the `root` password for the http connection.
+
+Issues to review:
+
+- https://jira.ixsystems.com/browse/NAS-108519
+- https://jira.ixsystems.com/browse/NAS-108520
+- https://jira.ixsystems.com/browse/NAS-108521
+- https://jira.ixsystems.com/browse/NAS-108522
+- https://jira.ixsystems.com/browse/NAS-107219
 
 ### ZoL (zfs-generic-nfs, zfs-generic-iscsi)
 
@@ -115,9 +147,10 @@ helm upgrade \
 --namespace democratic-csi \
 zfs-nfs democratic-csi/democratic-csi
 ```
+
 ### A note on non standard kubelet paths
 
-Some distrobutions, such as `minikube` and `microk8s` uses a non-standard kubelet path. 
+Some distrobutions, such as `minikube` and `microk8s` uses a non-standard kubelet path.
 In such cases it is necessary to provide a new kubelet host path, microk8s example below:
 
 ```bash

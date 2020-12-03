@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [[ ${USE_HOST_MOUNT_TOOLS} -eq 1 ]];then
+  chroot /host /usr/bin/env -i PATH="/sbin:/bin:/usr/bin:/usr/sbin" mount "${@:1}"
+else
+  /usr/bin/env -i PATH="/sbin:/bin:/usr/bin:/usr/sbin" mount "${@:1}"
+fi
