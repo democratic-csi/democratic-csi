@@ -62,7 +62,7 @@ COPY --from=build /usr/local/lib/nodejs /usr/local/lib/nodejs
 # netbase is required by rpcbind/rpcinfo to work properly
 # /etc/{services,rpc} are required
 RUN apt-get update && \
-        apt-get install -y netbase e2fsprogs xfsprogs fatresize dosfstools nfs-common cifs-utils sudo && \
+        apt-get install -y netbase socat e2fsprogs xfsprogs fatresize dosfstools nfs-common cifs-utils sudo && \
         rm -rf /var/lib/apt/lists/*
 
 # controller requirements

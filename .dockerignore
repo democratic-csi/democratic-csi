@@ -1,6 +1,7 @@
 chart
 dev
 examples
+contrib
 node_modules
 Dockerfile*
 TODO.md
