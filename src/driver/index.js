@@ -356,15 +356,7 @@ class CsiBaseDriver {
             nodeDB
           );
           // login
-          try {
-            await iscsi.iscsiadm.login(volume_context.iqn, portal);
-          } catch (err) {
-            if (typeof this.failedAttachHelper === "function") {
-              // no need to await this
-              this.failedAttachHelper(call, err);
-            }
-            throw err;
-          }
+          await iscsi.iscsiadm.login(volume_context.iqn, portal);
 
           // find device name
           device = `/dev/disk/by-path/ip-${portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
@@ -386,16 +378,6 @@ class CsiBaseDriver {
 
             let current_time = Math.round(new Date().getTime() / 1000);
             if (!result && current_time - timer_start > timer_max) {
-              if (typeof this.failedAttachHelper === "function") {
-                // no need to await this
-                this.failedAttachHelper(
-                  call,
-                  new Error(
-                    `hit timeout waiting for device node to appear: ${device}`
-                  )
-                );
-              }
-
               driver.ctx.logger.warn(
                 `hit timeout waiting for device node to appear: ${device}`
               );

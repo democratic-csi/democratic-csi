@@ -59,8 +59,10 @@ ENV PATH=/usr/local/lib/nodejs/bin:$PATH
 COPY --from=build /usr/local/lib/nodejs /usr/local/lib/nodejs
 
 # node service requirements
+# netbase is required by rpcbind/rpcinfo to work properly
+# /etc/{services,rpc} are required
 RUN apt-get update && \
-        apt-get install -y e2fsprogs xfsprogs fatresize dosfstools nfs-common cifs-utils sudo && \
+        apt-get install -y netbase e2fsprogs xfsprogs fatresize dosfstools nfs-common cifs-utils sudo && \
         rm -rf /var/lib/apt/lists/*
 
 # controller requirements
@@ -74,6 +76,14 @@ RUN chmod +x /usr/local/sbin/iscsiadm
 
 ADD docker/multipath /usr/local/sbin
 RUN chmod +x /usr/local/sbin/multipath
+
+## USE_HOST_MOUNT_TOOLS=1
+ADD docker/mount /usr/local/bin/mount
+RUN chmod +x /usr/local/bin/mount
+
+## USE_HOST_MOUNT_TOOLS=1
+ADD docker/umount /usr/local/bin/umount
+RUN chmod +x /usr/local/bin/umount
 
 # Run as a non-root user
 RUN useradd --create-home csi \

@@ -1,7 +1,6 @@
 const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const HttpClient = require("./http").Client;
-const sleep = require("../../utils/general").sleep;
 
 const Handlebars = require("handlebars");
 
@@ -170,6 +169,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
 
+    let volume_context;
     let properties;
     let endpoint;
     let response;
@@ -312,29 +312,27 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   );
                 }
               }
-
-              let volume_context = {
-                node_attach_driver: "nfs",
-                server: this.options.nfs.shareHost,
-                share: properties.mountpoint.value,
-              };
-              return volume_context;
-
+              break;
             default:
               throw new GrpcError(
                 grpc.status.FAILED_PRECONDITION,
                 `invalid configuration: unknown apiVersion ${apiVersion}`
               );
           }
-        } else {
-          let volume_context = {
-            node_attach_driver: "nfs",
-            server: this.options.nfs.shareHost,
-            share: properties.mountpoint.value,
-          };
-          return volume_context;
         }
+
+        volume_context = {
+          node_attach_driver: "nfs",
+          server: this.options.nfs.shareHost,
+          share: properties.mountpoint.value,
+        };
+        return volume_context;
+
         break;
+      /**
+       * TODO: smb need to be more defensive like iscsi and nfs
+       * ensuring the path is valid and the shareName
+       */
       case "smb":
         properties = await zb.zfs.get(datasetName, [
           "mountpoint",
@@ -460,6 +458,38 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                * v2 = 200
                */
               if ([200, 201].includes(response.statusCode)) {
+                share = response.body;
+                let sharePath;
+                let shareName;
+                switch (apiVersion) {
+                  case 1:
+                    sharePath = response.body.cifs_path;
+                    shareName = response.body.cifs_name;
+                    break;
+                  case 2:
+                    sharePath = response.body.path;
+                    shareName = response.body.name;
+                    break;
+                }
+
+                if (shareName != smbName) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `FreeNAS responded with incorrect share data: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+
+                if (sharePath != properties.mountpoint.value) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `FreeNAS responded with incorrect share data: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+
                 //set zfs property
                 await zb.zfs.set(datasetName, {
                   [FREENAS_SMB_SHARE_PROPERTY_NAME]: response.body.id,
@@ -472,11 +502,39 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                 if (
                   [409, 422].includes(response.statusCode) &&
                   JSON.stringify(response.body).includes(
-                    "You can't share same filesystem with all hosts twice."
+                    "A share with this name already exists."
                   )
                 ) {
-                  // move along
-                  // TODO: need to set the shareId here for sure
+                  let lookupShare = await this.findResourceByProperties(
+                    endpoint,
+                    (item) => {
+                      if (
+                        (item.cifs_path &&
+                          item.cifs_path == properties.mountpoint.value &&
+                          item.cifs_name &&
+                          item.cifs_name == smbName) ||
+                        (item.path &&
+                          item.path == properties.mountpoint.value &&
+                          item.name &&
+                          item.name == smbName)
+                      ) {
+                        return true;
+                      }
+                      return false;
+                    }
+                  );
+
+                  if (!lookupShare) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `FreeNAS failed to find matching share`
+                    );
+                  }
+
+                  //set zfs property
+                  await zb.zfs.set(datasetName, {
+                    [FREENAS_SMB_SHARE_PROPERTY_NAME]: lookupShare.id,
+                  });
                 } else {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
@@ -486,28 +544,22 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   );
                 }
               }
-
-              let volume_context = {
-                node_attach_driver: "smb",
-                server: this.options.smb.shareHost,
-                share: smbName,
-              };
-              return volume_context;
-
+              break;
             default:
               throw new GrpcError(
                 grpc.status.FAILED_PRECONDITION,
                 `invalid configuration: unknown apiVersion ${apiVersion}`
               );
           }
-        } else {
-          let volume_context = {
-            node_attach_driver: "smb",
-            server: this.options.smb.shareHost,
-            share: smbName,
-          };
-          return volume_context;
         }
+
+        volume_context = {
+          node_attach_driver: "smb",
+          server: this.options.smb.shareHost,
+          share: smbName,
+        };
+        return volume_context;
+
         break;
       case "iscsi":
         properties = await zb.zfs.get(datasetName, [
@@ -599,7 +651,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         }
 
         switch (apiVersion) {
-          case 1: {
+          case 1:
             response = await httpClient.get(
               "/services/iscsi/globalconfiguration"
             );
@@ -613,270 +665,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             }
             basename = response.body.iscsi_basename;
             this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
-
-            // create target
-            let target = {
-              iscsi_target_name: iscsiName,
-              iscsi_target_alias: "", // TODO: allow template for this
-            };
-
-            response = await httpClient.post("/services/iscsi/target", target);
-
-            // 409 if invalid
-            if (response.statusCode != 201) {
-              target = null;
-              if (
-                response.statusCode == 409 &&
-                JSON.stringify(response.body).includes(
-                  "Target name already exists"
-                )
-              ) {
-                target = await this.findResourceByProperties(
-                  "/services/iscsi/target",
-                  {
-                    iscsi_target_name: iscsiName,
-                  }
-                );
-              } else {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error creating iscsi target - code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
-                );
-              }
-            } else {
-              target = response.body;
-            }
-
-            if (!target) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `unknown error creating iscsi target`
-              );
-            }
-
-            if (target.iscsi_target_name != iscsiName) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `mismatch name error creating iscsi target`
-              );
-            }
-
-            this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
-
-            // set target.id on zvol
-            await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
-            });
-
-            // create targetgroup(s)
-            // targetgroups do have IDs
-            for (let targetGroupConfig of this.options.iscsi.targetGroups) {
-              let targetGroup = {
-                iscsi_target: target.id,
-                iscsi_target_authgroup: targetGroupConfig.targetGroupAuthGroup,
-                iscsi_target_authtype: targetGroupConfig.targetGroupAuthType
-                  ? targetGroupConfig.targetGroupAuthType
-                  : "None",
-                iscsi_target_portalgroup:
-                  targetGroupConfig.targetGroupPortalGroup,
-                iscsi_target_initiatorgroup:
-                  targetGroupConfig.targetGroupInitiatorGroup,
-                iscsi_target_initialdigest: "Auto",
-              };
-              response = await httpClient.post(
-                "/services/iscsi/targetgroup",
-                targetGroup
-              );
-
-              // 409 if invalid
-              if (response.statusCode != 201) {
-                targetGroup = null;
-                /**
-                 * 404 gets returned with an unable to process response when the DB is corrupted (has invalid entries in essense)
-                 *
-                 * To resolve properly the DB should be cleaned up
-                 * /usr/local/etc/rc.d/django stop
-                 * /usr/local/etc/rc.d/nginx stop
-                 * sqlite3 /data/freenas-v1.db
-                 *
-                 * // this deletes everything, probably not what you want
-                 * // should have a better query to only find entries where associated assets no longer exist
-                 * DELETE from services_iscsitargetgroups;
-                 *
-                 * /usr/local/etc/rc.d/django restart
-                 * /usr/local/etc/rc.d/nginx restart
-                 */
-                if (
-                  response.statusCode == 404 ||
-                  (response.statusCode == 409 &&
-                    JSON.stringify(response.body).includes(
-                      "cannot be duplicated on a target"
-                    ))
-                ) {
-                  targetGroup = await this.findResourceByProperties(
-                    "/services/iscsi/targetgroup",
-                    {
-                      iscsi_target: target.id,
-                      iscsi_target_portalgroup:
-                        targetGroupConfig.targetGroupPortalGroup,
-                      iscsi_target_initiatorgroup:
-                        targetGroupConfig.targetGroupInitiatorGroup,
-                    }
-                  );
-                } else {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `received error creating iscsi targetgroup - code: ${
-                      response.statusCode
-                    } body: ${JSON.stringify(response.body)}`
-                  );
-                }
-              } else {
-                targetGroup = response.body;
-              }
-
-              if (!targetGroup) {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `unknown error creating iscsi targetgroup`
-                );
-              }
-
-              this.ctx.logger.verbose(
-                "FreeNAS ISCSI TARGET_GROUP: %j",
-                targetGroup
-              );
-            }
-
-            let extent = {
-              iscsi_target_extent_comment: "", // TODO: allow template for this value
-              iscsi_target_extent_type: "Disk", // Disk/File, after save Disk becomes "ZVOL"
-              iscsi_target_extent_name: iscsiName,
-              iscsi_target_extent_insecure_tpc: extentInsecureTpc,
-              //iscsi_target_extent_naa: "0x3822690834aae6c5",
-              iscsi_target_extent_disk: extentDiskName,
-              iscsi_target_extent_xen: extentXenCompat,
-              iscsi_target_extent_avail_threshold: extentAvailThreshold,
-              iscsi_target_extent_blocksize: Number(extentBlocksize),
-              iscsi_target_extent_pblocksize: extentDisablePhysicalBlocksize,
-              iscsi_target_extent_rpm: isNaN(Number(extentRpm))
-                ? "SSD"
-                : Number(extentRpm),
-              iscsi_target_extent_ro: false,
-            };
-            response = await httpClient.post("/services/iscsi/extent", extent);
-
-            // 409 if invalid
-            if (response.statusCode != 201) {
-              extent = null;
-              if (
-                response.statusCode == 409 &&
-                JSON.stringify(response.body).includes(
-                  "Extent name must be unique"
-                )
-              ) {
-                extent = await this.findResourceByProperties(
-                  "/services/iscsi/extent",
-                  { iscsi_target_extent_name: iscsiName }
-                );
-              } else {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error creating iscsi extent - code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
-                );
-              }
-            } else {
-              extent = response.body;
-            }
-
-            if (!extent) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `unknown error creating iscsi extent`
-              );
-            }
-
-            if (extent.iscsi_target_extent_name != iscsiName) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `mismatch name error creating iscsi extent`
-              );
-            }
-
-            this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
-
-            await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
-            });
-
-            // create targettoextent
-            let targetToExtent = {
-              iscsi_target: target.id,
-              iscsi_extent: extent.id,
-              iscsi_lunid: 0,
-            };
-            response = await httpClient.post(
-              "/services/iscsi/targettoextent",
-              targetToExtent
-            );
-
-            // 409 if invalid
-            if (response.statusCode != 201) {
-              targetToExtent = null;
-
-              // LUN ID is already being used for this target.
-              // Extent is already in this target.
-              if (
-                response.statusCode == 409 &&
-                (JSON.stringify(response.body).includes(
-                  "Extent is already in this target."
-                ) ||
-                  JSON.stringify(response.body).includes(
-                    "LUN ID is already being used for this target."
-                  ))
-              ) {
-                targetToExtent = await this.findResourceByProperties(
-                  "/services/iscsi/targettoextent",
-                  {
-                    iscsi_target: target.id,
-                    iscsi_extent: extent.id,
-                    iscsi_lunid: 0,
-                  }
-                );
-              } else {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error creating iscsi targettoextent - code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
-                );
-              }
-            } else {
-              targetToExtent = response.body;
-            }
-
-            if (!targetToExtent) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `unknown error creating iscsi targettoextent`
-              );
-            }
-            this.ctx.logger.verbose(
-              "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
-              targetToExtent
-            );
-
-            await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
-                targetToExtent.id,
-            });
-
             break;
-          }
           case 2:
             response = await httpClient.get("/iscsi/global");
             if (response.statusCode != 200) {
@@ -889,249 +678,546 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
             }
             basename = response.body.basename;
             this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
-
-            // create target and targetgroup
-            //let targetId;
-            let targetGroups = [];
-            for (let targetGroupConfig of this.options.iscsi.targetGroups) {
-              targetGroups.push({
-                portal: targetGroupConfig.targetGroupPortalGroup,
-                initiator: targetGroupConfig.targetGroupInitiatorGroup,
-                auth:
-                  targetGroupConfig.targetGroupAuthGroup > 0
-                    ? targetGroupConfig.targetGroupAuthGroup
-                    : null,
-                authmethod:
-                  targetGroupConfig.targetGroupAuthType.length > 0
-                    ? targetGroupConfig.targetGroupAuthType
-                        .toUpperCase()
-                        .replace(" ", "_")
-                    : "NONE",
-              });
-            }
-            let target = {
-              name: iscsiName,
-              alias: null, // cannot send "" error: handler error - driver: FreeNASDriver method: CreateVolume error: {"name":"GrpcError","code":2,"message":"received error creating iscsi target - code: 422 body: {\"iscsi_target_create.alias\":[{\"message\":\"Alias already exists\",\"errno\":22}]}"}
-              mode: "ISCSI",
-              groups: targetGroups,
-            };
-
-            response = await httpClient.post("/iscsi/target", target);
-
-            // 409 if invalid
-            if (response.statusCode != 200) {
-              target = null;
-              if (
-                response.statusCode == 422 &&
-                JSON.stringify(response.body).includes(
-                  "Target name already exists"
-                )
-              ) {
-                target = await this.findResourceByProperties("/iscsi/target", {
-                  name: iscsiName,
-                });
-              } else {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error creating iscsi target - code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
-                );
-              }
-            } else {
-              target = response.body;
-            }
-
-            if (!target) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `unknown error creating iscsi target`
-              );
-            }
-
-            if (target.name != iscsiName) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `mismatch name error creating iscsi target`
-              );
-            }
-
-            // handle situations/race conditions where groups failed to be added/created on the target
-            // groups":[{"portal":1,"initiator":1,"auth":null,"authmethod":"NONE"},{"portal":2,"initiator":1,"auth":null,"authmethod":"NONE"}]
-            // TODO: this logic could be more intelligent but this should do for now as it appears in the failure scenario no groups are added
-            // in other words, I have never seen them invalid, only omitted so this should be enough
-            if (target.groups.length != targetGroups.length) {
-              response = await httpClient.put(`/iscsi/target/id/${target.id}`, {
-                groups: targetGroups,
-              });
-
-              if (response.statusCode != 200) {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `failed setting target groups`
-                );
-              } else {
-                target = response.body;
-
-                // re-run sanity checks
-                if (!target) {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `unknown error creating iscsi target`
-                  );
-                }
-
-                if (target.name != iscsiName) {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `mismatch name error creating iscsi target`
-                  );
-                }
-
-                if (target.groups.length != targetGroups.length) {
-                  throw new GrpcError(
-                    grpc.status.UNKNOWN,
-                    `failed setting target groups`
-                  );
-                }
-              }
-            }
-
-            this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
-
-            // set target.id on zvol
-            await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
-            });
-
-            let extent = {
-              comment: "", // TODO: allow this to be templated
-              type: "DISK", // Disk/File, after save Disk becomes "ZVOL"
-              name: iscsiName,
-              //iscsi_target_extent_naa: "0x3822690834aae6c5",
-              disk: extentDiskName,
-              insecure_tpc: extentInsecureTpc,
-              xen: extentXenCompat,
-              avail_threshold: extentAvailThreshold,
-              blocksize: Number(extentBlocksize),
-              pblocksize: extentDisablePhysicalBlocksize,
-              rpm: "" + extentRpm, // should be a string
-              ro: false,
-            };
-
-            response = await httpClient.post("/iscsi/extent", extent);
-
-            // 409 if invalid
-            if (response.statusCode != 200) {
-              extent = null;
-              if (
-                response.statusCode == 422 &&
-                JSON.stringify(response.body).includes(
-                  "Extent name must be unique"
-                )
-              ) {
-                extent = await this.findResourceByProperties("/iscsi/extent", {
-                  name: iscsiName,
-                });
-              } else {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error creating iscsi extent - code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
-                );
-              }
-            } else {
-              extent = response.body;
-            }
-
-            if (!extent) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `unknown error creating iscsi extent`
-              );
-            }
-
-            if (extent.name != iscsiName) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `mismatch name error creating iscsi extent`
-              );
-            }
-
-            this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
-
-            await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
-            });
-
-            // create targettoextent
-            let targetToExtent = {
-              target: target.id,
-              extent: extent.id,
-              lunid: 0,
-            };
-            response = await httpClient.post(
-              "/iscsi/targetextent",
-              targetToExtent
-            );
-
-            if (response.statusCode != 200) {
-              targetToExtent = null;
-
-              // LUN ID is already being used for this target.
-              // Extent is already in this target.
-              if (
-                response.statusCode == 422 &&
-                (JSON.stringify(response.body).includes(
-                  "Extent is already in this target."
-                ) ||
-                  JSON.stringify(response.body).includes(
-                    "LUN ID is already being used for this target."
-                  ))
-              ) {
-                targetToExtent = await this.findResourceByProperties(
-                  "/iscsi/targetextent",
-                  {
-                    target: target.id,
-                    extent: extent.id,
-                    lunid: 0,
-                  }
-                );
-              } else {
-                throw new GrpcError(
-                  grpc.status.UNKNOWN,
-                  `received error creating iscsi targetextent - code: ${
-                    response.statusCode
-                  } body: ${JSON.stringify(response.body)}`
-                );
-              }
-            } else {
-              targetToExtent = response.body;
-            }
-
-            if (!targetToExtent) {
-              throw new GrpcError(
-                grpc.status.UNKNOWN,
-                `unknown error creating iscsi targetextent`
-              );
-            }
-            this.ctx.logger.verbose(
-              "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
-              targetToExtent
-            );
-
-            await zb.zfs.set(datasetName, {
-              [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
-                targetToExtent.id,
-            });
-
             break;
           default:
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
               `invalid configuration: unknown apiVersion ${apiVersion}`
             );
+        }
+
+        // if we got all the way to the TARGETTOEXTENT then we fully finished
+        // otherwise we must do all assets every time due to the interdependence of IDs etc
+        if (
+          !zb.helpers.isPropertyValueSet(
+            properties[FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME].value
+          )
+        ) {
+          switch (apiVersion) {
+            case 1: {
+              // create target
+              let target = {
+                iscsi_target_name: iscsiName,
+                iscsi_target_alias: "", // TODO: allow template for this
+              };
+
+              response = await httpClient.post(
+                "/services/iscsi/target",
+                target
+              );
+
+              // 409 if invalid
+              if (response.statusCode != 201) {
+                target = null;
+                if (
+                  response.statusCode == 409 &&
+                  JSON.stringify(response.body).includes(
+                    "Target name already exists"
+                  )
+                ) {
+                  target = await this.findResourceByProperties(
+                    "/services/iscsi/target",
+                    {
+                      iscsi_target_name: iscsiName,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi target - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                target = response.body;
+              }
+
+              if (!target) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi target`
+                );
+              }
+
+              if (target.iscsi_target_name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi target`
+                );
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+
+              // set target.id on zvol
+              await zb.zfs.set(datasetName, {
+                [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
+              });
+
+              // create targetgroup(s)
+              // targetgroups do have IDs
+              for (let targetGroupConfig of this.options.iscsi.targetGroups) {
+                let targetGroup = {
+                  iscsi_target: target.id,
+                  iscsi_target_authgroup:
+                    targetGroupConfig.targetGroupAuthGroup,
+                  iscsi_target_authtype: targetGroupConfig.targetGroupAuthType
+                    ? targetGroupConfig.targetGroupAuthType
+                    : "None",
+                  iscsi_target_portalgroup:
+                    targetGroupConfig.targetGroupPortalGroup,
+                  iscsi_target_initiatorgroup:
+                    targetGroupConfig.targetGroupInitiatorGroup,
+                  iscsi_target_initialdigest: "Auto",
+                };
+                response = await httpClient.post(
+                  "/services/iscsi/targetgroup",
+                  targetGroup
+                );
+
+                // 409 if invalid
+                if (response.statusCode != 201) {
+                  targetGroup = null;
+                  /**
+                   * 404 gets returned with an unable to process response when the DB is corrupted (has invalid entries in essense)
+                   *
+                   * To resolve properly the DB should be cleaned up
+                   * /usr/local/etc/rc.d/django stop
+                   * /usr/local/etc/rc.d/nginx stop
+                   * sqlite3 /data/freenas-v1.db
+                   *
+                   * // this deletes everything, probably not what you want
+                   * // should have a better query to only find entries where associated assets no longer exist
+                   * DELETE from services_iscsitargetgroups;
+                   *
+                   * /usr/local/etc/rc.d/django restart
+                   * /usr/local/etc/rc.d/nginx restart
+                   */
+                  if (
+                    response.statusCode == 404 ||
+                    (response.statusCode == 409 &&
+                      JSON.stringify(response.body).includes(
+                        "cannot be duplicated on a target"
+                      ))
+                  ) {
+                    targetGroup = await this.findResourceByProperties(
+                      "/services/iscsi/targetgroup",
+                      {
+                        iscsi_target: target.id,
+                        iscsi_target_portalgroup:
+                          targetGroupConfig.targetGroupPortalGroup,
+                        iscsi_target_initiatorgroup:
+                          targetGroupConfig.targetGroupInitiatorGroup,
+                      }
+                    );
+                  } else {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error creating iscsi targetgroup - code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
+                } else {
+                  targetGroup = response.body;
+                }
+
+                if (!targetGroup) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `unknown error creating iscsi targetgroup`
+                  );
+                }
+
+                this.ctx.logger.verbose(
+                  "FreeNAS ISCSI TARGET_GROUP: %j",
+                  targetGroup
+                );
+              }
+
+              let extent = {
+                iscsi_target_extent_comment: "", // TODO: allow template for this value
+                iscsi_target_extent_type: "Disk", // Disk/File, after save Disk becomes "ZVOL"
+                iscsi_target_extent_name: iscsiName,
+                iscsi_target_extent_insecure_tpc: extentInsecureTpc,
+                //iscsi_target_extent_naa: "0x3822690834aae6c5",
+                iscsi_target_extent_disk: extentDiskName,
+                iscsi_target_extent_xen: extentXenCompat,
+                iscsi_target_extent_avail_threshold: extentAvailThreshold,
+                iscsi_target_extent_blocksize: Number(extentBlocksize),
+                iscsi_target_extent_pblocksize: extentDisablePhysicalBlocksize,
+                iscsi_target_extent_rpm: isNaN(Number(extentRpm))
+                  ? "SSD"
+                  : Number(extentRpm),
+                iscsi_target_extent_ro: false,
+              };
+              response = await httpClient.post(
+                "/services/iscsi/extent",
+                extent
+              );
+
+              // 409 if invalid
+              if (response.statusCode != 201) {
+                extent = null;
+                if (
+                  response.statusCode == 409 &&
+                  JSON.stringify(response.body).includes(
+                    "Extent name must be unique"
+                  )
+                ) {
+                  extent = await this.findResourceByProperties(
+                    "/services/iscsi/extent",
+                    { iscsi_target_extent_name: iscsiName }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi extent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                extent = response.body;
+              }
+
+              if (!extent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi extent`
+                );
+              }
+
+              if (extent.iscsi_target_extent_name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi extent`
+                );
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+
+              await zb.zfs.set(datasetName, {
+                [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
+              });
+
+              // create targettoextent
+              let targetToExtent = {
+                iscsi_target: target.id,
+                iscsi_extent: extent.id,
+                iscsi_lunid: 0,
+              };
+              response = await httpClient.post(
+                "/services/iscsi/targettoextent",
+                targetToExtent
+              );
+
+              // 409 if invalid
+              if (response.statusCode != 201) {
+                targetToExtent = null;
+
+                // LUN ID is already being used for this target.
+                // Extent is already in this target.
+                if (
+                  response.statusCode == 409 &&
+                  (JSON.stringify(response.body).includes(
+                    "Extent is already in this target."
+                  ) ||
+                    JSON.stringify(response.body).includes(
+                      "LUN ID is already being used for this target."
+                    ))
+                ) {
+                  targetToExtent = await this.findResourceByProperties(
+                    "/services/iscsi/targettoextent",
+                    {
+                      iscsi_target: target.id,
+                      iscsi_extent: extent.id,
+                      iscsi_lunid: 0,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi targettoextent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                targetToExtent = response.body;
+              }
+
+              if (!targetToExtent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi targettoextent`
+                );
+              }
+              this.ctx.logger.verbose(
+                "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
+                targetToExtent
+              );
+
+              await zb.zfs.set(datasetName, {
+                [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
+                  targetToExtent.id,
+              });
+
+              break;
+            }
+            case 2:
+              // create target and targetgroup
+              //let targetId;
+              let targetGroups = [];
+              for (let targetGroupConfig of this.options.iscsi.targetGroups) {
+                targetGroups.push({
+                  portal: targetGroupConfig.targetGroupPortalGroup,
+                  initiator: targetGroupConfig.targetGroupInitiatorGroup,
+                  auth:
+                    targetGroupConfig.targetGroupAuthGroup > 0
+                      ? targetGroupConfig.targetGroupAuthGroup
+                      : null,
+                  authmethod:
+                    targetGroupConfig.targetGroupAuthType.length > 0
+                      ? targetGroupConfig.targetGroupAuthType
+                          .toUpperCase()
+                          .replace(" ", "_")
+                      : "NONE",
+                });
+              }
+              let target = {
+                name: iscsiName,
+                alias: null, // cannot send "" error: handler error - driver: FreeNASDriver method: CreateVolume error: {"name":"GrpcError","code":2,"message":"received error creating iscsi target - code: 422 body: {\"iscsi_target_create.alias\":[{\"message\":\"Alias already exists\",\"errno\":22}]}"}
+                mode: "ISCSI",
+                groups: targetGroups,
+              };
+
+              response = await httpClient.post("/iscsi/target", target);
+
+              // 409 if invalid
+              if (response.statusCode != 200) {
+                target = null;
+                if (
+                  response.statusCode == 422 &&
+                  JSON.stringify(response.body).includes(
+                    "Target name already exists"
+                  )
+                ) {
+                  target = await this.findResourceByProperties(
+                    "/iscsi/target",
+                    {
+                      name: iscsiName,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi target - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                target = response.body;
+              }
+
+              if (!target) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi target`
+                );
+              }
+
+              if (target.name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi target`
+                );
+              }
+
+              // handle situations/race conditions where groups failed to be added/created on the target
+              // groups":[{"portal":1,"initiator":1,"auth":null,"authmethod":"NONE"},{"portal":2,"initiator":1,"auth":null,"authmethod":"NONE"}]
+              // TODO: this logic could be more intelligent but this should do for now as it appears in the failure scenario no groups are added
+              // in other words, I have never seen them invalid, only omitted so this should be enough
+              if (target.groups.length != targetGroups.length) {
+                response = await httpClient.put(
+                  `/iscsi/target/id/${target.id}`,
+                  {
+                    groups: targetGroups,
+                  }
+                );
+
+                if (response.statusCode != 200) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `failed setting target groups`
+                  );
+                } else {
+                  target = response.body;
+
+                  // re-run sanity checks
+                  if (!target) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `unknown error creating iscsi target`
+                    );
+                  }
+
+                  if (target.name != iscsiName) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `mismatch name error creating iscsi target`
+                    );
+                  }
+
+                  if (target.groups.length != targetGroups.length) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `failed setting target groups`
+                    );
+                  }
+                }
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+
+              // set target.id on zvol
+              await zb.zfs.set(datasetName, {
+                [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
+              });
+
+              let extent = {
+                comment: "", // TODO: allow this to be templated
+                type: "DISK", // Disk/File, after save Disk becomes "ZVOL"
+                name: iscsiName,
+                //iscsi_target_extent_naa: "0x3822690834aae6c5",
+                disk: extentDiskName,
+                insecure_tpc: extentInsecureTpc,
+                xen: extentXenCompat,
+                avail_threshold: extentAvailThreshold,
+                blocksize: Number(extentBlocksize),
+                pblocksize: extentDisablePhysicalBlocksize,
+                rpm: "" + extentRpm, // should be a string
+                ro: false,
+              };
+
+              response = await httpClient.post("/iscsi/extent", extent);
+
+              // 409 if invalid
+              if (response.statusCode != 200) {
+                extent = null;
+                if (
+                  response.statusCode == 422 &&
+                  JSON.stringify(response.body).includes(
+                    "Extent name must be unique"
+                  )
+                ) {
+                  extent = await this.findResourceByProperties(
+                    "/iscsi/extent",
+                    {
+                      name: iscsiName,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi extent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                extent = response.body;
+              }
+
+              if (!extent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi extent`
+                );
+              }
+
+              if (extent.name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi extent`
+                );
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+
+              await zb.zfs.set(datasetName, {
+                [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
+              });
+
+              // create targettoextent
+              let targetToExtent = {
+                target: target.id,
+                extent: extent.id,
+                lunid: 0,
+              };
+              response = await httpClient.post(
+                "/iscsi/targetextent",
+                targetToExtent
+              );
+
+              if (response.statusCode != 200) {
+                targetToExtent = null;
+
+                // LUN ID is already being used for this target.
+                // Extent is already in this target.
+                if (
+                  response.statusCode == 422 &&
+                  (JSON.stringify(response.body).includes(
+                    "Extent is already in this target."
+                  ) ||
+                    JSON.stringify(response.body).includes(
+                      "LUN ID is already being used for this target."
+                    ))
+                ) {
+                  targetToExtent = await this.findResourceByProperties(
+                    "/iscsi/targetextent",
+                    {
+                      target: target.id,
+                      extent: extent.id,
+                      lunid: 0,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi targetextent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                targetToExtent = response.body;
+              }
+
+              if (!targetToExtent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi targetextent`
+                );
+              }
+              this.ctx.logger.verbose(
+                "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
+                targetToExtent
+              );
+
+              await zb.zfs.set(datasetName, {
+                [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
+                  targetToExtent.id,
+              });
+
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
         }
 
         // iqn = target
@@ -1157,7 +1243,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         // iqn
         // lun
 
-        let volume_context = {
+        volume_context = {
           node_attach_driver: "iscsi",
           portal: this.options.iscsi.targetPortal,
           portals: this.options.iscsi.targetPortals.join(","),
@@ -1561,103 +1647,6 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
               `error reloading iscsi daemon: ${JSON.stringify(response)}`
             );
           }
-        }
-        break;
-    }
-  }
-
-  async failedAttachHelper(call, err) {
-    const driverShareType = this.getDriverShareType();
-    const sshClient = this.getSshClient();
-    let response;
-
-    // not fully implemented
-    return;
-
-    switch (driverShareType) {
-      case "iscsi":
-        const isScale = await this.getIsScale();
-        const majorMinor = await this.getSystemVersionMajorMinor();
-
-        // only works for BSD-based and 11.3+
-        if (!isScale && majorMinor >= 11.3) {
-          const sudoEnabled = this.getSudoEnabled();
-          const sudoPath = await this.getSudoPath();
-          let command;
-
-          //19 - encountered non-retryable iSCSI login failure
-          // ^ could be missing groups on the target
-
-          //cat /var/run/ctld.pid
-          // ps -p <pid> | grep ctld
-          // ps -p `cat /var/run/ctld.pid` | grep ctld (if 0 exit status it's running, otherwise no)
-
-          // random settle time
-          // this could be getting invoked by other instances of the same controller
-          // or other deployments of controllers in the same of different clusters
-          // altogether
-          let maxSettleTime = 10000;
-          let settleTime = Math.floor(Math.random() * maxSettleTime + 1);
-          await sleep(settleTime);
-
-          // test if config is bad
-          // if so regen
-          command = sshClient.buildCommand("/usr/sbin/ctld", ["-d"]);
-          if (sudoEnabled) {
-            command = sudoPath + " " + command;
-          }
-
-          this.ctx.logger.verbose("FailedAttachHelper command: %s", command);
-
-          response = await sshClient.exec(command);
-          let configError = false;
-          let serviceRunning = false;
-          if (response.stderr.includes("configuration error")) {
-            configError = true;
-          }
-
-          // NOTE: this will not be in the output if the config file has an error
-          if (response.stderr.includes("daemon already running")) {
-            serviceRunning = true;
-          }
-
-          if (configError) {
-            this.ctx.logger.warn(
-              "FailedAttachHelper: ctld appears to have a bad configuration file, attempting to regenerate"
-            );
-            // regen config
-            // midclt call etc.generate ctld
-            command = sshClient.buildCommand("midclt", [
-              "call",
-              "etc.generate",
-              "ctld",
-            ]);
-            if (sudoEnabled) {
-              command = sudoPath + " " + command;
-            }
-
-            this.ctx.logger.verbose("FailedAttachHelper command: %s", command);
-            response = await sshClient.exec(command);
-
-            // reload service (may not be enough)
-            command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
-            if (sudoEnabled) {
-              command = sudoPath + " " + command;
-            }
-
-            this.ctx.logger.verbose("FailedAttachHelper command: %s", command);
-            response = await sshClient.exec(command);
-
-          }
-
-          // note, when the 'bad' state is entered, the status still shows as running
-          // check if service is running
-          // /etc/rc.d/ctld status ...exits 0 if running
-          //command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
-
-          // if service is not running attempt a restart
-          // /etc/rc.d/ctld restart
-          //command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
         }
         break;
     }
