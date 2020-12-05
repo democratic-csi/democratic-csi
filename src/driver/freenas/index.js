@@ -1776,6 +1776,8 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
     let response;
     const startApiVersion = httpClient.getApiVersion();
     const versionInfo = {};
+    const versionErrors = {};
+    const versionResponses = {};
 
     httpClient.setApiVersion(2);
     /**
@@ -1785,14 +1787,21 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
      */
     try {
       response = await httpClient.get(endpoint);
+      versionResponses.v2 = response;
       if (response.statusCode == 200) {
         versionInfo.v2 = response.body;
-      }
 
-      // return immediately to save on resources and silly requests
-      await this.setVersionInfoCache(versionInfo);
-      return versionInfo;
-    } catch (e) {}
+        // return immediately to save on resources and silly requests
+        await this.setVersionInfoCache(versionInfo);
+
+        // reset apiVersion
+        httpClient.setApiVersion(startApiVersion);
+
+        return versionInfo;
+      }
+    } catch (e) {
+      versionErrors.v2 = e;
+    }
 
     httpClient.setApiVersion(1);
     /**
@@ -1801,17 +1810,39 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
      */
     try {
       response = await httpClient.get(endpoint);
-      if (response.statusCode == 200) {
+      versionResponses.v1 = response;
+      if (response.statusCode == 200 && IsJsonString(response.body)) {
         versionInfo.v1 = response.body;
+        await this.setVersionInfoCache(versionInfo);
+
+        // reset apiVersion
+        httpClient.setApiVersion(startApiVersion);
+
+        return versionInfo;
       }
-    } catch (e) {}
+    } catch (e) {
+      versionErrors.v1 = e;
+    }
 
-    // reset apiVersion
-    httpClient.setApiVersion(startApiVersion);
-
-    await this.setVersionInfoCache(versionInfo);
-    return versionInfo;
+    // throw error if cannot get v1 or v2 data
+    // likely bad creds/url
+    throw new GrpcError(
+      grpc.status.UNKNOWN,
+      `FreeNAS error getting system version info: ${JSON.stringify({
+        errors: versionErrors,
+        responses: versionResponses,
+      })}`
+    );
   }
+}
+
+function IsJsonString(str) {
+  try {
+    JSON.parse(str);
+  } catch (e) {
+    return false;
+  }
+  return true;
 }
 
 module.exports.FreeNASDriver = FreeNASDriver;
