@@ -3,7 +3,6 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const HttpClient = require("./http").Client;
 
 const Handlebars = require("handlebars");
-const { version } = require("uuid");
 
 // freenas properties
 const FREENAS_NFS_SHARE_PROPERTY_NAME = "democratic-csi:freenas_nfs_share_id";
