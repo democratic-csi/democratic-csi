@@ -258,6 +258,37 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   }
 
   /**
+   * Ensure sane options are used etc
+   * true = ready
+   * false = not ready, but progressiong towards ready
+   * throw error = faulty setup
+   *
+   * @param {*} call
+   */
+  async Probe(call) {
+    const driver = this;
+
+    if (driver.ctx.args.csiMode.includes("controller")) {
+      let datasetParentName = this.getVolumeParentDatasetName() + "/";
+      let snapshotParentDatasetName =
+        this.getDetachedSnapshotParentDatasetName() + "/";
+      if (
+        datasetParentName.startsWith(snapshotParentDatasetName) ||
+        snapshotParentDatasetName.startsWith(datasetParentName)
+      ) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `datasetParentName and detachedSnapshotsDatasetParentName must not overlap`
+        );
+      }
+
+      return { ready: { value: true } };
+    } else {
+      return { ready: { value: true } };
+    }
+  }
+
+  /**
    * Create a volume doing in essence the following:
    * 1. create dataset
    * 2. create nfs share

@@ -32,6 +32,8 @@ zfs:
   #  "org.freenas:test2": "some value"
 
   datasetParentName: tank/k8s/test
+  # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
+  # they may be siblings, but neither should be nested in the other
   detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
 
   datasetEnableQuotas: true
