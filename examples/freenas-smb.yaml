@@ -49,6 +49,8 @@ zfs:
     casesensitivity: mixed
 
   datasetParentName: tank/k8s/a/vols
+  # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
+  # they may be siblings, but neither should be nested in the other
   detachedSnapshotsDatasetParentName: tank/k8s/a/snaps
   datasetEnableQuotas: true
   datasetEnableReservation: false

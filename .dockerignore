@@ -5,3 +5,4 @@ contrib
 node_modules
 Dockerfile*
 TODO.md
+.git

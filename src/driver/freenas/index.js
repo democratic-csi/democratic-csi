@@ -15,6 +15,9 @@ const FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME =
   "democratic-csi:freenas_iscsi_targettoextent_id";
 const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
   "democratic-csi:freenas_iscsi_assets_name";
+
+// used for in-memory cache of the version info
+const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
 class FreeNASDriver extends ControllerZfsSshBaseDriver {
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
@@ -1513,7 +1516,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   if (![200, 204].includes(response.statusCode)) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
-                      `received error deleting iscsi target - extent: ${targetId} code: ${
+                      `received error deleting iscsi target - target: ${targetId} code: ${
                         response.statusCode
                       } body: ${JSON.stringify(response.body)}`
                     );
@@ -1756,19 +1759,22 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
   async setVersionInfoCache(versionInfo) {
     const driver = this;
-    this.cache = this.cache || {};
-    this.cache.versionInfo = versionInfo;
 
-    // crude timeout
-    setTimeout(function () {
-      driver.cache.versionInfo = null;
-    }, 60 * 1000);
+    await driver.ctx.cache.set(
+      FREENAS_SYSTEM_VERSION_CACHE_KEY,
+      versionInfo,
+      60 * 1000
+    );
   }
 
   async getSystemVersion() {
-    this.cache = this.cache || {};
-    if (this.cache.versionInfo) {
-      return this.cache.versionInfo;
+    const driver = this;
+    let cacheData = await driver.ctx.cache.get(
+      FREENAS_SYSTEM_VERSION_CACHE_KEY
+    );
+
+    if (cacheData) {
+      return cacheData;
     }
 
     const httpClient = await this.getHttpClient(false);
