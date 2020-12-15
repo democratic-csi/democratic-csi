@@ -113,11 +113,11 @@ Issues to review:
 
 ### ZoL (zfs-generic-nfs, zfs-generic-iscsi)
 
-Ensure ssh and zfs is installed on the server and that you have installed
+Ensure ssh and zfs is installed on the nfs/iscsi server and that you have installed
 `targetcli`.
 
-- `yum install targetcli -y`
-- `apt-get -y install targetcli-fb`
+- `sudo yum install targetcli -y`
+- `sudo apt-get -y install targetcli-fb`
 
 ## Helm Installation
 
