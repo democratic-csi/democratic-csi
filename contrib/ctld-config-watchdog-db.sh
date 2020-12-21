@@ -9,6 +9,10 @@ LIMIT=1000
 while [ 1 ]; do
   sleep "${WAIT_TIME_SECS}"
 
+  # ctl targets
+  CTL_TARGET_COUNT=$(ctladm portlist | grep iqn | wc -l | sed 's/^[ \t]*//;s/[ \t]*$//')
+  echo "ctl target count: ${CTL_TARGET_COUNT}"
+
   # ctl extents
   CTL_EXTENT_COUNT=$(ctladm devlist | tail -n +2 | wc -l | sed 's/^[ \t]*//;s/[ \t]*$//')
   echo "ctl extent count: ${CTL_EXTENT_COUNT}"
