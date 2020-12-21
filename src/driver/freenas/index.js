@@ -1806,7 +1806,8 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         return versionInfo;
       }
     } catch (e) {
-      versionErrors.v2 = e;
+      // if more info is needed use e.stack
+      versionErrors.v2 = e.toString();
     }
 
     httpClient.setApiVersion(1);
@@ -1827,7 +1828,8 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         return versionInfo;
       }
     } catch (e) {
-      versionErrors.v1 = e;
+      // if more info is needed use e.stack
+      versionErrors.v1 = e.toString();
     }
 
     // throw error if cannot get v1 or v2 data
