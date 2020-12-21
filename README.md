@@ -1,3 +1,6 @@
+![Image](https://img.shields.io/docker/pulls/democraticcsi/democratic-csi.svg)
+![Image](https://img.shields.io/github/workflow/status/democratic-csi/democratic-csi/CI?style=flat-square)
+
 # Introduction
 
 `democratic-csi` implements the `csi` (container storage interface) spec
@@ -29,8 +32,8 @@ relatively easy to implement new drivers.
 
 Predominantly 3 things are needed:
 
-- node prep
-- server prep
+- node prep (ie: your kubernetes cluster nodes)
+- server prep (ie: your storage server)
 - deploy the driver into the cluster (`helm` chart provided with sample
   `values.yaml`)
 
@@ -150,8 +153,9 @@ zfs-nfs democratic-csi/democratic-csi
 
 ### A note on non standard kubelet paths
 
-Some distrobutions, such as `minikube` and `microk8s` uses a non-standard kubelet path.
-In such cases it is necessary to provide a new kubelet host path, microk8s example below:
+Some distrobutions, such as `minikube` and `microk8s` use a non-standard
+kubelet path. In such cases it is necessary to provide a new kubelet host path,
+microk8s example below:
 
 ```bash
 microk8s helm upgrade \
@@ -160,6 +164,20 @@ microk8s helm upgrade \
   --set node.kubeletHostPath="/var/snap/microk8s/common/var/lib/kubelet"  \
   --namespace democratic-csi \
   zfs-nfs democratic-csi/democratic-csi
+```
+
+### openshift
+
+`democratic-csi` generally works fine with openshift. Some special parameters
+need to be set with helm (support added in chart version `0.6.1`):
+
+```
+# for sure required
+--set node.rbac.openshift.privileged=true
+--set node.driver.localtimeHostPath=false
+
+# unlikely, but in special circumstances may be required
+--set controller.rbac.openshift.privileged=true
 ```
 
 ## Multiple Deployments
