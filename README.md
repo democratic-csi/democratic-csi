@@ -184,6 +184,9 @@ need to be set with helm (support added in chart version `0.6.1`):
 --set controller.rbac.openshift.privileged=true
 ```
 
+### Nomad
+`democratic-csi` works with Nomad in a functioning but limted capacity. See the [Nomad docs](docs/nomad.md) for details.
+
 ## Multiple Deployments
 
 You may install multiple deployments of each/any driver. It requires the following:
