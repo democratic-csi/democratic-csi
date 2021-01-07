@@ -37,6 +37,10 @@ Predominantly 3 things are needed:
 - deploy the driver into the cluster (`helm` chart provided with sample
   `values.yaml`)
 
+## Guides
+
+- https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
+
 ## Node Prep
 
 You should install/configure the requirements for both nfs and iscsi.
