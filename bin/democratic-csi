@@ -75,6 +75,9 @@ const protoLoader = require("@grpc/proto-loader");
 const LRU = require("lru-cache");
 const cache = new LRU({ max: 500 });
 const { logger } = require("../src/utils/logger");
+const { GrpcError } = require("../src/utils/grpc");
+const GeneralUtils = require("../src/utils/general");
+
 if (args.logLevel) {
   logger.level = args.logLevel;
 }
@@ -106,6 +109,14 @@ try {
   process.exit(1);
 }
 
+// TODO: consider alternatives that work 100% with replicas > 1
+// doing this in memory is crude and currently only works reliably with 1
+// replica per controller (due to potentional cross external-foo leaders,
+// ie: snapshot operations can lock volumes delete, but different pods may be
+// leader for each respectively)
+// having said that, it should be very effective as is
+let operationLock = new Set();
+
 async function requestHandlerProxy(call, callback, serviceMethodName) {
   const cleansedCall = JSON.parse(JSON.stringify(call));
   for (const key in cleansedCall.request) {
@@ -120,8 +131,47 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       serviceMethodName,
       cleansedCall
     );
-    //const response = await handler.call(driver, call);
-    const response = await driver[serviceMethodName](call);
+
+    const lockKeys = GeneralUtils.lockKeysFromRequest(call, serviceMethodName);
+    if (lockKeys.length > 0) {
+      logger.debug("operation lock keys: %j", lockKeys);
+      // check locks
+      lockKeys.forEach((key) => {
+        if (operationLock.has(key)) {
+          throw new GrpcError(
+            grpc.status.ABORTED,
+            "operation locked due to in progress operation(s): " +
+              JSON.stringify(lockKeys)
+          );
+        }
+      });
+    }
+
+    let response;
+    let responseError;
+    try {
+      // aquire locks
+      if (lockKeys.length > 0) {
+        lockKeys.forEach((key) => {
+          operationLock.add(key);
+        });
+      }
+      response = await driver[serviceMethodName](call);
+    } catch (e) {
+      responseError = e;
+    } finally {
+      // release locks
+      if (lockKeys.length > 0) {
+        lockKeys.forEach((key) => {
+          operationLock.delete(key);
+        });
+      }
+    }
+
+    if (responseError) {
+      throw responseError;
+    }
+
     logger.info(
       "new response - driver: %s method: %s response: %j",
       driver.constructor.name,
