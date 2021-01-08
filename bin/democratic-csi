@@ -18,7 +18,7 @@ const args = require("yargs")
       } catch (e) {}
 
       try {
-        options = yaml.safeLoad(fs.readFileSync(path, "utf8"));
+        options = yaml.load(fs.readFileSync(path, "utf8"));
         return true;
       } catch (e) {}
 
