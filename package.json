@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@grpc/proto-loader": "^0.5.5",
-    "bunyan": "^1.8.14",
+    "bunyan": "^1.8.15",
     "eslint": "^7.17.0",
     "grpc-uds": "^0.1.6",
     "handlebars": "^4.7.6",
