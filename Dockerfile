@@ -32,7 +32,7 @@ WORKDIR /home/csi/app
 USER csi
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --grpc_node_binary_host_mirror=https://grpc-uds-binaries.s3-us-west-2.amazonaws.com/debian-buster
 COPY --chown=csi:csi . .
 RUN rm -rf docker
 
