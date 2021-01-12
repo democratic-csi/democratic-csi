@@ -198,7 +198,17 @@ create /backstores/block/${iscsiName}
 
       case "zfs-generic-iscsi":
         let basename;
-        let iscsiName = zb.helpers.extractLeafName(datasetName);
+        let iscsiName;
+
+        if (this.options.iscsi.nameTemplate) {
+          iscsiName = Handlebars.compile(this.options.iscsi.nameTemplate)({
+            name: call.request.name,
+            parameters: call.request.parameters,
+          });
+        } else {
+          iscsiName = zb.helpers.extractLeafName(datasetName);
+        }
+
         if (this.options.iscsi.namePrefix) {
           iscsiName = this.options.iscsi.namePrefix + iscsiName;
         }
