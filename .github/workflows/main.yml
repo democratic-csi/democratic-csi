@@ -35,4 +35,4 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           DOCKER_CLI_EXPERIMENTAL: enabled
-          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm/v7,linux/arm64
+          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7
