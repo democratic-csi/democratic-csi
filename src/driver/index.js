@@ -479,7 +479,9 @@ class CsiBaseDriver {
                 staging_target_path
               );
               if (!result) {
-                await filesystem.checkFilesystem(device, fs_type);
+                // TODO: add a parameter to control this behavior
+                // https://github.com/democratic-csi/democratic-csi/issues/52#issuecomment-768463401
+                //await filesystem.checkFilesystem(device, fs_type);
               }
             }
             break;
