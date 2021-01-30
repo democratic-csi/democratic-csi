@@ -32,7 +32,7 @@ WORKDIR /home/csi/app
 USER csi
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --grpc_node_binary_host_mirror=https://grpc-uds-binaries.s3-us-west-2.amazonaws.com/debian-buster
 COPY --chown=csi:csi . .
 RUN rm -rf docker
 
@@ -55,8 +55,9 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
 ENV LANG=en_US.utf8
 
 # install node
-ENV PATH=/usr/local/lib/nodejs/bin:$PATH
-COPY --from=build /usr/local/lib/nodejs /usr/local/lib/nodejs
+#ENV PATH=/usr/local/lib/nodejs/bin:$PATH
+#COPY --from=build /usr/local/lib/nodejs /usr/local/lib/nodejs
+COPY --from=build /usr/local/lib/nodejs/bin/node /usr/local/bin/node
 
 # node service requirements
 # netbase is required by rpcbind/rpcinfo to work properly

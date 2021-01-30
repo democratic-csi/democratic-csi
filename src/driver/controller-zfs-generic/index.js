@@ -3,6 +3,8 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 
 const Handlebars = require("handlebars");
 
+const ISCSI_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:iscsi_assets_name";
+
 class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
@@ -159,6 +161,11 @@ create /backstores/block/${iscsiName}
         let iqn = basename + ":" + iscsiName;
         this.ctx.logger.info("iqn: " + iqn);
 
+        // store this off to make delete process more bullet proof
+        await zb.zfs.set(datasetName, {
+          [ISCSI_ASSETS_NAME_PROPERTY_NAME]: iscsiName,
+        });
+
         volume_context = {
           node_attach_driver: "iscsi",
           portal: this.options.iscsi.targetPortal,
@@ -182,6 +189,7 @@ create /backstores/block/${iscsiName}
     const sshClient = this.getSshClient();
 
     let response;
+    let properties;
 
     switch (this.options.driver) {
       case "zfs-generic-nfs":
@@ -198,13 +206,37 @@ create /backstores/block/${iscsiName}
 
       case "zfs-generic-iscsi":
         let basename;
-        let iscsiName = zb.helpers.extractLeafName(datasetName);
-        if (this.options.iscsi.namePrefix) {
-          iscsiName = this.options.iscsi.namePrefix + iscsiName;
+        let iscsiName;
+
+        // Delete iscsi assets
+        try {
+          properties = await zb.zfs.get(datasetName, [
+            ISCSI_ASSETS_NAME_PROPERTY_NAME,
+          ]);
+        } catch (err) {
+          if (err.toString().includes("dataset does not exist")) {
+            return;
+          }
+          throw err;
         }
 
-        if (this.options.iscsi.nameSuffix) {
-          iscsiName += this.options.iscsi.nameSuffix;
+        properties = properties[datasetName];
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        iscsiName = properties[ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+
+        if (zb.helpers.isPropertyValueSet(iscsiName)) {
+          //do nothing
+        } else {
+          iscsiName = zb.helpers.extractLeafName(datasetName);
+
+          if (this.options.iscsi.namePrefix) {
+            iscsiName = this.options.iscsi.namePrefix + iscsiName;
+          }
+
+          if (this.options.iscsi.nameSuffix) {
+            iscsiName += this.options.iscsi.nameSuffix;
+          }
         }
 
         iscsiName = iscsiName.toLowerCase();
@@ -213,9 +245,11 @@ create /backstores/block/${iscsiName}
             basename = this.options.iscsi.shareStrategyTargetCli.basename;
             response = await this.targetCliCommand(
               `
+# delete target
 cd /iscsi
 delete ${basename}:${iscsiName}
 
+# delete extent
 cd /backstores/block
 delete ${iscsiName}
 `
@@ -258,6 +292,8 @@ delete ${iscsiName}
 
   async targetCliCommand(data) {
     const sshClient = this.getSshClient();
+    const driver = this;
+
     data = data.trim();
 
     let command = "sh";
@@ -274,7 +310,28 @@ delete ${iscsiName}
 
     args.push("'" + taregetCliCommand.join(" ") + "'");
 
-    return sshClient.exec(sshClient.buildCommand(command, args));
+    let logCommandTmp = command + " " + args.join(" ");
+    let logCommand = "";
+
+    logCommandTmp.split("\n").forEach((line) => {
+      if (line.startsWith("set auth password=")) {
+        logCommand += "set auth password=<redacted>";
+      } else if (line.startsWith("set auth mutual_password=")) {
+        logCommand += "set auth mutual_password=<redacted>";
+      } else {
+        logCommand += line;
+      }
+
+      logCommand += "\n";
+    });
+
+    driver.ctx.logger.verbose("TargetCLI command: " + logCommand);
+
+    let response = await sshClient.exec(sshClient.buildCommand(command, args));
+    driver.ctx.logger.verbose(
+      "TargetCLI response: " + JSON.stringify(response)
+    );
+    return response;
   }
 }
 

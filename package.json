@@ -1,6 +1,6 @@
 {
   "name": "democratic-csi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "kubernetes csi driver framework",
   "main": "bin/democratic-csi",
   "scripts": {
@@ -18,18 +18,18 @@
     "url": "https://github.com/democratic-csi/democratic-csi.git"
   },
   "dependencies": {
-    "@grpc/proto-loader": "^0.5.5",
-    "bunyan": "^1.8.14",
-    "eslint": "^7.14.0",
-    "grpc-uds": "^0.1.4",
+    "@grpc/proto-loader": "^0.5.6",
+    "bunyan": "^1.8.15",
+    "eslint": "^7.18.0",
+    "grpc-uds": "^0.1.6",
     "handlebars": "^4.7.6",
-    "js-yaml": "^3.14.0",
+    "js-yaml": "^4.0.0",
     "lru-cache": "^6.0.0",
     "request": "^2.88.2",
     "ssh2": "^0.8.9",
-    "uri-js": "^4.4.0",
-    "uuid": "^8.3.1",
+    "uri-js": "^4.4.1",
+    "uuid": "^8.3.2",
     "winston": "^3.3.3",
-    "yargs": "^16.1.1"
+    "yargs": "^16.2.0"
   }
 }
