@@ -81,7 +81,8 @@ const GeneralUtils = require("../src/utils/general");
 if (args.logLevel) {
   logger.level = args.logLevel;
 }
-const csiVersion = process.env.CSI_VERSION || "1.2.0";
+
+const csiVersion = process.env.CSI_VERSION || args.csiVersion || "1.2.0";
 const PROTO_PATH = __dirname + "/../csi_proto/csi-v" + csiVersion + ".proto";
 
 // Suggested options for similarity to existing grpc.load behavior
@@ -101,7 +102,7 @@ logger.info("initializing csi driver: %s", options.driver);
 let driver;
 try {
   driver = require("../src/driver/factory").factory(
-    { logger, args, cache, package },
+    { logger, args, cache, package, csiVersion },
     options
   );
 } catch (err) {
@@ -237,6 +238,9 @@ function getServer() {
         requestHandlerProxy(call, callback, arguments.callee.name);
       },
       async ValidateVolumeCapabilities(call, callback) {
+        requestHandlerProxy(call, callback, arguments.callee.name);
+      },
+      async ControllerGetVolume(call, callback) {
         requestHandlerProxy(call, callback, arguments.callee.name);
       },
       async ListVolumes(call, callback) {
