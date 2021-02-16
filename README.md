@@ -45,7 +45,17 @@ Predominantly 3 things are needed:
 
 You should install/configure the requirements for both nfs and iscsi.
 
-Follow the instructions here: https://netapp-trident.readthedocs.io/en/stable-v20.04/kubernetes/operations/tasks/worker.html
+### nfs
+
+```
+RHEL / CentOS
+sudo yum install -y nfs-utils
+
+Ubuntu / Debian
+sudo apt-get install -y nfs-common
+```
+
+### iscsi
 
 Note that `multipath` is supported for the `iscsi`-based drivers. Simply setup
 multipath to your liking and set multiple portals in the config as appropriate.
@@ -54,10 +64,51 @@ If you are running Kubernetes with rancher/rke please see the following:
 
 - https://github.com/rancher/rke/issues/1846
 
+```
+RHEL / CentOS
+
+# Install the following system packages
+sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
+
+# Enable multipathing
+sudo mpathconf --enable --with_multipathd y
+
+# Ensure that iscsid and multipathd are running
+sudo systemctl enable iscsid multipathd
+sudo systemctl start iscsid multipathd
+
+# Start and enable iscsi
+sudo systemctl enable iscsi
+sudo systemctl start iscsi
+
+
+Ubuntu / Debian
+
+# Install the following system packages
+sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
+
+# Enable multipathing
+sudo tee /etc/multipath.conf <<-'EOF'
+defaults {
+    user_friendly_names yes
+    find_multipaths yes
+}
+EOF
+
+sudo systemctl enable multipath-tools.service
+sudo service multipath-tools restart
+
+# Ensure that open-iscsi and multipath-tools are enabled and running
+sudo systemctl status multipath-tools
+sudo systemctl enable open-iscsi.service
+sudo service open-iscsi start
+sudo systemctl status open-iscsi
+```
+
 ### freenas-smb
 
 If using with Windows based machines you may need to enable guest access (even
-if you are connecting with credentiasl)
+if you are connecting with credentials)
 
 ```
 Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters AllowInsecureGuestAuth -Value 1
@@ -81,7 +132,7 @@ Server preparation depends slightly on which `driver` you are using.
 
 ### FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb)
 
-The recommended version of FreeNAS is 11.3+, however the driver should work
+The recommended version of FreeNAS is 12.0-U2+, however the driver should work
 with much older versions as well.
 
 Ensure the following services are configurged and running:
@@ -90,12 +141,20 @@ Ensure the following services are configurged and running:
 - ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
 - nfs
 - iscsi
-  - when using the FreeNAS API concurrently the `/etc/ctl.conf` file on the
-    server can become invalid, some sample scripts are provided in the
-    `contrib` directory to clean things up
-    ie: copy the script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`
+  - (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
+    `/etc/ctl.conf` file on the server can become invalid, some sample scripts
+    are provided in the `contrib` directory to clean things up ie: copy the 
+    script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`
     please read the scripts and set the variables as appropriate for your server.
-  - ensure you have pre-emptively created portal, group, auth
+  - ensure you have pre-emptively created portals, initatior groups, auths
+    - make note of the respective IDs (the true ID may not reflect what is
+      visible in the UI)
+    - IDs can be visible by clicking the the `Edit` link and finding the ID in the
+      browser address bar
+    - Optionally you may use the following to retrieve appropiate IDs:
+      - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/portal'`
+      - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
+      - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
 - smb
 
 In addition, if you want to use a non-root user for the ssh operations you may
@@ -223,6 +282,11 @@ Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as approp
 - https://kubernetes.io/docs/concepts/storage/volume-snapshots/
 - https://github.com/kubernetes-csi/external-snapshotter#usage
 
+# Sponsors
+
+A special shout out to the wonderful sponsors of the project!
+
+[![ixSystems](https://www.ixsystems.com/wp-content/uploads/sites/13/2015/08/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
 # Related
 
 - https://github.com/nmaupu/freenas-provisioner
