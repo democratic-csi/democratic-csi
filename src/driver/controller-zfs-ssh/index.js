@@ -1505,7 +1505,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           // should only send 1 of snapshot_id or source_volume_id, preferring the former if sent
           if (snapshot_id) {
             if (!zb.helpers.isZfsSnapshot(snapshot_id)) {
-              return;
+              continue;
             }
             operativeFilesystem = volumeParentDatasetName + "/" + snapshot_id;
             operativeFilesystemType = 3;
