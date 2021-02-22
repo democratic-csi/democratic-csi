@@ -6,6 +6,7 @@ const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
+const semver = require("semver");
 
 // zfs common properties
 const MANAGED_PROPERTY_NAME = "democratic-csi:managed_resource";
@@ -81,6 +82,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         //"UNKNOWN",
         "CREATE_DELETE_VOLUME",
         //"PUBLISH_UNPUBLISH_VOLUME",
+        //"LIST_VOLUMES_PUBLISHED_NODES",
         "LIST_VOLUMES",
         "GET_CAPACITY",
         "CREATE_DELETE_SNAPSHOT",
@@ -88,6 +90,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         "CLONE_VOLUME",
         //"PUBLISH_READONLY",
         "EXPAND_VOLUME",
+        //"VOLUME_CONDITION", // added in v1.3.0
+        //"GET_VOLUME", // added in v1.3.0
       ];
     }
 
@@ -100,7 +104,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             //"UNKNOWN",
             "STAGE_UNSTAGE_VOLUME",
             "GET_VOLUME_STATS",
-            //"EXPAND_VOLUME"
+            //"EXPAND_VOLUME",
+            //"VOLUME_CONDITION",
           ];
           break;
         case "volume":
@@ -109,6 +114,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             "STAGE_UNSTAGE_VOLUME",
             "GET_VOLUME_STATS",
             "EXPAND_VOLUME",
+            //"VOLUME_CONDITION",
           ];
           break;
       }
@@ -255,6 +261,108 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     });
 
     return { valid, message };
+  }
+
+  async getVolumeStatus(volume_id) {
+    const driver = this;
+
+    if (!!!semver.satisfies(driver.ctx.csiVersion, ">=1.2.0")) {
+      return;
+    }
+
+    let abnormal = false;
+    let message = "OK";
+    let volume_status = {};
+
+    //LIST_VOLUMES_PUBLISHED_NODES
+    if (
+      semver.satisfies(driver.ctx.csiVersion, ">=1.2.0") &&
+      driver.options.service.controller.capabilities.rpc.includes(
+        "LIST_VOLUMES_PUBLISHED_NODES"
+      )
+    ) {
+      // TODO: let drivers fill this in
+      volume_status.published_node_ids = [];
+    }
+
+    //VOLUME_CONDITION
+    if (
+      semver.satisfies(driver.ctx.csiVersion, ">=1.3.0") &&
+      driver.options.service.controller.capabilities.rpc.includes(
+        "VOLUME_CONDITION"
+      )
+    ) {
+      // TODO: let drivers fill ths in
+      volume_condition = { abnormal, message };
+      volume_status.volume_condition = volume_condition;
+    }
+
+    return volume_status;
+  }
+
+  async populateCsiVolumeFromData(row) {
+    const driver = this;
+    const zb = await this.getZetabyte();
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    let datasetName = this.getVolumeParentDatasetName();
+
+    // ignore rows were csi_name is empty
+    if (row[MANAGED_PROPERTY_NAME] != "true") {
+      return;
+    }
+
+    let volume_content_source;
+    let volume_context = JSON.parse(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME]);
+    if (
+      zb.helpers.isPropertyValueSet(
+        row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME]
+      )
+    ) {
+      volume_context["provisioner_driver"] =
+        row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME];
+    }
+
+    if (
+      zb.helpers.isPropertyValueSet(
+        row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME]
+      )
+    ) {
+      volume_context["provisioner_driver_instance_id"] =
+        row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME];
+    }
+
+    if (
+      zb.helpers.isPropertyValueSet(
+        row[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME]
+      )
+    ) {
+      volume_content_source = {};
+      switch (row[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME]) {
+        case "snapshot":
+          volume_content_source.snapshot = {};
+          volume_content_source.snapshot.snapshot_id =
+            row[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME];
+          break;
+        case "volume":
+          volume_content_source.volume = {};
+          volume_content_source.volume.volume_id =
+            row[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME];
+          break;
+      }
+    }
+
+    let volume = {
+      // remove parent dataset info
+      volume_id: row["name"].replace(new RegExp("^" + datasetName + "/"), ""),
+      capacity_bytes:
+        driverZfsResourceType == "filesystem"
+          ? row["refquota"]
+          : row["volsize"],
+      content_source: volume_content_source,
+      volume_context,
+    };
+
+    return volume;
   }
 
   /**
@@ -1108,6 +1216,86 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   }
 
   /**
+   * Get a single volume
+   *
+   * @param {*} call
+   */
+  async ControllerGetVolume(call) {
+    const driver = this;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    const zb = await this.getZetabyte();
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+    let response;
+    let name = call.request.volume_id;
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    if (!name) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume_id is required`
+      );
+    }
+
+    const datasetName = datasetParentName + "/" + name;
+
+    let types = [];
+    switch (driverZfsResourceType) {
+      case "filesystem":
+        types = ["filesystem"];
+        break;
+      case "volume":
+        types = ["volume"];
+        break;
+    }
+    try {
+      response = await zb.zfs.list(
+        datasetName,
+        [
+          "name",
+          "mountpoint",
+          "refquota",
+          "avail",
+          "used",
+          VOLUME_CSI_NAME_PROPERTY_NAME,
+          VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME,
+          VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME,
+          "volsize",
+          MANAGED_PROPERTY_NAME,
+          SHARE_VOLUME_CONTEXT_PROPERTY_NAME,
+          SUCCESS_PROPERTY_NAME,
+          VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME,
+          VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME,
+        ],
+        { types, recurse: false }
+      );
+    } catch (err) {
+      if (err.toString().includes("dataset does not exist")) {
+        throw new GrpcError(grpc.status.NOT_FOUND, `volume_id is missing`);
+      }
+
+      throw err;
+    }
+
+    driver.ctx.logger.debug("list volumes result: %j", response);
+    let volume = await driver.populateCsiVolumeFromData(response.indexed[0]);
+    let status = await driver.getVolumeStatus(datasetName);
+
+    let res = { volume };
+    if (status) {
+      res.status = status;
+    }
+
+    return res;
+  }
+
+  /**
    *
    * TODO: check capability to ensure not asking about block volumes
    *
@@ -1213,68 +1401,20 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     }
 
     entries = [];
-    response.indexed.forEach((row) => {
+    for (let row of response.indexed) {
       // ignore rows were csi_name is empty
       if (row[MANAGED_PROPERTY_NAME] != "true") {
         return;
       }
 
-      let volume_content_source;
-      let volume_context = JSON.parse(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME]);
-      if (
-        zb.helpers.isPropertyValueSet(
-          row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME]
-        )
-      ) {
-        volume_context["provisioner_driver"] =
-          row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME];
-      }
-
-      if (
-        zb.helpers.isPropertyValueSet(
-          row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME]
-        )
-      ) {
-        volume_context["provisioner_driver_instance_id"] =
-          row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME];
-      }
-
-      if (
-        zb.helpers.isPropertyValueSet(
-          row[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME]
-        )
-      ) {
-        volume_content_source = {};
-        switch (row[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME]) {
-          case "snapshot":
-            volume_content_source.snapshot = {};
-            volume_content_source.snapshot.snapshot_id =
-              row[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME];
-            break;
-          case "volume":
-            volume_content_source.volume = {};
-            volume_content_source.volume.volume_id =
-              row[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME];
-            break;
-        }
-      }
+      let volume = await driver.populateCsiVolumeFromData(row);
+      let status = await driver.getVolumeStatus(datasetName);
 
       entries.push({
-        volume: {
-          // remove parent dataset info
-          volume_id: row["name"].replace(
-            new RegExp("^" + datasetName + "/"),
-            ""
-          ),
-          capacity_bytes:
-            driverZfsResourceType == "filesystem"
-              ? row["refquota"]
-              : row["volsize"],
-          content_source: volume_content_source,
-          volume_context,
-        },
+        volume,
+        status,
       });
-    });
+    }
 
     if (max_entries && entries.length > max_entries) {
       uuid = uuidv4();
@@ -1365,7 +1505,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           // should only send 1 of snapshot_id or source_volume_id, preferring the former if sent
           if (snapshot_id) {
             if (!zb.helpers.isZfsSnapshot(snapshot_id)) {
-              return;
+              continue;
             }
             operativeFilesystem = volumeParentDatasetName + "/" + snapshot_id;
             operativeFilesystemType = 3;

@@ -1,3 +1,10 @@
+# v1.1.0
+
+Released 2021-02-21
+
+- support for csi-v1.3.0
+- fix a snapshot issue when requested with specific `snapshot_id`
+
 # v1.0.1
 
 Released 2021-01-29

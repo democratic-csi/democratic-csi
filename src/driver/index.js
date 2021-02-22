@@ -4,6 +4,7 @@ const { GrpcError, grpc } = require("../utils/grpc");
 const { Mount } = require("../utils/mount");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
+const semver = require("semver");
 const sleep = require("../utils/general").sleep;
 
 /**
@@ -867,6 +868,7 @@ class CsiBaseDriver {
   }
 
   async NodeGetVolumeStats(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     let result;
@@ -878,6 +880,19 @@ class CsiBaseDriver {
 
     if (!volume_path) {
       throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_path`);
+    }
+
+    let res = {};
+
+    //VOLUME_CONDITION
+    if (
+      semver.satisfies(driver.ctx.csiVersion, ">=1.3.0") &&
+      options.service.node.capabilities.rpc.includes("VOLUME_CONDITION")
+    ) {
+      // TODO: let drivers fill ths in
+      let abnormal = false;
+      let message = "OK";
+      res.volume_condition = { abnormal, message };
     }
 
     if (
@@ -895,33 +910,33 @@ class CsiBaseDriver {
       case "mount":
         result = await mount.getMountDetails(device_path);
 
-        return {
-          usage: [
-            {
-              available: result.avail,
-              total: result.size,
-              used: result.used,
-              unit: "BYTES",
-            },
-          ],
-        };
+        res.usage = [
+          {
+            available: result.avail,
+            total: result.size,
+            used: result.used,
+            unit: "BYTES",
+          },
+        ];
+        break;
       case "block":
         result = await filesystem.getBlockDevice(device_path);
 
-        return {
-          usage: [
-            {
-              total: result.size,
-              unit: "BYTES",
-            },
-          ],
-        };
+        res.usage = [
+          {
+            total: result.size,
+            unit: "BYTES",
+          },
+        ];
+        break;
       default:
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,
           `unsupported/unknown access_type ${access_type}`
         );
     }
+
+    return res;
   }
 
   /**
