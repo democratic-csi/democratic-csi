@@ -390,6 +390,44 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         );
       }
 
+      const timerEnabled = false;
+
+      /**
+       * limit the actual checks semi sanely
+       * health checks should kick in an restart the pod
+       * this process is 2 checks in 1
+       * - ensure basic ssh connectivity
+       * - ensure csh is not the operative shell
+       */
+      if (!driver.currentSSHShell || timerEnabled === false) {
+        const sshClient = this.getSshClient();
+        driver.ctx.logger.debug("performing ssh sanity check..");
+        const response = await sshClient.exec("echo $0");
+        driver.currentSSHShell = response.stdout.split("\n")[0];
+      }
+
+      // update in the background every X interval to prevent incessant checks
+      if (timerEnabled && !driver.currentSSHShellInterval) {
+        const intervalTime = 60000;
+        driver.currentSSHShellInterval = setInterval(async () => {
+          try {
+            driver.ctx.logger.debug("performing ssh sanity check..");
+            const sshClient = this.getSshClient();
+            const response = await sshClient.exec("echo $0");
+            driver.currentSSHShell = response.stdout.split("\n")[0];
+          } catch (e) {
+            delete driver.currentSSHShell;
+          }
+        }, intervalTime);
+      }
+
+      if (driver.currentSSHShell.includes("csh")) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `csh is an unsupported shell, please update the default shell of your ssh user`
+        );
+      }
+
       return { ready: { value: true } };
     } else {
       return { ready: { value: true } };
