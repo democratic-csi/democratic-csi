@@ -143,7 +143,7 @@ Ensure the following services are configurged and running:
 - iscsi
   - (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
     `/etc/ctl.conf` file on the server can become invalid, some sample scripts
-    are provided in the `contrib` directory to clean things up ie: copy the 
+    are provided in the `contrib` directory to clean things up ie: copy the
     script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`
     please read the scripts and set the variables as appropriate for your server.
   - ensure you have pre-emptively created portals, initatior groups, auths
@@ -244,6 +244,7 @@ need to be set with helm (support added in chart version `0.6.1`):
 ```
 
 ### Nomad
+
 `democratic-csi` works with Nomad in a functioning but limted capacity. See the [Nomad docs](docs/nomad.md) for details.
 
 ## Multiple Deployments
@@ -282,11 +283,21 @@ Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as approp
 - https://kubernetes.io/docs/concepts/storage/volume-snapshots/
 - https://github.com/kubernetes-csi/external-snapshotter#usage
 
+# Migrating from freenas-provisioner and freenas-iscsi-provisioner
+
+It is possible to migrate all volumes from the non-csi freenas provisioners
+to `democratic-csi`.
+
+Copy the `contrib/freenas-provisioner-to-democratic-csi.sh` script from the
+project to your workstation, read the script in detail, and edit the variables
+to your needs to start migrating!
+
 # Sponsors
 
 A special shout out to the wonderful sponsors of the project!
 
 [![ixSystems](https://www.ixsystems.com/wp-content/uploads/sites/13/2015/08/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
+
 # Related
 
 - https://github.com/nmaupu/freenas-provisioner
