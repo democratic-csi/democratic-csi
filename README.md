@@ -40,6 +40,8 @@ Predominantly 3 things are needed:
 ## Guides
 
 - https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
+- https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
+  from `nfs-client-provisioner` to `democratic-csi`)
 
 ## Node Prep
 

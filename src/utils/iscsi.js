@@ -1,4 +1,5 @@
 const cp = require("child_process");
+const { setegid } = require("process");
 
 function getIscsiValue(value) {
   if (value == "<empty>") return null;
@@ -148,6 +149,27 @@ class ISCSI {
       },
 
       /**
+       * get session object by iqn/portal
+       */
+      async getSession(tgtIQN, portal) {
+        const sessions = await iscsi.iscsiadm.getSessions();
+
+        let session = false;
+        sessions.every((i_session) => {
+          if (
+            `${i_session.iqn}:${i_session.target}` == tgtIQN &&
+            portal == i_session.portal
+          ) {
+            session = i_session;
+            return false;
+          }
+          return true;
+        });
+
+        return session;
+      },
+
+      /**
        * iscsiadm -m session
        */
       async getSessions() {
@@ -178,7 +200,7 @@ class ISCSI {
           fields = entry.split(" ");
           sessions.push({
             protocol: entry.split(":")[0],
-            id: fields[1].replace("[", "").replace("]", ""),
+            id: Number(fields[1].replace("[", "").replace("]", "")),
             portal: fields[2].split(",")[0],
             target_portal_group_tag: fields[2].split(",")[1],
             iqn: fields[3].split(":")[0],
@@ -434,6 +456,36 @@ class ISCSI {
               throw err;
             }
           }
+        }
+
+        return true;
+      },
+
+      /**
+       * iscsiadm -m session -r SID --rescan
+       *
+       * @param {*} session
+       */
+      async rescanSession(session) {
+        let sid;
+        if (typeof session === "object") {
+          sid = session.id;
+        } else {
+          sid = session;
+        }
+
+        // make sure session is a valid number
+        if (session !== 0 && session > 0) {
+          throw new Error("cannot scan empty session id");
+        }
+
+        let args = [];
+        args = args.concat(["-m", "session", "-r", sid, "--rescan"]);
+
+        try {
+          await iscsi.exec(options.paths.iscsiadm, args);
+        } catch (err) {
+          throw err;
         }
 
         return true;
