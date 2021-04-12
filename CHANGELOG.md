@@ -1,3 +1,10 @@
+# v1.1.2
+
+Released 2021-04-12
+
+- fix for hostname based portals
+- dependency bumps
+
 # v1.1.1
 
 Released 2021-04-12

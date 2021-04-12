@@ -200,7 +200,7 @@ class ISCSI {
           sessions.push({
             protocol: entry.split(":")[0],
             id: Number(fields[1].replace("[", "").replace("]", "")),
-            portal: fields[2].split(",")[0],
+            portal: fields[2].replace("[", "").replace("]", "").split(",")[0],
             target_portal_group_tag: fields[2].split(",")[1],
             iqn: fields[3].split(":")[0],
             target: fields[3].split(":")[1],
