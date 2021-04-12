@@ -343,6 +343,7 @@ class CsiBaseDriver {
           // put these options in place to force targets managed by csi to be explicitly attached (in the case of unclearn shutdown etc)
           let nodeDB = {
             "node.startup": "manual",
+            //"node.session.scan": "manual",
           };
           const nodeDBKeyPrefix = "node-db.";
           for (const key in normalizedSecrets) {
@@ -358,6 +359,15 @@ class CsiBaseDriver {
           );
           // login
           await iscsi.iscsiadm.login(volume_context.iqn, portal);
+
+          // get associated session
+          let session = await iscsi.iscsiadm.getSession(
+            volume_context.iqn,
+            portal
+          );
+
+          // rescan in scenarios when login previously occurred but volumes never appeared
+          await iscsi.iscsiadm.rescanSession(session);
 
           // find device name
           device = `/dev/disk/by-path/ip-${portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
