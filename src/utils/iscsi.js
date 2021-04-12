@@ -1,5 +1,4 @@
 const cp = require("child_process");
-const { setegid } = require("process");
 
 function getIscsiValue(value) {
   if (value == "<empty>") return null;
