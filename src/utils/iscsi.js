@@ -156,7 +156,7 @@ class ISCSI {
         let session = false;
         sessions.every((i_session) => {
           if (
-            `${i_session.iqn}:${i_session.target}` == tgtIQN &&
+            `${i_session.iqn}` == tgtIQN &&
             portal == i_session.portal
           ) {
             session = i_session;
@@ -202,8 +202,9 @@ class ISCSI {
             id: Number(fields[1].replace("[", "").replace("]", "")),
             portal: fields[2].replace("[", "").replace("]", "").split(",")[0],
             target_portal_group_tag: fields[2].split(",")[1],
-            iqn: fields[3].split(":")[0],
-            target: fields[3].split(":")[1],
+            iqn: fields[3].trim(),
+            //iqn: fields[3].split(":")[0],
+            //target: fields[3].split(":")[1],
           });
         });
 
