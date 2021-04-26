@@ -1,3 +1,10 @@
+# v1.1.3
+
+Release 2021-04-25
+
+- remove `--force` from unmounts
+- proper `iqn` logic for rescans
+
 # v1.1.2
 
 Released 2021-04-12
