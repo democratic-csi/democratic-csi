@@ -584,6 +584,7 @@ class CsiBaseDriver {
     const staging_target_path = call.request.staging_target_path;
     const block_path = staging_target_path + "/block_device";
     let normalized_staging_path = staging_target_path;
+    const umount_args = []; // --force
 
     if (!staging_target_path) {
       throw new GrpcError(
@@ -615,7 +616,7 @@ class CsiBaseDriver {
 
     result = await mount.pathIsMounted(normalized_staging_path);
     if (result) {
-      result = await mount.umount(normalized_staging_path, ["--force"]);
+      result = await mount.umount(normalized_staging_path, umount_args);
     }
 
     if (is_block) {
@@ -859,10 +860,11 @@ class CsiBaseDriver {
 
     const volume_id = call.request.volume_id;
     const target_path = call.request.target_path;
+    const umount_args = []; // --force
 
     result = await mount.pathIsMounted(target_path);
     if (result) {
-      result = await mount.umount(target_path, ["--force"]);
+      result = await mount.umount(target_path, umount_args);
     }
 
     result = await filesystem.pathExists(target_path);
