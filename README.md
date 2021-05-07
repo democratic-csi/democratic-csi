@@ -159,14 +159,27 @@ Ensure the following services are configurged and running:
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
 - smb
 
-In addition, if you want to use a non-root user for the ssh operations you may
-create a `csi` user and then run `visudo` directly from the console. Make sure
-the line for the `csi` user has `NOPASSWD` added (note this can get reset by
-FreeNAS if you alter the user via the GUI later):
+If you would prefer you can configure `democratic-csi` to use a
+non-`root` user when connecting to the FreeNAS server:
 
-```
-csi ALL=(ALL) NOPASSWD:ALL
-```
+- Create a non-`root` user (e.g., `csi`)
+
+- Ensure that user has passwordless `sudo` privileges:
+
+  ```
+  csi ALL=(ALL) NOPASSWD:ALL
+  ```
+  (note this can get reset by FreeNAS if you alter the user via the
+  GUI later)
+
+- Instruct `democratic-csi` to use `sudo` by adding the following to
+  your driver configuration:
+
+  ```
+  zfs:
+    cli:
+      sudoEnabled: true
+  ```
 
 Starting with TrueNAS CORE 12 it is also possible to use an `apiKey` instead of
 the `root` password for the http connection.
