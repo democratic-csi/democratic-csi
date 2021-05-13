@@ -1,0 +1,40 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: iscsi-manual
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  # can be used to handle CHAP
+  # in the secret create the following keys:
+  #
+  #      # any arbitrary iscsiadm entries can be add by creating keys starting with node-db.<entry.name>
+  #      # if doing CHAP
+  #      node-db.node.session.auth.authmethod: CHAP
+  #      node-db.node.session.auth.username: foo
+  #      node-db.node.session.auth.password: bar
+  #
+  #      # if doing mutual CHAP
+  #      node-db.node.session.auth.username_in: baz
+  #      node-db.node.session.auth.password_in: bar
+  #nodeStageSecretRef:
+  #  name: some name
+  #  namespace: some namespace
+  mountOptions: []
+  csi:
+    driver: org.democratic-csi.node-manual
+    readOnly: false
+    # can be ext4 or xfs
+    fsType: ext4
+    volumeHandle: unique-volumeid  # make sure it's a unique id in the cluster
+    volumeAttributes:
+      portal: <ip:port>
+      #portals: <ip:port>,<ip:port>,...
+      iqn: <iqn>
+      lun: <lun>
+      node_attach_driver: iscsi
+      provisioner_driver: node-manual
