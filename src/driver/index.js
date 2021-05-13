@@ -290,12 +290,22 @@ class CsiBaseDriver {
       mount_flags.push("defaults");
     }
 
-    result = await this.assertCapabilities([capability]);
-    if (!result.valid) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `invalid capability: ${result.message}`
-      );
+    if (call.request.volume_context.provisioner_driver == "node-manual") {
+      result = await this.assertCapabilities([capability], node_attach_driver);
+      if (!result.valid) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `invalid capability: ${result.message}`
+        );
+      }
+    } else {
+      result = await this.assertCapabilities([capability]);
+      if (!result.valid) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `invalid capability: ${result.message}`
+        );
+      }
     }
 
     // csi spec stipulates that staging_target_path is a directory even for block mounts

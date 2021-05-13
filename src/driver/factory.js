@@ -5,6 +5,7 @@ const {
 } = require("./zfs-local-ephemeral-inline");
 
 const { ControllerNfsClientDriver } = require("./controller-nfs-client");
+const { NodeManualDriver } = require("./node-manual");
 
 function factory(ctx, options) {
   switch (options.driver) {
@@ -22,6 +23,8 @@ function factory(ctx, options) {
       return new ZfsLocalEphemeralInlineDriver(ctx, options);
     case "nfs-client":
       return new ControllerNfsClientDriver(ctx, options);
+    case "node-manual":
+      return new NodeManualDriver(ctx, options);
     default:
       throw new Error("invalid csi driver: " + options.driver);
   }

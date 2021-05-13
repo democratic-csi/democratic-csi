@@ -1,0 +1,29 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: smb-manual
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  #nodeStageSecretRef:
+  #  name: some name
+  #  namespace: some namespace
+  mountOptions:
+    # creds can be entered into the node-stage-secret in the `mount_flags` key
+    # the value should be: username=foo,password=bar
+    - username=foo
+    - password=bar
+  csi:
+    driver: org.democratic-csi.node-manual
+    readOnly: false
+    fsType: cifs
+    volumeHandle: unique-volumeid  # make sure it's a unique id in the cluster
+    volumeAttributes:
+      server: host or ip
+      share: someshare
+      node_attach_driver: smb
+      provisioner_driver: node-manual

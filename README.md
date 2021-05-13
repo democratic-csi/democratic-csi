@@ -21,7 +21,10 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
-  - `nfs-client` (crudely provisions storage using a shared nfs share/directory for all volumes)
+  - `nfs-client` (crudely provisions storage using a shared nfs share/directory
+    for all volumes)
+  - `node-manual` (allows connecting to manually created smb, nfs, and iscsi
+    volumes, see sample PVs in the `examples` directory)
 - framework for developing `csi` drivers
 
 If you have any interest in providing a `csi` driver, simply open an issue to

@@ -1,6 +1,12 @@
+# v1.2.0
+
+Released 2021-05-12
+
+- add `node-manual` driver
+
 # v1.1.3
 
-Release 2021-04-25
+Released 2021-04-25
 
 - remove `--force` from unmounts
 - proper `iqn` logic for rescans

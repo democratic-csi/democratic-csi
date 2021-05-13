@@ -1,0 +1,25 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-manual
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - nfsvers=3
+    - nolock
+    - noatime
+  csi:
+    driver: org.democratic-csi.node-manual
+    readOnly: false
+    fsType: nfs
+    volumeHandle: unique-volumeid  # make sure it's a unique id in the cluster
+    volumeAttributes:
+      server: host or ip
+      share: /some/share
+      node_attach_driver: nfs
+      provisioner_driver: node-manual

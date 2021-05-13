@@ -1,6 +1,6 @@
 {
   "name": "democratic-csi",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "kubernetes csi driver framework",
   "main": "bin/democratic-csi",
   "scripts": {
@@ -30,7 +30,7 @@
     "uri-js": "^4.4.1",
     "uuid": "^8.3.2",
     "winston": "^3.3.3",
-    "yargs": "^16.2.0"
+    "yargs": "^17.0.1"
   },
   "devDependencies": {
     "eslint": "^7.22.0"
