@@ -23,6 +23,8 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
   - `nfs-client` (crudely provisions storage using a shared nfs share/directory
     for all volumes)
+  - `smb-client` (crudely provisions storage using a shared smb share/directory
+    for all volumes)
   - `node-manual` (allows connecting to manually created smb, nfs, and iscsi
     volumes, see sample PVs in the `examples` directory)
 - framework for developing `csi` drivers
@@ -172,6 +174,7 @@ non-`root` user when connecting to the FreeNAS server:
   ```
   csi ALL=(ALL) NOPASSWD:ALL
   ```
+
   (note this can get reset by FreeNAS if you alter the user via the
   GUI later)
 

@@ -1,31 +1,31 @@
 const { ControllerClientCommonDriver } = require("../controller-client-common");
 
 /**
- * Crude nfs-client driver which simply creates directories to be mounted
+ * Crude smb-client driver which simply creates directories to be mounted
  * and uses rsync for cloning/snapshots
  */
-class ControllerNfsClientDriver extends ControllerClientCommonDriver {
+class ControllerSmbClientDriver extends ControllerClientCommonDriver {
   constructor(ctx, options) {
     super(...arguments);
   }
 
   getConfigKey() {
-    return "nfs";
+    return "smb";
   }
 
   getVolumeContext(name) {
     const driver = this;
     const config_key = driver.getConfigKey();
     return {
-      node_attach_driver: "nfs",
+      node_attach_driver: "smb",
       server: this.options[config_key].shareHost,
-      share: driver.getShareVolumePath(name),
+      share: driver.stripLeadingSlash(driver.getShareVolumePath(name)),
     };
   }
 
   getFsTypes() {
-    return ["nfs"];
+    return ["cifs"];
   }
 }
 
-module.exports.ControllerNfsClientDriver = ControllerNfsClientDriver;
+module.exports.ControllerSmbClientDriver = ControllerSmbClientDriver;

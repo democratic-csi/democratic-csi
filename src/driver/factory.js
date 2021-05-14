@@ -5,6 +5,7 @@ const {
 } = require("./zfs-local-ephemeral-inline");
 
 const { ControllerNfsClientDriver } = require("./controller-nfs-client");
+const { ControllerSmbClientDriver } = require("./controller-smb-client");
 const { NodeManualDriver } = require("./node-manual");
 
 function factory(ctx, options) {
@@ -21,6 +22,8 @@ function factory(ctx, options) {
       return new ControllerZfsGenericDriver(ctx, options);
     case "zfs-local-ephemeral-inline":
       return new ZfsLocalEphemeralInlineDriver(ctx, options);
+    case "smb-client":
+      return new ControllerSmbClientDriver(ctx, options);
     case "nfs-client":
       return new ControllerNfsClientDriver(ctx, options);
     case "node-manual":
