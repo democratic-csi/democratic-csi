@@ -60,8 +60,9 @@ zfs:
   # 512, 1K, 2K, 4K, 8K, 16K, 64K, 128K default is 16K
   zvolBlocksize:
 iscsi:
-  targetPortal: "server:3261"
-  targetPortals: []
+  targetPortal: "server[:port]"
+  # for multipath
+  targetPortals: [] # [ "server[:port]", "server[:port]", ... ]
   # leave empty to omit usage of -I with iscsiadm
   interface:
 

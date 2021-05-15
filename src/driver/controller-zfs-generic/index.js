@@ -169,7 +169,9 @@ create /backstores/block/${iscsiName}
         volume_context = {
           node_attach_driver: "iscsi",
           portal: this.options.iscsi.targetPortal,
-          portals: this.options.iscsi.targetPortals.join(","),
+          portals: this.options.iscsi.targetPortals
+            ? this.options.iscsi.targetPortals.join(",")
+            : "",
           interface: this.options.iscsi.interface,
           iqn: iqn,
           lun: 0,

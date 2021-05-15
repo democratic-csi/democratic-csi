@@ -42,11 +42,13 @@ Predominantly 3 things are needed:
 - deploy the driver into the cluster (`helm` chart provided with sample
   `values.yaml`)
 
-## Guides
+## Community Guides
 
 - https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
 - https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
   from `nfs-client-provisioner` to `democratic-csi`)
+- https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
+  (migrating between storage classes using `velero`)
 
 ## Node Prep
 

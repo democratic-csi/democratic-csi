@@ -1232,27 +1232,13 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           [FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME]: iscsiName,
         });
 
-        // iscsiadm -m discovery -t st -p 172.21.26.81
-        // iscsiadm -m node -T iqn.2011-03.lan.bitness.istgt:test -p bitness.lan -l
-
-        // FROM driver config? no, node attachment should have everything required to remain independent
-        // portal
-        // portals
-        // interface
-        // chap discovery
-        // chap session
-
-        // FROM context
-        // iqn
-        // lun
-
         volume_context = {
           node_attach_driver: "iscsi",
           portal: this.options.iscsi.targetPortal,
-          portals: this.options.iscsi.targetPortals.join(","),
+          portals: this.options.iscsi.targetPortals
+            ? this.options.iscsi.targetPortals.join(",")
+            : "",
           interface: this.options.iscsi.interface || "",
-          //chapDiscoveryEnabled: this.options.iscsi.chapDiscoveryEnabled,
-          //chapSessionEnabled: this.options.iscsi.chapSessionEnabled,
           iqn: iqn,
           lun: 0,
         };
