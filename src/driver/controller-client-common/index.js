@@ -1,7 +1,6 @@
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const cp = require("child_process");
-const { Mount } = require("../../utils/mount");
 
 /**
  * Crude nfs-client driver which simply creates directories to be mounted

@@ -1,0 +1,2798 @@
+const { GrpcError, grpc } = require("../../utils/grpc");
+const { CsiBaseDriver } = require("../index");
+const HttpClient = require("./http").Client;
+const TrueNASApiClient = require("./http/api").Api;
+const { Zetabyte } = require("../../utils/zfs");
+
+const Handlebars = require("handlebars");
+const uuidv4 = require("uuid").v4;
+const semver = require("semver");
+
+// freenas properties
+const FREENAS_NFS_SHARE_PROPERTY_NAME = "democratic-csi:freenas_nfs_share_id";
+const FREENAS_SMB_SHARE_PROPERTY_NAME = "democratic-csi:freenas_smb_share_id";
+const FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME =
+  "democratic-csi:freenas_iscsi_target_id";
+const FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME =
+  "democratic-csi:freenas_iscsi_extent_id";
+const FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME =
+  "democratic-csi:freenas_iscsi_targettoextent_id";
+const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
+  "democratic-csi:freenas_iscsi_assets_name";
+
+// zfs common properties
+const MANAGED_PROPERTY_NAME = "democratic-csi:managed_resource";
+const SUCCESS_PROPERTY_NAME = "democratic-csi:provision_success";
+const VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX = "volume-source-for-volume-";
+const VOLUME_SOURCE_DETACHED_SNAPSHOT_PREFIX = "volume-source-for-snapshot-";
+const VOLUME_CSI_NAME_PROPERTY_NAME = "democratic-csi:csi_volume_name";
+const SHARE_VOLUME_CONTEXT_PROPERTY_NAME =
+  "democratic-csi:csi_share_volume_context";
+const VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME =
+  "democratic-csi:csi_volume_content_source_type";
+const VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME =
+  "democratic-csi:csi_volume_content_source_id";
+const SNAPSHOT_CSI_NAME_PROPERTY_NAME = "democratic-csi:csi_snapshot_name";
+const SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME =
+  "democratic-csi:csi_snapshot_source_volume_id";
+
+const VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME =
+  "democratic-csi:volume_context_provisioner_driver";
+const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
+  "democratic-csi:volume_context_provisioner_instance_id";
+
+function isPropertyValueSet(value) {
+  if (value === undefined || value === null || value == "" || value == "-") {
+    return false;
+  }
+
+  return true;
+}
+
+class FreeNASApiDriver extends CsiBaseDriver {
+  constructor(ctx, options) {
+    super(...arguments);
+
+    options = options || {};
+    options.service = options.service || {};
+    options.service.identity = options.service.identity || {};
+    options.service.controller = options.service.controller || {};
+    options.service.node = options.service.node || {};
+
+    options.service.identity.capabilities =
+      options.service.identity.capabilities || {};
+
+    options.service.controller.capabilities =
+      options.service.controller.capabilities || {};
+
+    options.service.node.capabilities = options.service.node.capabilities || {};
+
+    if (!("service" in options.service.identity.capabilities)) {
+      this.ctx.logger.debug("setting default identity service caps");
+
+      options.service.identity.capabilities.service = [
+        //"UNKNOWN",
+        "CONTROLLER_SERVICE",
+        //"VOLUME_ACCESSIBILITY_CONSTRAINTS"
+      ];
+    }
+
+    if (!("volume_expansion" in options.service.identity.capabilities)) {
+      this.ctx.logger.debug("setting default identity volume_expansion caps");
+
+      options.service.identity.capabilities.volume_expansion = [
+        //"UNKNOWN",
+        "ONLINE",
+        //"OFFLINE"
+      ];
+    }
+
+    if (!("rpc" in options.service.controller.capabilities)) {
+      this.ctx.logger.debug("setting default controller caps");
+
+      options.service.controller.capabilities.rpc = [
+        //"UNKNOWN",
+        "CREATE_DELETE_VOLUME",
+        //"PUBLISH_UNPUBLISH_VOLUME",
+        //"LIST_VOLUMES_PUBLISHED_NODES",
+        "LIST_VOLUMES",
+        "GET_CAPACITY",
+        "CREATE_DELETE_SNAPSHOT",
+        "LIST_SNAPSHOTS",
+        "CLONE_VOLUME",
+        //"PUBLISH_READONLY",
+        "EXPAND_VOLUME",
+        //"VOLUME_CONDITION", // added in v1.3.0
+        //"GET_VOLUME", // added in v1.3.0
+      ];
+    }
+
+    if (!("rpc" in options.service.node.capabilities)) {
+      this.ctx.logger.debug("setting default node caps");
+
+      switch (this.getDriverZfsResourceType()) {
+        case "filesystem":
+          options.service.node.capabilities.rpc = [
+            //"UNKNOWN",
+            "STAGE_UNSTAGE_VOLUME",
+            "GET_VOLUME_STATS",
+            //"EXPAND_VOLUME",
+            //"VOLUME_CONDITION",
+          ];
+          break;
+        case "volume":
+          options.service.node.capabilities.rpc = [
+            //"UNKNOWN",
+            "STAGE_UNSTAGE_VOLUME",
+            "GET_VOLUME_STATS",
+            "EXPAND_VOLUME",
+            //"VOLUME_CONDITION",
+          ];
+          break;
+      }
+    }
+  }
+
+  /**
+   * only here for the helpers
+   * @returns
+   */
+  async getZetabyte() {
+    return new Zetabyte({
+      executor: {
+        spawn: function () {
+          throw new Error(
+            "cannot use the zb implementation to execute zfs commands, must use the http api"
+          );
+        },
+      },
+    });
+  }
+
+  /**
+   * should create any necessary share resources
+   * should set the SHARE_VOLUME_CONTEXT_PROPERTY_NAME propery
+   *
+   * @param {*} datasetName
+   */
+  async createShare(call, datasetName) {
+    const driverShareType = this.getDriverShareType();
+    const httpClient = await this.getHttpClient();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const apiVersion = httpClient.getApiVersion();
+    const zb = await this.getZetabyte();
+
+    let volume_context;
+    let properties;
+    let endpoint;
+    let response;
+    let share = {};
+
+    switch (driverShareType) {
+      case "nfs":
+        properties = await httpApiClient.DatasetGet(datasetName, [
+          "mountpoint",
+          FREENAS_NFS_SHARE_PROPERTY_NAME,
+        ]);
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        // create nfs share
+        if (
+          !zb.helpers.isPropertyValueSet(
+            properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value
+          )
+        ) {
+          switch (apiVersion) {
+            case 1:
+            case 2:
+              switch (apiVersion) {
+                case 1:
+                  share = {
+                    nfs_paths: [properties.mountpoint.value],
+                    nfs_comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
+                    nfs_network:
+                      this.options.nfs.shareAllowedNetworks.join(","),
+                    nfs_hosts: this.options.nfs.shareAllowedHosts.join(","),
+                    nfs_alldirs: this.options.nfs.shareAlldirs,
+                    nfs_ro: false,
+                    nfs_quiet: false,
+                    nfs_maproot_user: this.options.nfs.shareMaprootUser,
+                    nfs_maproot_group: this.options.nfs.shareMaprootGroup,
+                    nfs_mapall_user: this.options.nfs.shareMapallUser,
+                    nfs_mapall_group: this.options.nfs.shareMapallGroup,
+                    nfs_security: [],
+                  };
+                  break;
+                case 2:
+                  share = {
+                    paths: [properties.mountpoint.value],
+                    comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
+                    networks: this.options.nfs.shareAllowedNetworks,
+                    hosts: this.options.nfs.shareAllowedHosts,
+                    alldirs: this.options.nfs.shareAlldirs,
+                    ro: false,
+                    quiet: false,
+                    maproot_user: this.options.nfs.shareMaprootUser,
+                    maproot_group: this.options.nfs.shareMaprootGroup,
+                    mapall_user: this.options.nfs.shareMapallUser,
+                    mapall_group: this.options.nfs.shareMapallGroup,
+                    security: [],
+                  };
+                  break;
+              }
+
+              response = await httpClient.post("/sharing/nfs", share);
+
+              /**
+               * v1 = 201
+               * v2 = 200
+               */
+              if ([200, 201].includes(response.statusCode)) {
+                let sharePaths;
+                switch (apiVersion) {
+                  case 1:
+                    sharePaths = response.body.nfs_paths;
+                    break;
+                  case 2:
+                    sharePaths = response.body.paths;
+                    break;
+                }
+
+                // FreeNAS responding with bad data
+                if (!sharePaths.includes(properties.mountpoint.value)) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `FreeNAS responded with incorrect share data: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+
+                //set zfs property
+                await httpApiClient.DatasetSet(datasetName, {
+                  [FREENAS_NFS_SHARE_PROPERTY_NAME]: response.body.id,
+                });
+              } else {
+                /**
+                 * v1 = 409
+                 * v2 = 422
+                 */
+                if (
+                  [409, 422].includes(response.statusCode) &&
+                  (JSON.stringify(response.body).includes(
+                    "You can't share same filesystem with all hosts twice."
+                  ) ||
+                    JSON.stringify(response.body).includes(
+                      "Another NFS share already exports this dataset for some network"
+                    ))
+                ) {
+                  let lookupShare =
+                    await httpApiClient.findResourceByProperties(
+                      "/sharing/nfs",
+                      (item) => {
+                        if (
+                          (item.nfs_paths &&
+                            item.nfs_paths.includes(
+                              properties.mountpoint.value
+                            )) ||
+                          (item.paths &&
+                            item.paths.includes(properties.mountpoint.value))
+                        ) {
+                          return true;
+                        }
+                        return false;
+                      }
+                    );
+
+                  if (!lookupShare) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `FreeNAS failed to find matching share`
+                    );
+                  }
+
+                  //set zfs property
+                  await httpApiClient.DatasetSet(datasetName, {
+                    [FREENAS_NFS_SHARE_PROPERTY_NAME]: lookupShare.id,
+                  });
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating nfs share - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
+        }
+
+        volume_context = {
+          node_attach_driver: "nfs",
+          server: this.options.nfs.shareHost,
+          share: properties.mountpoint.value,
+        };
+        return volume_context;
+
+        break;
+      /**
+       * TODO: smb need to be more defensive like iscsi and nfs
+       * ensuring the path is valid and the shareName
+       */
+      case "smb":
+        properties = await httpApiClient.DatasetGet(datasetName, [
+          "mountpoint",
+          FREENAS_SMB_SHARE_PROPERTY_NAME,
+        ]);
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        let smbName;
+
+        if (this.options.smb.nameTemplate) {
+          smbName = Handlebars.compile(this.options.smb.nameTemplate)({
+            name: call.request.name,
+            parameters: call.request.parameters,
+          });
+        } else {
+          smbName = zb.helpers.extractLeafName(datasetName);
+        }
+
+        if (this.options.smb.namePrefix) {
+          smbName = this.options.smb.namePrefix + smbName;
+        }
+
+        if (this.options.smb.nameSuffix) {
+          smbName += this.options.smb.nameSuffix;
+        }
+
+        smbName = smbName.toLowerCase();
+
+        this.ctx.logger.info(
+          "FreeNAS creating smb share with name: " + smbName
+        );
+
+        // create smb share
+        if (
+          !zb.helpers.isPropertyValueSet(
+            properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value
+          )
+        ) {
+          /**
+           * The only required parameters are:
+           * - path
+           * - name
+           *
+           * Note that over time it appears the list of available parameters has increased
+           * so in an effort to best support old versions of FreeNAS we should check the
+           * presense of each parameter in the config and set the corresponding parameter in
+           * the API request *only* if present in the config.
+           */
+          switch (apiVersion) {
+            case 1:
+            case 2:
+              share = {
+                name: smbName,
+                path: properties.mountpoint.value,
+              };
+
+              let propertyMapping = {
+                shareAuxiliaryConfigurationTemplate: "auxsmbconf",
+                shareHome: "home",
+                shareAllowedHosts: "hostsallow",
+                shareDeniedHosts: "hostsdeny",
+                shareDefaultPermissions: "default_permissions",
+                shareGuestOk: "guestok",
+                shareGuestOnly: "guestonly",
+                shareShowHiddenFiles: "showhiddenfiles",
+                shareRecycleBin: "recyclebin",
+                shareBrowsable: "browsable",
+                shareAccessBasedEnumeration: "abe",
+                shareTimeMachine: "timemachine",
+                shareStorageTask: "storage_task",
+              };
+
+              for (const key in propertyMapping) {
+                if (this.options.smb.hasOwnProperty(key)) {
+                  let value;
+                  switch (key) {
+                    case "shareAuxiliaryConfigurationTemplate":
+                      value = Handlebars.compile(
+                        this.options.smb.shareAuxiliaryConfigurationTemplate
+                      )({
+                        name: call.request.name,
+                        parameters: call.request.parameters,
+                      });
+                      break;
+                    default:
+                      value = this.options.smb[key];
+                      break;
+                  }
+                  share[propertyMapping[key]] = value;
+                }
+              }
+
+              switch (apiVersion) {
+                case 1:
+                  endpoint = "/sharing/cifs";
+
+                  // rename keys with cifs_ prefix
+                  for (const key in share) {
+                    share["cifs_" + key] = share[key];
+                    delete share[key];
+                  }
+
+                  // convert to comma-separated list
+                  if (share.cifs_hostsallow) {
+                    share.cifs_hostsallow = share.cifs_hostsallow.join(",");
+                  }
+
+                  // convert to comma-separated list
+                  if (share.cifs_hostsdeny) {
+                    share.cifs_hostsdeny = share.cifs_hostsdeny.join(",");
+                  }
+                  break;
+                case 2:
+                  endpoint = "/sharing/smb";
+                  break;
+              }
+
+              response = await httpClient.post(endpoint, share);
+
+              /**
+               * v1 = 201
+               * v2 = 200
+               */
+              if ([200, 201].includes(response.statusCode)) {
+                share = response.body;
+                let sharePath;
+                let shareName;
+                switch (apiVersion) {
+                  case 1:
+                    sharePath = response.body.cifs_path;
+                    shareName = response.body.cifs_name;
+                    break;
+                  case 2:
+                    sharePath = response.body.path;
+                    shareName = response.body.name;
+                    break;
+                }
+
+                if (shareName != smbName) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `FreeNAS responded with incorrect share data: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+
+                if (sharePath != properties.mountpoint.value) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `FreeNAS responded with incorrect share data: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+
+                //set zfs property
+                await zb.zfs.set(datasetName, {
+                  [FREENAS_SMB_SHARE_PROPERTY_NAME]: response.body.id,
+                });
+              } else {
+                /**
+                 * v1 = 409
+                 * v2 = 422
+                 */
+                if (
+                  [409, 422].includes(response.statusCode) &&
+                  JSON.stringify(response.body).includes(
+                    "A share with this name already exists."
+                  )
+                ) {
+                  let lookupShare =
+                    await httpApiClient.findResourceByProperties(
+                      endpoint,
+                      (item) => {
+                        if (
+                          (item.cifs_path &&
+                            item.cifs_path == properties.mountpoint.value &&
+                            item.cifs_name &&
+                            item.cifs_name == smbName) ||
+                          (item.path &&
+                            item.path == properties.mountpoint.value &&
+                            item.name &&
+                            item.name == smbName)
+                        ) {
+                          return true;
+                        }
+                        return false;
+                      }
+                    );
+
+                  if (!lookupShare) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `FreeNAS failed to find matching share`
+                    );
+                  }
+
+                  //set zfs property
+                  await httpApiClient.DatasetSet(datasetName, {
+                    [FREENAS_SMB_SHARE_PROPERTY_NAME]: lookupShare.id,
+                  });
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating smb share - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
+        }
+
+        volume_context = {
+          node_attach_driver: "smb",
+          server: this.options.smb.shareHost,
+          share: smbName,
+        };
+        return volume_context;
+
+        break;
+      case "iscsi":
+        properties = await httpApiClient.DatasetGet(datasetName, [
+          FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME,
+          FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
+          FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
+        ]);
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        let basename;
+        let iscsiName;
+
+        if (this.options.iscsi.nameTemplate) {
+          iscsiName = Handlebars.compile(this.options.iscsi.nameTemplate)({
+            name: call.request.name,
+            parameters: call.request.parameters,
+          });
+        } else {
+          iscsiName = zb.helpers.extractLeafName(datasetName);
+        }
+
+        if (this.options.iscsi.namePrefix) {
+          iscsiName = this.options.iscsi.namePrefix + iscsiName;
+        }
+
+        if (this.options.iscsi.nameSuffix) {
+          iscsiName += this.options.iscsi.nameSuffix;
+        }
+
+        // According to RFC3270, 'Each iSCSI node, whether an initiator or target, MUST have an iSCSI name. Initiators and targets MUST support the receipt of iSCSI names of up to the maximum length of 223 bytes.'
+        // https://kb.netapp.com/Advice_and_Troubleshooting/Miscellaneous/What_is_the_maximum_length_of_a_iSCSI_iqn_name
+        // https://tools.ietf.org/html/rfc3720
+        iscsiName = iscsiName.toLowerCase();
+
+        let extentDiskName = "zvol/" + datasetName;
+
+        /**
+         * limit is a FreeBSD limitation
+         * https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
+         */
+        if (extentDiskName.length > 63) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `extent disk name cannot exceed 63 characters:  ${extentDiskName}`
+          );
+        }
+
+        this.ctx.logger.info(
+          "FreeNAS creating iscsi assets with name: " + iscsiName
+        );
+
+        const extentInsecureTpc = this.options.iscsi.hasOwnProperty(
+          "extentInsecureTpc"
+        )
+          ? this.options.iscsi.extentInsecureTpc
+          : true;
+
+        const extentXenCompat = this.options.iscsi.hasOwnProperty(
+          "extentXenCompat"
+        )
+          ? this.options.iscsi.extentXenCompat
+          : false;
+
+        const extentBlocksize = this.options.iscsi.hasOwnProperty(
+          "extentBlocksize"
+        )
+          ? this.options.iscsi.extentBlocksize
+          : 512;
+
+        const extentDisablePhysicalBlocksize =
+          this.options.iscsi.hasOwnProperty("extentDisablePhysicalBlocksize")
+            ? this.options.iscsi.extentDisablePhysicalBlocksize
+            : true;
+
+        const extentRpm = this.options.iscsi.hasOwnProperty("extentRpm")
+          ? this.options.iscsi.extentRpm
+          : "SSD";
+
+        let extentAvailThreshold = this.options.iscsi.hasOwnProperty(
+          "extentAvailThreshold"
+        )
+          ? Number(this.options.iscsi.extentAvailThreshold)
+          : null;
+
+        if (!(extentAvailThreshold > 0 && extentAvailThreshold <= 100)) {
+          extentAvailThreshold = null;
+        }
+
+        switch (apiVersion) {
+          case 1:
+            response = await httpClient.get(
+              "/services/iscsi/globalconfiguration"
+            );
+            if (response.statusCode != 200) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `error getting iscsi configuration - code: ${
+                  response.statusCode
+                } body: ${JSON.stringify(response.body)}`
+              );
+            }
+            basename = response.body.iscsi_basename;
+            this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
+            break;
+          case 2:
+            response = await httpClient.get("/iscsi/global");
+            if (response.statusCode != 200) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `error getting iscsi configuration - code: ${
+                  response.statusCode
+                } body: ${JSON.stringify(response.body)}`
+              );
+            }
+            basename = response.body.basename;
+            this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `invalid configuration: unknown apiVersion ${apiVersion}`
+            );
+        }
+
+        // if we got all the way to the TARGETTOEXTENT then we fully finished
+        // otherwise we must do all assets every time due to the interdependence of IDs etc
+        if (
+          !zb.helpers.isPropertyValueSet(
+            properties[FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME].value
+          )
+        ) {
+          switch (apiVersion) {
+            case 1: {
+              // create target
+              let target = {
+                iscsi_target_name: iscsiName,
+                iscsi_target_alias: "", // TODO: allow template for this
+              };
+
+              response = await httpClient.post(
+                "/services/iscsi/target",
+                target
+              );
+
+              // 409 if invalid
+              if (response.statusCode != 201) {
+                target = null;
+                if (
+                  response.statusCode == 409 &&
+                  JSON.stringify(response.body).includes(
+                    "Target name already exists"
+                  )
+                ) {
+                  target = await httpApiClient.findResourceByProperties(
+                    "/services/iscsi/target",
+                    {
+                      iscsi_target_name: iscsiName,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi target - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                target = response.body;
+              }
+
+              if (!target) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi target`
+                );
+              }
+
+              if (target.iscsi_target_name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi target`
+                );
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+
+              // set target.id on zvol
+              await zb.zfs.set(datasetName, {
+                [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
+              });
+
+              // create targetgroup(s)
+              // targetgroups do have IDs
+              for (let targetGroupConfig of this.options.iscsi.targetGroups) {
+                let targetGroup = {
+                  iscsi_target: target.id,
+                  iscsi_target_authgroup:
+                    targetGroupConfig.targetGroupAuthGroup,
+                  iscsi_target_authtype: targetGroupConfig.targetGroupAuthType
+                    ? targetGroupConfig.targetGroupAuthType
+                    : "None",
+                  iscsi_target_portalgroup:
+                    targetGroupConfig.targetGroupPortalGroup,
+                  iscsi_target_initiatorgroup:
+                    targetGroupConfig.targetGroupInitiatorGroup,
+                  iscsi_target_initialdigest: "Auto",
+                };
+                response = await httpClient.post(
+                  "/services/iscsi/targetgroup",
+                  targetGroup
+                );
+
+                // 409 if invalid
+                if (response.statusCode != 201) {
+                  targetGroup = null;
+                  /**
+                   * 404 gets returned with an unable to process response when the DB is corrupted (has invalid entries in essense)
+                   *
+                   * To resolve properly the DB should be cleaned up
+                   * /usr/local/etc/rc.d/django stop
+                   * /usr/local/etc/rc.d/nginx stop
+                   * sqlite3 /data/freenas-v1.db
+                   *
+                   * // this deletes everything, probably not what you want
+                   * // should have a better query to only find entries where associated assets no longer exist
+                   * DELETE from services_iscsitargetgroups;
+                   *
+                   * /usr/local/etc/rc.d/django restart
+                   * /usr/local/etc/rc.d/nginx restart
+                   */
+                  if (
+                    response.statusCode == 404 ||
+                    (response.statusCode == 409 &&
+                      JSON.stringify(response.body).includes(
+                        "cannot be duplicated on a target"
+                      ))
+                  ) {
+                    targetGroup = await httpApiClient.findResourceByProperties(
+                      "/services/iscsi/targetgroup",
+                      {
+                        iscsi_target: target.id,
+                        iscsi_target_portalgroup:
+                          targetGroupConfig.targetGroupPortalGroup,
+                        iscsi_target_initiatorgroup:
+                          targetGroupConfig.targetGroupInitiatorGroup,
+                      }
+                    );
+                  } else {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error creating iscsi targetgroup - code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
+                } else {
+                  targetGroup = response.body;
+                }
+
+                if (!targetGroup) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `unknown error creating iscsi targetgroup`
+                  );
+                }
+
+                this.ctx.logger.verbose(
+                  "FreeNAS ISCSI TARGET_GROUP: %j",
+                  targetGroup
+                );
+              }
+
+              let extent = {
+                iscsi_target_extent_comment: "", // TODO: allow template for this value
+                iscsi_target_extent_type: "Disk", // Disk/File, after save Disk becomes "ZVOL"
+                iscsi_target_extent_name: iscsiName,
+                iscsi_target_extent_insecure_tpc: extentInsecureTpc,
+                //iscsi_target_extent_naa: "0x3822690834aae6c5",
+                iscsi_target_extent_disk: extentDiskName,
+                iscsi_target_extent_xen: extentXenCompat,
+                iscsi_target_extent_avail_threshold: extentAvailThreshold,
+                iscsi_target_extent_blocksize: Number(extentBlocksize),
+                iscsi_target_extent_pblocksize: extentDisablePhysicalBlocksize,
+                iscsi_target_extent_rpm: isNaN(Number(extentRpm))
+                  ? "SSD"
+                  : Number(extentRpm),
+                iscsi_target_extent_ro: false,
+              };
+              response = await httpClient.post(
+                "/services/iscsi/extent",
+                extent
+              );
+
+              // 409 if invalid
+              if (response.statusCode != 201) {
+                extent = null;
+                if (
+                  response.statusCode == 409 &&
+                  JSON.stringify(response.body).includes(
+                    "Extent name must be unique"
+                  )
+                ) {
+                  extent = await httpApiClient.findResourceByProperties(
+                    "/services/iscsi/extent",
+                    { iscsi_target_extent_name: iscsiName }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi extent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                extent = response.body;
+              }
+
+              if (!extent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi extent`
+                );
+              }
+
+              if (extent.iscsi_target_extent_name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi extent`
+                );
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+
+              await httpApiClient.DatasetSet(datasetName, {
+                [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
+              });
+
+              // create targettoextent
+              let targetToExtent = {
+                iscsi_target: target.id,
+                iscsi_extent: extent.id,
+                iscsi_lunid: 0,
+              };
+              response = await httpClient.post(
+                "/services/iscsi/targettoextent",
+                targetToExtent
+              );
+
+              // 409 if invalid
+              if (response.statusCode != 201) {
+                targetToExtent = null;
+
+                // LUN ID is already being used for this target.
+                // Extent is already in this target.
+                if (
+                  response.statusCode == 409 &&
+                  (JSON.stringify(response.body).includes(
+                    "Extent is already in this target."
+                  ) ||
+                    JSON.stringify(response.body).includes(
+                      "LUN ID is already being used for this target."
+                    ))
+                ) {
+                  targetToExtent = await httpApiClient.findResourceByProperties(
+                    "/services/iscsi/targettoextent",
+                    {
+                      iscsi_target: target.id,
+                      iscsi_extent: extent.id,
+                      iscsi_lunid: 0,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi targettoextent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                targetToExtent = response.body;
+              }
+
+              if (!targetToExtent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi targettoextent`
+                );
+              }
+              this.ctx.logger.verbose(
+                "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
+                targetToExtent
+              );
+
+              await httpApiClient.DatasetSet(datasetName, {
+                [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
+                  targetToExtent.id,
+              });
+
+              break;
+            }
+            case 2:
+              // create target and targetgroup
+              //let targetId;
+              let targetGroups = [];
+              for (let targetGroupConfig of this.options.iscsi.targetGroups) {
+                targetGroups.push({
+                  portal: targetGroupConfig.targetGroupPortalGroup,
+                  initiator: targetGroupConfig.targetGroupInitiatorGroup,
+                  auth:
+                    targetGroupConfig.targetGroupAuthGroup > 0
+                      ? targetGroupConfig.targetGroupAuthGroup
+                      : null,
+                  authmethod:
+                    targetGroupConfig.targetGroupAuthType.length > 0
+                      ? targetGroupConfig.targetGroupAuthType
+                          .toUpperCase()
+                          .replace(" ", "_")
+                      : "NONE",
+                });
+              }
+              let target = {
+                name: iscsiName,
+                alias: null, // cannot send "" error: handler error - driver: FreeNASDriver method: CreateVolume error: {"name":"GrpcError","code":2,"message":"received error creating iscsi target - code: 422 body: {\"iscsi_target_create.alias\":[{\"message\":\"Alias already exists\",\"errno\":22}]}"}
+                mode: "ISCSI",
+                groups: targetGroups,
+              };
+
+              response = await httpClient.post("/iscsi/target", target);
+
+              // 409 if invalid
+              if (response.statusCode != 200) {
+                target = null;
+                if (
+                  response.statusCode == 422 &&
+                  JSON.stringify(response.body).includes(
+                    "Target name already exists"
+                  )
+                ) {
+                  target = await httpApiClient.findResourceByProperties(
+                    "/iscsi/target",
+                    {
+                      name: iscsiName,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi target - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                target = response.body;
+              }
+
+              if (!target) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi target`
+                );
+              }
+
+              if (target.name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi target`
+                );
+              }
+
+              // handle situations/race conditions where groups failed to be added/created on the target
+              // groups":[{"portal":1,"initiator":1,"auth":null,"authmethod":"NONE"},{"portal":2,"initiator":1,"auth":null,"authmethod":"NONE"}]
+              // TODO: this logic could be more intelligent but this should do for now as it appears in the failure scenario no groups are added
+              // in other words, I have never seen them invalid, only omitted so this should be enough
+              if (target.groups.length != targetGroups.length) {
+                response = await httpClient.put(
+                  `/iscsi/target/id/${target.id}`,
+                  {
+                    groups: targetGroups,
+                  }
+                );
+
+                if (response.statusCode != 200) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `failed setting target groups`
+                  );
+                } else {
+                  target = response.body;
+
+                  // re-run sanity checks
+                  if (!target) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `unknown error creating iscsi target`
+                    );
+                  }
+
+                  if (target.name != iscsiName) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `mismatch name error creating iscsi target`
+                    );
+                  }
+
+                  if (target.groups.length != targetGroups.length) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `failed setting target groups`
+                    );
+                  }
+                }
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+
+              // set target.id on zvol
+              await httpApiClient.DatasetSet(datasetName, {
+                [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
+              });
+
+              let extent = {
+                comment: "", // TODO: allow this to be templated
+                type: "DISK", // Disk/File, after save Disk becomes "ZVOL"
+                name: iscsiName,
+                //iscsi_target_extent_naa: "0x3822690834aae6c5",
+                disk: extentDiskName,
+                insecure_tpc: extentInsecureTpc,
+                xen: extentXenCompat,
+                avail_threshold: extentAvailThreshold,
+                blocksize: Number(extentBlocksize),
+                pblocksize: extentDisablePhysicalBlocksize,
+                rpm: "" + extentRpm, // should be a string
+                ro: false,
+              };
+
+              response = await httpClient.post("/iscsi/extent", extent);
+
+              // 409 if invalid
+              if (response.statusCode != 200) {
+                extent = null;
+                if (
+                  response.statusCode == 422 &&
+                  JSON.stringify(response.body).includes(
+                    "Extent name must be unique"
+                  )
+                ) {
+                  extent = await httpApiClient.findResourceByProperties(
+                    "/iscsi/extent",
+                    {
+                      name: iscsiName,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi extent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                extent = response.body;
+              }
+
+              if (!extent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi extent`
+                );
+              }
+
+              if (extent.name != iscsiName) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `mismatch name error creating iscsi extent`
+                );
+              }
+
+              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+
+              await httpApiClient.DatasetSet(datasetName, {
+                [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
+              });
+
+              // create targettoextent
+              let targetToExtent = {
+                target: target.id,
+                extent: extent.id,
+                lunid: 0,
+              };
+              response = await httpClient.post(
+                "/iscsi/targetextent",
+                targetToExtent
+              );
+
+              if (response.statusCode != 200) {
+                targetToExtent = null;
+
+                // LUN ID is already being used for this target.
+                // Extent is already in this target.
+                if (
+                  response.statusCode == 422 &&
+                  (JSON.stringify(response.body).includes(
+                    "Extent is already in this target."
+                  ) ||
+                    JSON.stringify(response.body).includes(
+                      "LUN ID is already being used for this target."
+                    ))
+                ) {
+                  targetToExtent = await httpApiClient.findResourceByProperties(
+                    "/iscsi/targetextent",
+                    {
+                      target: target.id,
+                      extent: extent.id,
+                      lunid: 0,
+                    }
+                  );
+                } else {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `received error creating iscsi targetextent - code: ${
+                      response.statusCode
+                    } body: ${JSON.stringify(response.body)}`
+                  );
+                }
+              } else {
+                targetToExtent = response.body;
+              }
+
+              if (!targetToExtent) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unknown error creating iscsi targetextent`
+                );
+              }
+              this.ctx.logger.verbose(
+                "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
+                targetToExtent
+              );
+
+              await httpApiClient.DatasetSet(datasetName, {
+                [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
+                  targetToExtent.id,
+              });
+
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
+        }
+
+        // iqn = target
+        let iqn = basename + ":" + iscsiName;
+        this.ctx.logger.info("FreeNAS iqn: " + iqn);
+
+        // store this off to make delete process more bullet proof
+        await httpApiClient.DatasetSet(datasetName, {
+          [FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME]: iscsiName,
+        });
+
+        volume_context = {
+          node_attach_driver: "iscsi",
+          portal: this.options.iscsi.targetPortal,
+          portals: this.options.iscsi.targetPortals
+            ? this.options.iscsi.targetPortals.join(",")
+            : "",
+          interface: this.options.iscsi.interface || "",
+          iqn: iqn,
+          lun: 0,
+        };
+        return volume_context;
+
+      default:
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `invalid configuration: unknown driverShareType ${driverShareType}`
+        );
+    }
+  }
+
+  async deleteShare(call, datasetName) {
+    const driverShareType = this.getDriverShareType();
+    const httpClient = await this.getHttpClient();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const apiVersion = httpClient.getApiVersion();
+    const zb = await this.getZetabyte();
+
+    let properties;
+    let response;
+    let endpoint;
+    let shareId;
+    let deleteAsset;
+    let sharePaths;
+
+    switch (driverShareType) {
+      case "nfs":
+        try {
+          properties = await httpApiClient.DatasetGet(datasetName, [
+            "mountpoint",
+            FREENAS_NFS_SHARE_PROPERTY_NAME,
+          ]);
+        } catch (err) {
+          if (err.toString().includes("dataset does not exist")) {
+            return;
+          }
+          throw err;
+        }
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        shareId = properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value;
+
+        // only remove if the process has not succeeded already
+        if (zb.helpers.isPropertyValueSet(shareId)) {
+          // remove nfs share
+          switch (apiVersion) {
+            case 1:
+            case 2:
+              endpoint = "/sharing/nfs/";
+              if (apiVersion == 2) {
+                endpoint += "id/";
+              }
+              endpoint += shareId;
+
+              response = await httpClient.get(endpoint);
+
+              // assume share is gone for now
+              if ([404, 500].includes(response.statusCode)) {
+              } else {
+                switch (apiVersion) {
+                  case 1:
+                    sharePaths = response.body.nfs_paths;
+                    break;
+                  case 2:
+                    sharePaths = response.body.paths;
+                    break;
+                }
+
+                deleteAsset = sharePaths.some((value) => {
+                  return value == properties.mountpoint.value;
+                });
+
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+
+                  // returns a 500 if does not exist
+                  // v1 = 204
+                  // v2 = 200
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting nfs share - share: ${shareId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
+
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await httpApiClient.DatasetInherit(
+                    datasetName,
+                    FREENAS_NFS_SHARE_PROPERTY_NAME
+                  );
+                }
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
+        }
+        break;
+      case "smb":
+        try {
+          properties = await httpApiClient.DatasetGet(datasetName, [
+            "mountpoint",
+            FREENAS_SMB_SHARE_PROPERTY_NAME,
+          ]);
+        } catch (err) {
+          if (err.toString().includes("dataset does not exist")) {
+            return;
+          }
+          throw err;
+        }
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        shareId = properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value;
+
+        // only remove if the process has not succeeded already
+        if (zb.helpers.isPropertyValueSet(shareId)) {
+          // remove smb share
+          switch (apiVersion) {
+            case 1:
+            case 2:
+              switch (apiVersion) {
+                case 1:
+                  endpoint = `/sharing/cifs/${shareId}`;
+                  break;
+                case 2:
+                  endpoint = `/sharing/smb/id/${shareId}`;
+                  break;
+              }
+
+              response = await httpClient.get(endpoint);
+
+              // assume share is gone for now
+              if ([404, 500].includes(response.statusCode)) {
+              } else {
+                switch (apiVersion) {
+                  case 1:
+                    sharePaths = [response.body.cifs_path];
+                    break;
+                  case 2:
+                    sharePaths = [response.body.path];
+                    break;
+                }
+
+                deleteAsset = sharePaths.some((value) => {
+                  return value == properties.mountpoint.value;
+                });
+
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+
+                  // returns a 500 if does not exist
+                  // v1 = 204
+                  // v2 = 200
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting smb share - share: ${shareId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
+
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await zb.zfs.inherit(
+                    datasetName,
+                    FREENAS_SMB_SHARE_PROPERTY_NAME
+                  );
+                }
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
+        }
+        break;
+      case "iscsi":
+        // Delete target
+        // NOTE: deletting a target inherently deletes associated targetgroup(s) and targettoextent(s)
+
+        // Delete extent
+        try {
+          properties = await httpApiClient.DatasetGet(datasetName, [
+            FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME,
+            FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
+            FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
+            FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME,
+          ]);
+        } catch (err) {
+          if (err.toString().includes("dataset does not exist")) {
+            return;
+          }
+          throw err;
+        }
+
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        let targetId = properties[FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME].value;
+        let extentId = properties[FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME].value;
+        let iscsiName =
+          properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+        let assetName;
+
+        switch (apiVersion) {
+          case 1:
+          case 2:
+            // only remove if the process has not succeeded already
+            if (zb.helpers.isPropertyValueSet(targetId)) {
+              // https://jira.ixsystems.com/browse/NAS-103952
+
+              // v1 - /services/iscsi/target/{id}/
+              // v2 - /iscsi/target/id/{id}
+              endpoint = "";
+              if (apiVersion == 1) {
+                endpoint += "/services";
+              }
+              endpoint += "/iscsi/target/";
+              if (apiVersion == 2) {
+                endpoint += "id/";
+              }
+              endpoint += targetId;
+              response = await httpClient.get(endpoint);
+
+              // assume is gone for now
+              if ([404, 500].includes(response.statusCode)) {
+              } else {
+                deleteAsset = true;
+                assetName = null;
+
+                // checking if set for backwards compatibility
+                if (zb.helpers.isPropertyValueSet(iscsiName)) {
+                  switch (apiVersion) {
+                    case 1:
+                      assetName = response.body.iscsi_target_name;
+                      break;
+                    case 2:
+                      assetName = response.body.name;
+                      break;
+                  }
+
+                  if (assetName != iscsiName) {
+                    deleteAsset = false;
+                  }
+                }
+
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting iscsi target - target: ${targetId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
+
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await httpApiClient.DatasetInherit(
+                    datasetName,
+                    FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME
+                  );
+                } else {
+                  this.ctx.logger.debug(
+                    "not deleting iscsitarget asset as it appears ID %s has been re-used: zfs name - %s, iscsitarget name - %s",
+                    targetId,
+                    iscsiName,
+                    assetName
+                  );
+                }
+              }
+            }
+
+            // only remove if the process has not succeeded already
+            if (zb.helpers.isPropertyValueSet(extentId)) {
+              // v1 - /services/iscsi/targettoextent/{id}/
+              // v2 - /iscsi/targetextent/id/{id}
+              if (apiVersion == 1) {
+                endpoint = "/services/iscsi/extent/";
+              } else {
+                endpoint = "/iscsi/extent/id/";
+              }
+              endpoint += extentId;
+              response = await httpClient.get(endpoint);
+
+              // assume is gone for now
+              if ([404, 500].includes(response.statusCode)) {
+              } else {
+                deleteAsset = true;
+                assetName = null;
+
+                // checking if set for backwards compatibility
+                if (zb.helpers.isPropertyValueSet(iscsiName)) {
+                  switch (apiVersion) {
+                    case 1:
+                      assetName = response.body.iscsi_target_extent_name;
+                      break;
+                    case 2:
+                      assetName = response.body.name;
+                      break;
+                  }
+
+                  if (assetName != iscsiName) {
+                    deleteAsset = false;
+                  }
+                }
+
+                if (deleteAsset) {
+                  response = await httpClient.delete(endpoint);
+                  if (![200, 204].includes(response.statusCode)) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `received error deleting iscsi extent - extent: ${extentId} code: ${
+                        response.statusCode
+                      } body: ${JSON.stringify(response.body)}`
+                    );
+                  }
+
+                  // remove property to prevent delete race conditions
+                  // due to id re-use by FreeNAS/TrueNAS
+                  await httpApiClient.DatasetInherit(
+                    datasetName,
+                    FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME
+                  );
+                } else {
+                  this.ctx.logger.debug(
+                    "not deleting iscsiextent asset as it appears ID %s has been re-used: zfs name - %s, iscsiextent name - %s",
+                    extentId,
+                    iscsiName,
+                    assetName
+                  );
+                }
+              }
+            }
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `invalid configuration: unknown apiVersion ${apiVersion}`
+            );
+        }
+        break;
+      default:
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `invalid configuration: unknown driverShareType ${driverShareType}`
+        );
+    }
+  }
+
+  async expandVolume(call, datasetName) {
+    const driverShareType = this.getDriverShareType();
+
+    return;
+    const sshClient = this.getSshClient();
+
+    switch (driverShareType) {
+      case "iscsi":
+        const isScale = await this.getIsScale();
+        let command;
+        let reload = false;
+        if (isScale) {
+          command = sshClient.buildCommand("systemctl", ["reload", "scst"]);
+          reload = true;
+        } else {
+          command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
+          reload = true;
+        }
+
+        if (reload) {
+          if (this.getSudoEnabled()) {
+            command = (await this.getSudoPath()) + " " + command;
+          }
+
+          this.ctx.logger.verbose(
+            "FreeNAS reloading iscsi daemon: %s",
+            command
+          );
+
+          let response = await sshClient.exec(command);
+          if (response.code != 0) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `error reloading iscsi daemon: ${JSON.stringify(response)}`
+            );
+          }
+        }
+        break;
+    }
+  }
+
+  /**
+   * cannot make this a storage class parameter as storage class/etc context is *not* sent
+   * into various calls such as GetControllerCapabilities etc
+   */
+  getDriverZfsResourceType() {
+    switch (this.options.driver) {
+      case "freenas-api-nfs":
+      case "truenas-api-nfs":
+      case "freenas-api-smb":
+      case "truenas-api-smb":
+        return "filesystem";
+      case "freenas-api-iscsi":
+      case "truenas-api-iscsi":
+        return "volume";
+      default:
+        throw new Error("unknown driver: " + this.ctx.args.driver);
+    }
+  }
+
+  getDriverShareType() {
+    switch (this.options.driver) {
+      case "freenas-api-nfs":
+      case "truenas-api-nfs":
+        return "nfs";
+      case "freenas-api-smb":
+      case "truenas-api-smb":
+        return "smb";
+      case "freenas-api-iscsi":
+      case "truenas-api-iscsi":
+        return "iscsi";
+      default:
+        throw new Error("unknown driver: " + this.ctx.args.driver);
+    }
+  }
+
+  getDatasetParentName() {
+    let datasetParentName = this.options.zfs.datasetParentName;
+    datasetParentName = datasetParentName.replace(/\/$/, "");
+    return datasetParentName;
+  }
+
+  getVolumeParentDatasetName() {
+    let datasetParentName = this.getDatasetParentName();
+    //datasetParentName += "/v";
+    datasetParentName = datasetParentName.replace(/\/$/, "");
+    return datasetParentName;
+  }
+
+  getDetachedSnapshotParentDatasetName() {
+    //let datasetParentName = this.getDatasetParentName();
+    let datasetParentName = this.options.zfs.detachedSnapshotsDatasetParentName;
+    //datasetParentName += "/s";
+    datasetParentName = datasetParentName.replace(/\/$/, "");
+    return datasetParentName;
+  }
+
+  async getHttpClient() {
+    const client = new HttpClient(this.options.httpConnection);
+    client.logger = this.ctx.logger;
+    client.setApiVersion(2); // requires version 2
+
+    return client;
+  }
+
+  async getTrueNASHttpApiClient() {
+    const driver = this;
+    const httpClient = await this.getHttpClient();
+    const apiClient = new TrueNASApiClient(httpClient, driver.ctx.cache);
+
+    return apiClient;
+  }
+
+  assertCapabilities(capabilities) {
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+
+    let message = null;
+    //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
+    const valid = capabilities.every((capability) => {
+      switch (driverZfsResourceType) {
+        case "filesystem":
+          if (capability.access_type != "mount") {
+            message = `invalid access_type ${capability.access_type}`;
+            return false;
+          }
+
+          if (
+            capability.mount.fs_type &&
+            !["nfs", "cifs"].includes(capability.mount.fs_type)
+          ) {
+            message = `invalid fs_type ${capability.mount.fs_type}`;
+            return false;
+          }
+
+          if (
+            ![
+              "UNKNOWN",
+              "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_READER_ONLY",
+              "MULTI_NODE_READER_ONLY",
+              "MULTI_NODE_SINGLE_WRITER",
+              "MULTI_NODE_MULTI_WRITER",
+            ].includes(capability.access_mode.mode)
+          ) {
+            message = `invalid access_mode, ${capability.access_mode.mode}`;
+            return false;
+          }
+
+          return true;
+        case "volume":
+          if (capability.access_type == "mount") {
+            if (
+              capability.mount.fs_type &&
+              !["ext3", "ext4", "ext4dev", "xfs"].includes(
+                capability.mount.fs_type
+              )
+            ) {
+              message = `invalid fs_type ${capability.mount.fs_type}`;
+              return false;
+            }
+          }
+
+          if (
+            ![
+              "UNKNOWN",
+              "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_READER_ONLY",
+              "MULTI_NODE_READER_ONLY",
+              "MULTI_NODE_SINGLE_WRITER",
+            ].includes(capability.access_mode.mode)
+          ) {
+            message = `invalid access_mode, ${capability.access_mode.mode}`;
+            return false;
+          }
+
+          return true;
+      }
+    });
+
+    return { valid, message };
+  }
+
+  /**
+   * Ensure sane options are used etc
+   * true = ready
+   * false = not ready, but progressiong towards ready
+   * throw error = faulty setup
+   *
+   * @param {*} call
+   */
+  async Probe(call) {
+    const driver = this;
+
+    if (driver.ctx.args.csiMode.includes("controller")) {
+      let datasetParentName = this.getVolumeParentDatasetName() + "/";
+      let snapshotParentDatasetName =
+        this.getDetachedSnapshotParentDatasetName() + "/";
+      if (
+        datasetParentName.startsWith(snapshotParentDatasetName) ||
+        snapshotParentDatasetName.startsWith(datasetParentName)
+      ) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `datasetParentName and detachedSnapshotsDatasetParentName must not overlap`
+        );
+      }
+      return { ready: { value: true } };
+    } else {
+      return { ready: { value: true } };
+    }
+  }
+
+  /**
+   * Create a volume doing in essence the following:
+   * 1. create dataset
+   * 2. create nfs share
+   *
+   * Should return 2 parameters
+   * 1. `server` - host/ip of the nfs server
+   * 2. `share` - path of the mount shared
+   *
+   * @param {*} call
+   */
+  async CreateVolume(call) {
+    const driver = this;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+    let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
+    let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
+    let name = call.request.name;
+    let volume_content_source = call.request.volume_content_source;
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    if (!name) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume name is required`
+      );
+    }
+
+    if (call.request.volume_capabilities) {
+      const result = this.assertCapabilities(call.request.volume_capabilities);
+      if (result.valid !== true) {
+        throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
+      }
+    }
+
+    if (
+      call.request.capacity_range.required_bytes > 0 &&
+      call.request.capacity_range.limit_bytes > 0 &&
+      call.request.capacity_range.required_bytes >
+        call.request.capacity_range.limit_bytes
+    ) {
+      throw new GrpcError(
+        grpc.status.OUT_OF_RANGE,
+        `required_bytes is greather than limit_bytes`
+      );
+    }
+
+    /**
+     * NOTE: avoid the urge to templatize this given the name length limits for zvols
+     * ie: namespace-name may quite easily exceed 58 chars
+     */
+    const datasetName = datasetParentName + "/" + name;
+    let capacity_bytes =
+      call.request.capacity_range.required_bytes ||
+      call.request.capacity_range.limit_bytes;
+
+    if (capacity_bytes && driverZfsResourceType == "volume") {
+      //make sure to align capacity_bytes with zvol blocksize
+      //volume size must be a multiple of volume block size
+      capacity_bytes = zb.helpers.generateZvolSize(
+        capacity_bytes,
+        zvolBlocksize
+      );
+    }
+    if (!capacity_bytes) {
+      //should never happen, value must be set
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume capacity is required (either required_bytes or limit_bytes)`
+      );
+    }
+
+    // ensure *actual* capacity is not greater than limit
+    if (
+      call.request.capacity_range.limit_bytes &&
+      call.request.capacity_range.limit_bytes > 0 &&
+      capacity_bytes > call.request.capacity_range.limit_bytes
+    ) {
+      throw new GrpcError(
+        grpc.status.OUT_OF_RANGE,
+        `required volume capacity is greater than limit`
+      );
+    }
+
+    /**
+     * This is specifically a FreeBSD limitation, not sure what linux limit is
+     * https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
+     * https://www.ixsystems.com/documentation/freenas/11.3-BETA1/intro.html#path-and-name-lengths
+     * https://www.freebsd.org/cgi/man.cgi?query=devfs
+     */
+    if (driverZfsResourceType == "volume") {
+      let extentDiskName = "zvol/" + datasetName;
+      if (extentDiskName.length > 63) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `extent disk name cannot exceed 63 characters:  ${extentDiskName}`
+        );
+      }
+    }
+
+    let response, command;
+    let volume_content_source_snapshot_id;
+    let volume_content_source_volume_id;
+    let fullSnapshotName;
+    let volumeProperties = {};
+
+    // user-supplied properties
+    // put early to prevent stupid (user-supplied values overwriting system values)
+    if (driver.options.zfs.datasetProperties) {
+      for (let property in driver.options.zfs.datasetProperties) {
+        let value = driver.options.zfs.datasetProperties[property];
+        const template = Handlebars.compile(value);
+
+        volumeProperties[property] = template({
+          parameters: call.request.parameters,
+        });
+      }
+    }
+
+    volumeProperties[VOLUME_CSI_NAME_PROPERTY_NAME] = name;
+    volumeProperties[MANAGED_PROPERTY_NAME] = "true";
+    volumeProperties[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME] =
+      driver.options.driver;
+    if (driver.options.instance_id) {
+      volumeProperties[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME] =
+        driver.options.instance_id;
+    }
+
+    // TODO: also set access_mode as property?
+    // TODO: also set fsType as property?
+
+    // zvol enables reservation by default
+    // this implements 'sparse' zvols
+    if (driverZfsResourceType == "volume") {
+      if (!this.options.zfs.zvolEnableReservation) {
+        volumeProperties.refreservation = 0;
+      }
+    }
+
+    let detachedClone = false;
+
+    // create dataset
+    if (volume_content_source) {
+      volumeProperties[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME] =
+        volume_content_source.type;
+      switch (volume_content_source.type) {
+        // must be available when adverstising CREATE_DELETE_SNAPSHOT
+        // simply clone
+        case "snapshot":
+          try {
+            let tmpDetachedClone = JSON.parse(
+              driver.getNormalizedParameterValue(
+                call.request.parameters,
+                "detachedVolumesFromSnapshots"
+              )
+            );
+            if (typeof tmpDetachedClone === "boolean") {
+              detachedClone = tmpDetachedClone;
+            }
+          } catch (e) {}
+
+          volumeProperties[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME] =
+            volume_content_source.snapshot.snapshot_id;
+          volume_content_source_snapshot_id =
+            volume_content_source.snapshot.snapshot_id;
+
+          // zfs origin property contains parent info, ie: pool0/k8s/test/PVC-111@clone-test
+          if (zb.helpers.isZfsSnapshot(volume_content_source_snapshot_id)) {
+            fullSnapshotName =
+              datasetParentName + "/" + volume_content_source_snapshot_id;
+          } else {
+            fullSnapshotName =
+              snapshotParentDatasetName +
+              "/" +
+              volume_content_source_snapshot_id +
+              "@" +
+              VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
+              name;
+          }
+
+          driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
+
+          if (!zb.helpers.isZfsSnapshot(volume_content_source_snapshot_id)) {
+            try {
+              await httpApiClient.SnapshotCreate(fullSnapshotName);
+            } catch (err) {
+              if (err.toString().includes("dataset does not exist")) {
+                throw new GrpcError(
+                  grpc.status.FAILED_PRECONDITION,
+                  `snapshot source_snapshot_id ${volume_content_source_snapshot_id} does not exist`
+                );
+              }
+
+              throw err;
+            }
+          }
+
+          if (detachedClone) {
+            try {
+              // TODO: fix this
+              response = await zb.zfs.send_receive(
+                fullSnapshotName,
+                [],
+                datasetName,
+                []
+              );
+
+              response = await httpApiClient.DatasetSet(datasetName, volumeProperties);
+            } catch (err) {
+              if (
+                err.toString().includes("destination") &&
+                err.toString().includes("exists")
+              ) {
+                // move along
+              } else {
+                throw err;
+              }
+            }
+
+            // remove snapshots from target
+            await this.removeSnapshotsFromDatatset(datasetName, {
+              force: true,
+            });
+          } else {
+            try {
+              response = await httpApiClient.CloneCreate(
+                fullSnapshotName,
+                datasetName,
+                {
+                  dataset_properties: volumeProperties,
+                }
+              );
+            } catch (err) {
+              if (err.toString().includes("dataset does not exist")) {
+                throw new GrpcError(
+                  grpc.status.FAILED_PRECONDITION,
+                  "dataset does not exists"
+                );
+              }
+
+              throw err;
+            }
+          }
+
+          if (!zb.helpers.isZfsSnapshot(volume_content_source_snapshot_id)) {
+            try {
+              // schedule snapshot removal from source
+              await httpApiClient.SnapshotDelete(fullSnapshotName, {
+                defer: true,
+              });
+            } catch (err) {
+              if (err.toString().includes("dataset does not exist")) {
+                throw new GrpcError(
+                  grpc.status.FAILED_PRECONDITION,
+                  `snapshot source_snapshot_id ${volume_content_source_snapshot_id} does not exist`
+                );
+              }
+
+              throw err;
+            }
+          }
+
+          break;
+        // must be available when adverstising CLONE_VOLUME
+        // create snapshot first, then clone
+        case "volume":
+          try {
+            let tmpDetachedClone = JSON.parse(
+              driver.getNormalizedParameterValue(
+                call.request.parameters,
+                "detachedVolumesFromVolumes"
+              )
+            );
+            if (typeof tmpDetachedClone === "boolean") {
+              detachedClone = tmpDetachedClone;
+            }
+          } catch (e) {}
+
+          volumeProperties[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME] =
+            volume_content_source.volume.volume_id;
+          volume_content_source_volume_id =
+            volume_content_source.volume.volume_id;
+
+          fullSnapshotName =
+            datasetParentName +
+            "/" +
+            volume_content_source_volume_id +
+            "@" +
+            VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
+            name;
+
+          driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
+
+          // create snapshot
+          try {
+            response = await httpApiClient.SnapshotCreate(fullSnapshotName);
+          } catch (err) {
+            if (err.toString().includes("dataset does not exist")) {
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                "dataset does not exists"
+              );
+            }
+
+            throw err;
+          }
+
+          if (detachedClone) {
+            try {
+              // TODO: fix this
+              response = await zb.zfs.send_receive(
+                fullSnapshotName,
+                [],
+                datasetName,
+                []
+              );
+            } catch (err) {
+              if (
+                err.toString().includes("destination") &&
+                err.toString().includes("exists")
+              ) {
+                // move along
+              } else {
+                throw err;
+              }
+            }
+
+            response = await httpApiClient.DatasetSet(datasetName, volumeProperties);
+
+            // remove snapshots from target
+            await this.removeSnapshotsFromDatatset(datasetName, {
+              force: true,
+            });
+
+            // remove snapshot from source
+            await httpApiClient.SnapshotDelete(fullSnapshotName, {
+              defer: true,
+            });
+          } else {
+            // create clone
+            // zfs origin property contains parent info, ie: pool0/k8s/test/PVC-111@clone-test
+            try {
+              response = await httpApiClient.CloneCreate(fullSnapshotName, datasetName, {
+                dataset_properties: volumeProperties,
+              });
+            } catch (err) {
+              if (err.toString().includes("dataset does not exist")) {
+                throw new GrpcError(
+                  grpc.status.FAILED_PRECONDITION,
+                  "dataset does not exists"
+                );
+              }
+
+              throw err;
+            }
+          }
+          break;
+        default:
+          throw new GrpcError(
+            grpc.status.INVALID_ARGUMENT,
+            `invalid volume_content_source type: ${volume_content_source.type}`
+          );
+          break;
+      }
+    } else {
+      // force blocksize on newly created zvols
+      if (driverZfsResourceType == "volume") {
+        volumeProperties.volblocksize = zvolBlocksize;
+      }
+
+      await httpApiClient.DatasetCreate(datasetName, {
+        ...httpApiClient.getSystemProperties(volumeProperties),
+        type: driverZfsResourceType.toUpperCase(),
+        volsize: driverZfsResourceType == "volume" ? capacity_bytes : undefined,
+        create_ancestors: true,
+        user_properties: httpApiClient.getPropertiesKeyValueArray(
+          httpApiClient.getUserProperties(volumeProperties)
+        ),
+      });
+    }
+
+    let setProps = false;
+    let setPerms = false;
+    let properties = {};
+    let volume_context = {};
+
+    switch (driverZfsResourceType) {
+      case "filesystem":
+        // set quota
+        if (this.options.zfs.datasetEnableQuotas) {
+          setProps = true;
+          properties.refquota = capacity_bytes;
+        }
+
+        // set reserve
+        if (this.options.zfs.datasetEnableReservation) {
+          setProps = true;
+          properties.refreservation = capacity_bytes;
+        }
+
+        // quota for dataset and all children
+        // reserved for dataset and all children
+
+        // dedup
+        // ro?
+        // record size
+
+        // set properties
+        if (setProps) {
+          await httpApiClient.DatasetSet(datasetName, properties);
+        }
+
+        //datasetPermissionsMode: 0777,
+        //datasetPermissionsUser: "root",
+        //datasetPermissionsGroup: "wheel",
+
+        // get properties needed for remaining calls
+        properties = await httpApiClient.DatasetGet(datasetName, [
+          "mountpoint",
+          "refquota",
+          "compression",
+          VOLUME_CSI_NAME_PROPERTY_NAME,
+          VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME,
+          VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME,
+        ]);
+        driver.ctx.logger.debug("zfs props data: %j", properties);
+
+        // set mode
+        let perms = {
+          path: properties.mountpoint.value,
+        };
+        if (this.options.zfs.datasetPermissionsMode) {
+          setPerms = true;
+          perms.mode = this.options.zfs.datasetPermissionsMode;
+        }
+
+        // set ownership
+        if (
+          this.options.zfs.hasOwnProperty("datasetPermissionsUser") ||
+          this.options.zfs.hasOwnProperty("datasetPermissionsGroup")
+        ) {
+          // TODO: ensure the values are numbers and not strings
+          setPerms = true;
+          perms.uid = Number(this.options.zfs.datasetPermissionsUser);
+          perms.gid = Number(this.options.zfs.datasetPermissionsGroup);
+        }
+
+        if (setPerms) {
+          await httpApiClient.FilesystemSetperm(perms);
+        }
+
+        // set acls
+        // TODO: this is unsfafe approach, make it better
+        // probably could see if ^-.*\s and split and then shell escape
+        if (this.options.zfs.datasetPermissionsAcls) {
+          for (const acl of this.options.zfs.datasetPermissionsAcls) {
+            perms = {
+              path: properties.mountpoint.value,
+              dacl: acl,
+            };
+            // TODO: FilesystemSetacl?
+          }
+        }
+
+        break;
+      case "volume":
+        // set properties
+        // set reserve
+        setProps = true;
+
+        // this should be already set, but when coming from a volume source
+        // it may not match that of the source
+        // TODO: probably need to recalculate size based on *actual* volume source blocksize in case of difference from currently configured
+        properties.volsize = capacity_bytes;
+
+        //dedup
+        //compression
+
+        if (setProps) {
+          await httpApiClient.DatasetSet(datasetName, properties);
+        }
+
+        break;
+    }
+
+    volume_context = await this.createShare(call, datasetName);
+    await httpApiClient.DatasetSet(datasetName, {
+      [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
+    });
+
+    volume_context["provisioner_driver"] = driver.options.driver;
+    if (driver.options.instance_id) {
+      volume_context["provisioner_driver_instance_id"] =
+        driver.options.instance_id;
+    }
+
+    // set this just before sending out response so we know if volume completed
+    // this should give us a relatively sane way to clean up artifacts over time
+    await httpApiClient.DatasetSet(datasetName, {
+      [SUCCESS_PROPERTY_NAME]: "true",
+    });
+
+    const res = {
+      volume: {
+        volume_id: name,
+        //capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
+        capacity_bytes:
+          this.options.zfs.datasetEnableQuotas ||
+          driverZfsResourceType == "volume"
+            ? capacity_bytes
+            : 0,
+        content_source: volume_content_source,
+        volume_context,
+      },
+    };
+
+    return res;
+  }
+
+  /**
+   * Delete a volume
+   *
+   * Deleting a volume consists of the following steps:
+   * 1. delete the nfs share
+   * 2. delete the dataset
+   *
+   * @param {*} call
+   */
+  async DeleteVolume(call) {
+    const driver = this;
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+    let name = call.request.volume_id;
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    if (!name) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume_id is required`
+      );
+    }
+
+    const datasetName = datasetParentName + "/" + name;
+    let properties;
+
+    // get properties needed for remaining calls
+    try {
+      properties = await httpApiClient.DatasetGet(datasetName, [
+        "mountpoint",
+        "origin",
+        "refquota",
+        "compression",
+        VOLUME_CSI_NAME_PROPERTY_NAME,
+      ]);
+    } catch (err) {
+      let ignore = false;
+      if (err.toString().includes("dataset does not exist")) {
+        ignore = true;
+      }
+
+      if (!ignore) {
+        throw err;
+      }
+    }
+
+    driver.ctx.logger.debug("dataset properties: %j", properties);
+
+    // remove share resources
+    await this.deleteShare(call, datasetName);
+
+    // remove parent snapshot if appropriate with defer
+    if (
+      properties &&
+      properties.origin &&
+      properties.origin.value != "-" &&
+      zb.helpers
+        .extractSnapshotName(properties.origin.value)
+        .startsWith(VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX)
+    ) {
+      driver.ctx.logger.debug(
+        "removing with defer source snapshot: %s",
+        properties.origin.value
+      );
+
+      try {
+        await zb.zfs.destroy(properties.origin.value, {
+          recurse: true,
+          force: true,
+          defer: true,
+        });
+      } catch (err) {
+        if (err.toString().includes("snapshot has dependent clones")) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            "snapshot has dependent clones"
+          );
+        }
+        throw err;
+      }
+    }
+
+    // NOTE: -f does NOT allow deletes if dependent filesets exist
+    // NOTE: -R will recursively delete items + dependent filesets
+    // delete dataset
+    try {
+      await httpApiClient.DatasetDelete(datasetName, {
+        recursive: true,
+        force: true,
+      });
+    } catch (err) {
+      if (err.toString().includes("filesystem has dependent clones")) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          "filesystem has dependent clones"
+        );
+      }
+
+      throw err;
+    }
+
+    return {};
+  }
+
+  /**
+   *
+   * @param {*} call
+   */
+  async CreateSnapshot(call) {
+    const driver = this;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let detachedSnapshot = false;
+    try {
+      let tmpDetachedSnapshot = JSON.parse(
+        driver.getNormalizedParameterValue(
+          call.request.parameters,
+          "detachedSnapshots"
+        )
+      ); // snapshot class parameter
+      if (typeof tmpDetachedSnapshot === "boolean") {
+        detachedSnapshot = tmpDetachedSnapshot;
+      }
+    } catch (e) {}
+
+    let response;
+    const volumeParentDatasetName = this.getVolumeParentDatasetName();
+    let datasetParentName;
+    let snapshotProperties = {};
+    let types = [];
+
+    if (detachedSnapshot) {
+      datasetParentName = this.getDetachedSnapshotParentDatasetName();
+      if (driverZfsResourceType == "filesystem") {
+        types.push("filesystem");
+      } else {
+        types.push("volume");
+      }
+    } else {
+      datasetParentName = this.getVolumeParentDatasetName();
+      types.push("snapshot");
+    }
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    // both these are required
+    let source_volume_id = call.request.source_volume_id;
+    let name = call.request.name;
+
+    if (!source_volume_id) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `snapshot source_volume_id is required`
+      );
+    }
+
+    if (!name) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `snapshot name is required`
+      );
+    }
+
+    const datasetName = datasetParentName + "/" + source_volume_id;
+    snapshotProperties[SNAPSHOT_CSI_NAME_PROPERTY_NAME] = name;
+    snapshotProperties[SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME] =
+      source_volume_id;
+    snapshotProperties[MANAGED_PROPERTY_NAME] = "true";
+
+    driver.ctx.logger.verbose("requested snapshot name: %s", name);
+
+    let invalid_chars;
+    invalid_chars = name.match(/[^a-z0-9_\-:.+]+/gi);
+    if (invalid_chars) {
+      invalid_chars = String.prototype.concat(
+        ...new Set(invalid_chars.join(""))
+      );
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `snapshot name contains invalid characters: ${invalid_chars}`
+      );
+    }
+
+    // https://stackoverflow.com/questions/32106243/regex-to-remove-all-non-alpha-numeric-and-replace-spaces-with/32106277
+    name = name.replace(/[^a-z0-9_\-:.+]+/gi, "");
+
+    driver.ctx.logger.verbose("cleansed snapshot name: %s", name);
+
+    let fullSnapshotName;
+    let snapshotDatasetName;
+    let tmpSnapshotName;
+    if (detachedSnapshot) {
+      fullSnapshotName = datasetName + "/" + name;
+    } else {
+      fullSnapshotName = datasetName + "@" + name;
+    }
+
+    driver.ctx.logger.verbose("full snapshot name: %s", fullSnapshotName);
+
+    if (detachedSnapshot) {
+      tmpSnapshotName =
+        volumeParentDatasetName +
+        "/" +
+        source_volume_id +
+        "@" +
+        VOLUME_SOURCE_DETACHED_SNAPSHOT_PREFIX +
+        name;
+      snapshotDatasetName = datasetName + "/" + name;
+
+      await httpApiClient.DatasetCreate(datasetName, {
+        create_ancestors: true,
+      });
+
+      try {
+        await httpApiClient.SnapshotCreate(tmpSnapshotName);
+      } catch (err) {
+        if (err.toString().includes("dataset does not exist")) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `snapshot source_volume_id ${source_volume_id} does not exist`
+          );
+        }
+
+        throw err;
+      }
+
+      try {
+        //TODO: get the value from the response and wait for the job to finish
+        response = await httpApiClient.ReplicationRunOnetime({
+          direction: "PUSH",
+          transport: "LOCAL",
+          source_datasets: [tmpSnapshotName],
+          target_dataset: snapshotDatasetName,
+          recursive: false,
+          retention_policy: null,
+        });
+
+        response = await httpApiClient.DatasetSet(
+          snapshotDatasetName,
+          snapshotProperties
+        );
+      } catch (err) {
+        if (
+          err.toString().includes("destination") &&
+          err.toString().includes("exists")
+        ) {
+          // move along
+        } else {
+          throw err;
+        }
+      }
+
+      // remove snapshot from target
+      await httpApiClient.SnapshotDelete(
+        snapshotDatasetName +
+          "@" +
+          zb.helpers.extractSnapshotName(tmpSnapshotName),
+        {
+          //recurse: true,
+          //force: true,
+          defer: true,
+        }
+      );
+
+      // remove snapshot from source
+      await httpApiClient.SnapshotDelete(tmpSnapshotName, {
+        //recurse: true,
+        //force: true,
+        defer: true,
+      });
+    } else {
+      try {
+        await httpApiClient.SnapshotCreate(fullSnapshotName, {
+          properties: snapshotProperties,
+        });
+      } catch (err) {
+        if (err.toString().includes("dataset does not exist")) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `snapshot source_volume_id ${source_volume_id} does not exist`
+          );
+        }
+
+        throw err;
+      }
+    }
+
+    let properties;
+    let fetchProperties = [
+      "name",
+      "creation",
+      "mountpoint",
+      "refquota",
+      "avail",
+      "used",
+      VOLUME_CSI_NAME_PROPERTY_NAME,
+      SNAPSHOT_CSI_NAME_PROPERTY_NAME,
+      SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME,
+      MANAGED_PROPERTY_NAME,
+    ];
+
+    if (detachedSnapshot) {
+      properties = await httpApiClient.DatasetGet(
+        fullSnapshotName,
+        fetchProperties
+      );
+    } else {
+      properties = await httpApiClient.SnapshotGet(
+        fullSnapshotName,
+        fetchProperties
+      );
+    }
+
+    driver.ctx.logger.verbose("snapshot properties: %j", properties);
+
+    // set this just before sending out response so we know if volume completed
+    // this should give us a relatively sane way to clean up artifacts over time
+    //await zb.zfs.set(fullSnapshotName, { [SUCCESS_PROPERTY_NAME]: "true" });
+
+    return {
+      snapshot: {
+        /**
+         * The purpose of this field is to give CO guidance on how much space
+         * is needed to create a volume from this snapshot.
+         *
+         * In that vein, I think it's best to return 0 here given the
+         * unknowns of 'cow' implications.
+         */
+        size_bytes: 0,
+
+        // remove parent dataset details
+        snapshot_id: properties.name.value.replace(
+          new RegExp("^" + datasetParentName + "/"),
+          ""
+        ),
+        source_volume_id: source_volume_id,
+        //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
+        creation_time: {
+          seconds: properties.creation.rawvalue,
+          nanos: 0,
+        },
+        ready_to_use: true,
+      },
+    };
+  }
+
+  /**
+   * In addition, if clones have been created from a snapshot, then they must
+   * be destroyed before the snapshot can be destroyed.
+   *
+   * @param {*} call
+   */
+  async DeleteSnapshot(call) {
+    const driver = this;
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    const snapshot_id = call.request.snapshot_id;
+
+    if (!snapshot_id) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `snapshot_id is required`
+      );
+    }
+
+    const detachedSnapshot = !zb.helpers.isZfsSnapshot(snapshot_id);
+    let datasetParentName;
+
+    if (detachedSnapshot) {
+      datasetParentName = this.getDetachedSnapshotParentDatasetName();
+    } else {
+      datasetParentName = this.getVolumeParentDatasetName();
+    }
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    const fullSnapshotName = datasetParentName + "/" + snapshot_id;
+
+    driver.ctx.logger.verbose("deleting snapshot: %s", fullSnapshotName);
+
+    if (detachedSnapshot) {
+      try {
+        await httpApiClient.DatasetDelete(fullSnapshotName, {
+          recursive: true,
+          force: true,
+        });
+      } catch (err) {
+        throw err;
+      }
+    } else {
+      try {
+        await httpApiClient.SnapshotDelete(fullSnapshotName, {
+          //recurse: true,
+          //force: true,
+          defer: true,
+        });
+      } catch (err) {
+        if (err.toString().includes("snapshot has dependent clones")) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            "snapshot has dependent clones"
+          );
+        }
+        throw err;
+      }
+    }
+
+    // cleanup parent dataset if possible
+    if (detachedSnapshot) {
+      let containerDataset =
+        zb.helpers.extractParentDatasetName(fullSnapshotName);
+      try {
+        //await this.removeSnapshotsFromDatatset(containerDataset);
+        await httpApiClient.DatasetDelete(containerDataset);
+      } catch (err) {
+        if (!err.toString().includes("filesystem has children")) {
+          throw err;
+        }
+      }
+    }
+
+    return {};
+  }
+
+  /**
+   *
+   * @param {*} call
+   */
+  async ValidateVolumeCapabilities(call) {
+    const driver = this;
+    const result = this.assertCapabilities(call.request.volume_capabilities);
+
+    if (result.valid !== true) {
+      return { message: result.message };
+    }
+
+    return {
+      confirmed: {
+        volume_context: call.request.volume_context,
+        volume_capabilities: call.request.volume_capabilities, // TODO: this is a bit crude, should return *ALL* capabilities, not just what was requested
+        parameters: call.request.parameters,
+      },
+    };
+  }
+}
+
+module.exports.FreeNASApiDriver = FreeNASApiDriver;

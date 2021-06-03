@@ -1,4 +1,5 @@
-const { FreeNASDriver } = require("./freenas");
+const { FreeNASSshDriver } = require("./freenas/ssh");
+const { FreeNASApiDriver } = require("./freenas/api");
 const { ControllerZfsGenericDriver } = require("./controller-zfs-generic");
 const {
   ZfsLocalEphemeralInlineDriver,
@@ -6,6 +7,7 @@ const {
 
 const { ControllerNfsClientDriver } = require("./controller-nfs-client");
 const { ControllerSmbClientDriver } = require("./controller-smb-client");
+const { ControllerSynologyDriver } = require("./controller-synology");
 const { NodeManualDriver } = require("./node-manual");
 
 function factory(ctx, options) {
@@ -16,7 +18,15 @@ function factory(ctx, options) {
     case "truenas-nfs":
     case "truenas-smb":
     case "truenas-iscsi":
-      return new FreeNASDriver(ctx, options);
+      return new FreeNASSshDriver(ctx, options);
+    case "freenas-api-iscsi":
+    case "freenas-api-nfs":
+    case "freenas-api-smb":
+      return new FreeNASApiDriver(ctx, options);
+    case "synology-nfs":
+    case "synology-smb":
+    case "synology-iscsi":
+      return new ControllerSynologyDriver(ctx, options);
     case "zfs-generic-nfs":
     case "zfs-generic-iscsi":
       return new ControllerZfsGenericDriver(ctx, options);
