@@ -3,6 +3,7 @@ const { CsiBaseDriver } = require("../index");
 const HttpClient = require("./http").Client;
 const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte } = require("../../utils/zfs");
+const sleep = require("../../utils/general").sleep;
 
 const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
@@ -40,14 +41,6 @@ const VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_driver";
 const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_instance_id";
-
-function isPropertyValueSet(value) {
-  if (value === undefined || value === null || value == "" || value == "-") {
-    return false;
-  }
-
-  return true;
-}
 
 class FreeNASApiDriver extends CsiBaseDriver {
   constructor(ctx, options) {
@@ -1221,7 +1214,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
         volume_context = {
           node_attach_driver: "iscsi",
-          portal: this.options.iscsi.targetPortal,
+          portal: this.options.iscsi.targetPortal || "",
           portals: this.options.iscsi.targetPortals
             ? this.options.iscsi.targetPortals.join(",")
             : "",
@@ -1587,10 +1580,32 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
   }
 
-  async expandVolume(call, datasetName) {
-    const driverShareType = this.getDriverShareType();
+  async removeSnapshotsFromDatatset(datasetName, options = {}) {
+    const httpClient = await this.getHttpClient();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
 
+    let response;
+    let endpoint = `/pool/dataset/id/${encodeURIComponent(datasetName)}`;
+    response = await httpClient.get(endpoint, { "extra.snapshots": 1 });
+
+    //console.log(response);
+
+    if (response.statusCode == 404) {
+      return;
+    }
+    if (response.statusCode == 200) {
+      for (let snapshot of response.body.snapshots) {
+        await httpApiClient.SnapshotDelete(snapshot.name);
+      }
+      return;
+    }
+
+    throw new Error("unhandled statusCode: " + response.statusCode);
+  }
+
+  async expandVolume(call, datasetName) {
     return;
+    const driverShareType = this.getDriverShareType();
     const sshClient = this.getSshClient();
 
     switch (driverShareType) {
@@ -1626,6 +1641,108 @@ class FreeNASApiDriver extends CsiBaseDriver {
         }
         break;
     }
+  }
+
+  async getVolumeStatus(volume_id) {
+    const driver = this;
+
+    if (!!!semver.satisfies(driver.ctx.csiVersion, ">=1.2.0")) {
+      return;
+    }
+
+    let abnormal = false;
+    let message = "OK";
+    let volume_status = {};
+
+    //LIST_VOLUMES_PUBLISHED_NODES
+    if (
+      semver.satisfies(driver.ctx.csiVersion, ">=1.2.0") &&
+      driver.options.service.controller.capabilities.rpc.includes(
+        "LIST_VOLUMES_PUBLISHED_NODES"
+      )
+    ) {
+      // TODO: let drivers fill this in
+      volume_status.published_node_ids = [];
+    }
+
+    //VOLUME_CONDITION
+    if (
+      semver.satisfies(driver.ctx.csiVersion, ">=1.3.0") &&
+      driver.options.service.controller.capabilities.rpc.includes(
+        "VOLUME_CONDITION"
+      )
+    ) {
+      // TODO: let drivers fill ths in
+      volume_condition = { abnormal, message };
+      volume_status.volume_condition = volume_condition;
+    }
+
+    return volume_status;
+  }
+
+  async populateCsiVolumeFromData(row) {
+    const driver = this;
+    const zb = await this.getZetabyte();
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    let datasetName = this.getVolumeParentDatasetName();
+
+    // ignore rows were csi_name is empty
+    if (row[MANAGED_PROPERTY_NAME] != "true") {
+      return;
+    }
+
+    let volume_content_source;
+    let volume_context = JSON.parse(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME]);
+    if (
+      zb.helpers.isPropertyValueSet(
+        row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME]
+      )
+    ) {
+      volume_context["provisioner_driver"] =
+        row[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME];
+    }
+
+    if (
+      zb.helpers.isPropertyValueSet(
+        row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME]
+      )
+    ) {
+      volume_context["provisioner_driver_instance_id"] =
+        row[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME];
+    }
+
+    if (
+      zb.helpers.isPropertyValueSet(
+        row[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME]
+      )
+    ) {
+      volume_content_source = {};
+      switch (row[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME]) {
+        case "snapshot":
+          volume_content_source.snapshot = {};
+          volume_content_source.snapshot.snapshot_id =
+            row[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME];
+          break;
+        case "volume":
+          volume_content_source.volume = {};
+          volume_content_source.volume.volume_id =
+            row[VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME];
+          break;
+      }
+    }
+
+    let volume = {
+      // remove parent dataset info
+      volume_id: row["name"].replace(new RegExp("^" + datasetName + "/"), ""),
+      capacity_bytes:
+        driverZfsResourceType == "filesystem"
+          ? row["refquota"]
+          : row["volsize"],
+      content_source: volume_content_source,
+      volume_context,
+    };
+
+    return volume;
   }
 
   /**
@@ -2008,15 +2125,50 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
           if (detachedClone) {
             try {
-              // TODO: fix this
-              response = await zb.zfs.send_receive(
-                fullSnapshotName,
-                [],
-                datasetName,
-                []
-              );
+              response = await httpApiClient.ReplicationRunOnetime({
+                direction: "PUSH",
+                transport: "LOCAL",
+                source_datasets: [
+                  zb.helpers.extractDatasetName(fullSnapshotName),
+                ],
+                target_dataset: datasetName,
+                name_regex: zb.helpers.extractSnapshotName(fullSnapshotName),
+                recursive: false,
+                retention_policy: "NONE",
+                readonly: "IGNORE",
+                properties: false,
+              });
 
-              response = await httpApiClient.DatasetSet(datasetName, volumeProperties);
+              let job_id = response;
+              let job;
+
+              // wait for job to finish
+              while (
+                !job ||
+                !["SUCCESS", "ABORTED", "FAILED"].includes(job.state)
+              ) {
+                job = await httpApiClient.CoreGetJobs({ id: job_id });
+                job = job[0];
+                await sleep(3000);
+              }
+
+              switch (job.state) {
+                case "SUCCESS":
+                  break;
+                case "FAILED":
+                  // TODO: handle scenarios where the dataset
+                  break;
+                case "ABORTED":
+                  // TODO: handle this
+                  break;
+                default:
+                  break;
+              }
+
+              response = await httpApiClient.DatasetSet(
+                datasetName,
+                volumeProperties
+              );
             } catch (err) {
               if (
                 err.toString().includes("destination") &&
@@ -2118,13 +2270,45 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
           if (detachedClone) {
             try {
-              // TODO: fix this
-              response = await zb.zfs.send_receive(
-                fullSnapshotName,
-                [],
-                datasetName,
-                []
-              );
+              response = await httpApiClient.ReplicationRunOnetime({
+                direction: "PUSH",
+                transport: "LOCAL",
+                source_datasets: [
+                  zb.helpers.extractDatasetName(fullSnapshotName),
+                ],
+                target_dataset: datasetName,
+                name_regex: zb.helpers.extractSnapshotName(fullSnapshotName),
+                recursive: false,
+                retention_policy: "NONE",
+                readonly: "IGNORE",
+                properties: false,
+              });
+
+              let job_id = response;
+              let job;
+
+              // wait for job to finish
+              while (
+                !job ||
+                !["SUCCESS", "ABORTED", "FAILED"].includes(job.state)
+              ) {
+                job = await httpApiClient.CoreGetJobs({ id: job_id });
+                job = job[0];
+                await sleep(3000);
+              }
+
+              switch (job.state) {
+                case "SUCCESS":
+                  break;
+                case "FAILED":
+                  // TODO: handle scenarios where the dataset
+                  break;
+                case "ABORTED":
+                  // TODO: handle this
+                  break;
+                default:
+                  break;
+              }
             } catch (err) {
               if (
                 err.toString().includes("destination") &&
@@ -2136,7 +2320,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
               }
             }
 
-            response = await httpApiClient.DatasetSet(datasetName, volumeProperties);
+            response = await httpApiClient.DatasetSet(
+              datasetName,
+              volumeProperties
+            );
 
             // remove snapshots from target
             await this.removeSnapshotsFromDatatset(datasetName, {
@@ -2151,9 +2338,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
             // create clone
             // zfs origin property contains parent info, ie: pool0/k8s/test/PVC-111@clone-test
             try {
-              response = await httpApiClient.CloneCreate(fullSnapshotName, datasetName, {
-                dataset_properties: volumeProperties,
-              });
+              response = await httpApiClient.CloneCreate(
+                fullSnapshotName,
+                datasetName,
+                {
+                  dataset_properties: volumeProperties,
+                }
+              );
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
                 throw new GrpcError(
@@ -2220,10 +2411,6 @@ class FreeNASApiDriver extends CsiBaseDriver {
         if (setProps) {
           await httpApiClient.DatasetSet(datasetName, properties);
         }
-
-        //datasetPermissionsMode: 0777,
-        //datasetPermissionsUser: "root",
-        //datasetPermissionsGroup: "wheel",
 
         // get properties needed for remaining calls
         properties = await httpApiClient.DatasetGet(datasetName, [
@@ -2402,9 +2589,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       );
 
       try {
-        await zb.zfs.destroy(properties.origin.value, {
-          recurse: true,
-          force: true,
+        await httpApiClient.SnapshotDelete(properties.origin.value, {
           defer: true,
         });
       } catch (err) {
@@ -2438,6 +2623,773 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     return {};
+  }
+
+  /**
+   *
+   * @param {*} call
+   */
+  async ControllerExpandVolume(call) {
+    const driver = this;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+    let name = call.request.volume_id;
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    if (!name) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume_id is required`
+      );
+    }
+
+    const datasetName = datasetParentName + "/" + name;
+
+    let capacity_bytes =
+      call.request.capacity_range.required_bytes ||
+      call.request.capacity_range.limit_bytes;
+    if (!capacity_bytes) {
+      //should never happen, value must be set
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume capacity is required (either required_bytes or limit_bytes)`
+      );
+    }
+
+    if (capacity_bytes && driverZfsResourceType == "volume") {
+      //make sure to align capacity_bytes with zvol blocksize
+      //volume size must be a multiple of volume block size
+      let properties = await httpApiClient.DatasetGet(datasetName, [
+        "volblocksize",
+      ]);
+      capacity_bytes = zb.helpers.generateZvolSize(
+        capacity_bytes,
+        properties.volblocksize.rawvalue
+      );
+    }
+
+    if (
+      call.request.capacity_range.required_bytes > 0 &&
+      call.request.capacity_range.limit_bytes > 0 &&
+      call.request.capacity_range.required_bytes >
+        call.request.capacity_range.limit_bytes
+    ) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `required_bytes is greather than limit_bytes`
+      );
+    }
+
+    // ensure *actual* capacity is not greater than limit
+    if (
+      call.request.capacity_range.limit_bytes &&
+      call.request.capacity_range.limit_bytes > 0 &&
+      capacity_bytes > call.request.capacity_range.limit_bytes
+    ) {
+      throw new GrpcError(
+        grpc.status.OUT_OF_RANGE,
+        `required volume capacity is greater than limit`
+      );
+    }
+
+    let setProps = false;
+    let properties = {};
+
+    switch (driverZfsResourceType) {
+      case "filesystem":
+        // set quota
+        if (this.options.zfs.datasetEnableQuotas) {
+          setProps = true;
+          properties.refquota = capacity_bytes;
+        }
+
+        // set reserve
+        if (this.options.zfs.datasetEnableReservation) {
+          setProps = true;
+          properties.refreservation = capacity_bytes;
+        }
+        break;
+      case "volume":
+        properties.volsize = capacity_bytes;
+        setProps = true;
+
+        if (this.options.zfs.zvolEnableReservation) {
+          properties.refreservation = capacity_bytes;
+        }
+        break;
+    }
+
+    if (setProps) {
+      await httpApiClient.DatasetSet(datasetName, properties);
+    }
+
+    await this.expandVolume(call, datasetName);
+
+    return {
+      capacity_bytes:
+        this.options.zfs.datasetEnableQuotas ||
+        driverZfsResourceType == "volume"
+          ? capacity_bytes
+          : 0,
+      node_expansion_required: driverZfsResourceType == "volume" ? true : false,
+    };
+  }
+
+  /**
+   * TODO: consider volume_capabilities?
+   *
+   * @param {*} call
+   */
+  async GetCapacity(call) {
+    const driver = this;
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    if (call.request.volume_capabilities) {
+      const result = this.assertCapabilities(call.request.volume_capabilities);
+
+      if (result.valid !== true) {
+        return { available_capacity: 0 };
+      }
+    }
+
+    const datasetName = datasetParentName;
+
+    let properties;
+    properties = await httpApiClient.DatasetGet(datasetName, ["available"]);
+
+    return { available_capacity: Number(properties.available.rawvalue) };
+  }
+
+  /**
+   * Get a single volume
+   *
+   * @param {*} call
+   */
+  async ControllerGetVolume(call) {
+    const driver = this;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+    let response;
+    let name = call.request.volume_id;
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    if (!name) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume_id is required`
+      );
+    }
+
+    const datasetName = datasetParentName + "/" + name;
+
+    try {
+      response = await httpApiClient.DatasetGet(datasetName, [
+        "name",
+        "mountpoint",
+        "refquota",
+        "available",
+        "used",
+        VOLUME_CSI_NAME_PROPERTY_NAME,
+        VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME,
+        VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME,
+        "volsize",
+        MANAGED_PROPERTY_NAME,
+        SHARE_VOLUME_CONTEXT_PROPERTY_NAME,
+        SUCCESS_PROPERTY_NAME,
+        VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME,
+        VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME,
+      ]);
+    } catch (err) {
+      if (err.toString().includes("dataset does not exist")) {
+        throw new GrpcError(grpc.status.NOT_FOUND, `volume_id is missing`);
+      }
+
+      throw err;
+    }
+
+    let row = {};
+    for (let p in response) {
+      row[p] = response[p].rawvalue;
+    }
+
+    driver.ctx.logger.debug("list volumes result: %j", row);
+    let volume = await driver.populateCsiVolumeFromData(row);
+    let status = await driver.getVolumeStatus(datasetName);
+
+    let res = { volume };
+    if (status) {
+      res.status = status;
+    }
+
+    return res;
+  }
+
+  /**
+   *
+   * TODO: check capability to ensure not asking about block volumes
+   *
+   * @param {*} call
+   */
+  async ListVolumes(call) {
+    const driver = this;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    const httpClient = await this.getHttpClient();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+    let entries = [];
+    let entries_length = 0;
+    let next_token;
+    let uuid, page, next_page;
+    let response;
+    let endpoint;
+
+    const max_entries = call.request.max_entries;
+    const starting_token = call.request.starting_token;
+
+    // get data from cache and return immediately
+    if (starting_token) {
+      let parts = starting_token.split(":");
+      uuid = parts[0];
+      page = parseInt(parts[1]);
+      entries = this.ctx.cache.get(`ListVolumes:result:${uuid}`);
+      if (entries) {
+        entries = JSON.parse(JSON.stringify(entries));
+        entries_length = entries.length;
+        entries = entries.splice((page - 1) * max_entries, max_entries);
+        if (page * max_entries < entries_length) {
+          next_page = page + 1;
+          next_token = `${uuid}:${next_page}`;
+        } else {
+          next_token = null;
+        }
+        const data = {
+          entries: entries,
+          next_token: next_token,
+        };
+
+        return data;
+      } else {
+        // TODO: throw error / cache expired
+      }
+    }
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    const datasetName = datasetParentName;
+    const rows = [];
+
+    endpoint = `/pool/dataset/id/${encodeURIComponent(datasetName)}`;
+    response = await httpClient.get(endpoint);
+
+    //console.log(response);
+
+    if (response.statusCode == 404) {
+      return {
+        entries: [],
+        next_token: null,
+      };
+    }
+    if (response.statusCode == 200) {
+      for (let child of response.body.children) {
+        let child_properties = httpApiClient.normalizeProperties(child, [
+          "name",
+          "mountpoint",
+          "refquota",
+          "available",
+          "used",
+          VOLUME_CSI_NAME_PROPERTY_NAME,
+          VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME,
+          VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME,
+          "volsize",
+          MANAGED_PROPERTY_NAME,
+          SHARE_VOLUME_CONTEXT_PROPERTY_NAME,
+          SUCCESS_PROPERTY_NAME,
+          VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME,
+          VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME,
+        ]);
+
+        let row = {};
+        for (let p in child_properties) {
+          row[p] = child_properties[p].rawvalue;
+        }
+
+        rows.push(row);
+      }
+    }
+
+    driver.ctx.logger.debug("list volumes result: %j", rows);
+
+    entries = [];
+    for (let row of rows) {
+      // ignore rows were csi_name is empty
+      if (row[MANAGED_PROPERTY_NAME] != "true") {
+        return;
+      }
+
+      let volume_id = row["name"].replace(
+        new RegExp("^" + datasetName + "/"),
+        ""
+      );
+
+      let volume = await driver.populateCsiVolumeFromData(row);
+      let status = await driver.getVolumeStatus(volume_id);
+
+      entries.push({
+        volume,
+        status,
+      });
+    }
+
+    if (max_entries && entries.length > max_entries) {
+      uuid = uuidv4();
+      this.ctx.cache.set(
+        `ListVolumes:result:${uuid}`,
+        JSON.parse(JSON.stringify(entries))
+      );
+      next_token = `${uuid}:2`;
+      entries = entries.splice(0, max_entries);
+    }
+
+    const data = {
+      entries: entries,
+      next_token: next_token,
+    };
+
+    return data;
+  }
+
+  /**
+   *
+   * @param {*} call
+   */
+  async ListSnapshots(call) {
+    const driver = this;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    const httpClient = await this.getHttpClient();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
+    const zb = await this.getZetabyte();
+
+    let entries = [];
+    let entries_length = 0;
+    let next_token;
+    let uuid, page, next_page;
+
+    const max_entries = call.request.max_entries;
+    const starting_token = call.request.starting_token;
+
+    let types = [];
+
+    const volumeParentDatasetName = this.getVolumeParentDatasetName();
+    const snapshotParentDatasetName =
+      this.getDetachedSnapshotParentDatasetName();
+
+    // get data from cache and return immediately
+    if (starting_token) {
+      let parts = starting_token.split(":");
+      uuid = parts[0];
+      page = parseInt(parts[1]);
+      entries = this.ctx.cache.get(`ListSnapshots:result:${uuid}`);
+      if (entries) {
+        entries = JSON.parse(JSON.stringify(entries));
+        entries_length = entries.length;
+        entries = entries.splice((page - 1) * max_entries, max_entries);
+        if (page * max_entries < entries_length) {
+          next_page = page + 1;
+          next_token = `${uuid}:${next_page}`;
+        } else {
+          next_token = null;
+        }
+        const data = {
+          entries: entries,
+          next_token: next_token,
+        };
+
+        return data;
+      } else {
+        // TODO: throw error / cache expired
+      }
+    }
+
+    if (!volumeParentDatasetName) {
+      // throw error
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    let snapshot_id = call.request.snapshot_id;
+    let source_volume_id = call.request.source_volume_id;
+
+    entries = [];
+    for (let loopType of ["snapshot", "filesystem"]) {
+      let endpoint, response, operativeFilesystem, operativeFilesystemType;
+      let datasetParentName;
+      switch (loopType) {
+        case "snapshot":
+          datasetParentName = volumeParentDatasetName;
+          types = ["snapshot"];
+          // should only send 1 of snapshot_id or source_volume_id, preferring the former if sent
+          if (snapshot_id) {
+            if (!zb.helpers.isZfsSnapshot(snapshot_id)) {
+              continue;
+            }
+            operativeFilesystem = volumeParentDatasetName + "/" + snapshot_id;
+            operativeFilesystemType = 3;
+          } else if (source_volume_id) {
+            operativeFilesystem =
+              volumeParentDatasetName + "/" + source_volume_id;
+            operativeFilesystemType = 2;
+          } else {
+            operativeFilesystem = volumeParentDatasetName;
+            operativeFilesystemType = 1;
+          }
+          break;
+        case "filesystem":
+          datasetParentName = snapshotParentDatasetName;
+          if (!datasetParentName) {
+            continue;
+          }
+          if (driverZfsResourceType == "filesystem") {
+            types = ["filesystem"];
+          } else {
+            types = ["volume"];
+          }
+
+          // should only send 1 of snapshot_id or source_volume_id, preferring the former if sent
+          if (snapshot_id) {
+            if (zb.helpers.isZfsSnapshot(snapshot_id)) {
+              continue;
+            }
+            operativeFilesystem = snapshotParentDatasetName + "/" + snapshot_id;
+            operativeFilesystemType = 3;
+          } else if (source_volume_id) {
+            operativeFilesystem =
+              snapshotParentDatasetName + "/" + source_volume_id;
+            operativeFilesystemType = 2;
+          } else {
+            operativeFilesystem = snapshotParentDatasetName;
+            operativeFilesystemType = 1;
+          }
+          break;
+      }
+
+      let rows = [];
+
+      try {
+        let zfsProperties = [
+          "name",
+          "creation",
+          "mountpoint",
+          "refquota",
+          "available",
+          "used",
+          VOLUME_CSI_NAME_PROPERTY_NAME,
+          SNAPSHOT_CSI_NAME_PROPERTY_NAME,
+          MANAGED_PROPERTY_NAME,
+        ];
+        /*
+        response = await zb.zfs.list(
+          operativeFilesystem,
+          ,
+          { types, recurse: true }
+        );
+        */
+
+        //console.log(types, operativeFilesystem, operativeFilesystemType);
+
+        if (types.includes("snapshot")) {
+          switch (operativeFilesystemType) {
+            case 3:
+              // get explicit snapshot
+              response = await httpApiClient.SnapshotGet(
+                operativeFilesystem,
+                zfsProperties
+              );
+
+              let row = {};
+              for (let p in response) {
+                row[p] = response[p].rawvalue;
+              }
+              rows.push(row);
+              break;
+            case 2:
+              // get snapshots connected to the to source_volume_id
+              endpoint = `/pool/dataset/id/${encodeURIComponent(
+                operativeFilesystem
+              )}`;
+              response = await httpClient.get(endpoint, {
+                "extra.snapshots": 1,
+              });
+              if (response.statusCode == 404) {
+                throw new Error("dataset does not exist");
+              } else if (response.statusCode == 200) {
+                for (let snapshot of response.body.snapshots) {
+                  let i_response = await httpApiClient.SnapshotGet(
+                    snapshot.name,
+                    zfsProperties
+                  );
+                  let row = {};
+                  for (let p in i_response) {
+                    row[p] = i_response[p].rawvalue;
+                  }
+                  rows.push(row);
+                }
+              } else {
+                throw new Error(`unhandled statusCode: ${response.statusCode}`);
+              }
+              break;
+            case 1:
+              // get all snapshot recursively from the parent dataset
+              endpoint = `/pool/dataset/id/${encodeURIComponent(
+                operativeFilesystem
+              )}`;
+              response = await httpClient.get(endpoint, {
+                "extra.snapshots": 1,
+              });
+              if (response.statusCode == 404) {
+                throw new Error("dataset does not exist");
+              } else if (response.statusCode == 200) {
+                for (let child of response.body.children) {
+                  for (let snapshot of child.snapshots) {
+                    let i_response = await httpApiClient.SnapshotGet(
+                      snapshot.name,
+                      zfsProperties
+                    );
+                    let row = {};
+                    for (let p in i_response) {
+                      row[p] = i_response[p].rawvalue;
+                    }
+                    rows.push(row);
+                  }
+                }
+              } else {
+                throw new Error(`unhandled statusCode: ${response.statusCode}`);
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid operativeFilesystemType [${operativeFilesystemType}]`
+              );
+              break;
+          }
+        } else if (types.includes("filesystem") || types.includes("volume")) {
+          switch (operativeFilesystemType) {
+            case 3:
+              // get explicit snapshot
+              response = await httpApiClient.DatasetGet(
+                operativeFilesystem,
+                zfsProperties
+              );
+
+              let row = {};
+              for (let p in response) {
+                row[p] = response[p].rawvalue;
+              }
+              rows.push(row);
+              break;
+            case 2:
+              // get snapshots connected to the to source_volume_id
+              endpoint = `/pool/dataset/id/${encodeURIComponent(
+                operativeFilesystem
+              )}`;
+              response = await httpClient.get(endpoint);
+              if (response.statusCode == 404) {
+                throw new Error("dataset does not exist");
+              } else if (response.statusCode == 200) {
+                for (let child of response.body.children) {
+                  let i_response = httpApiClient.normalizeProperties(
+                    child,
+                    zfsProperties
+                  );
+                  let row = {};
+                  for (let p in i_response) {
+                    row[p] = i_response[p].rawvalue;
+                  }
+                  rows.push(row);
+                }
+              } else {
+                throw new Error(`unhandled statusCode: ${response.statusCode}`);
+              }
+              break;
+            case 1:
+              // get all snapshot recursively from the parent dataset
+              endpoint = `/pool/dataset/id/${encodeURIComponent(
+                operativeFilesystem
+              )}`;
+              response = await httpClient.get(endpoint);
+              if (response.statusCode == 404) {
+                throw new Error("dataset does not exist");
+              } else if (response.statusCode == 200) {
+                for (let child of response.body.children) {
+                  for (let grandchild of child.children) {
+                    let i_response = httpApiClient.normalizeProperties(
+                      grandchild,
+                      zfsProperties
+                    );
+                    let row = {};
+                    for (let p in i_response) {
+                      row[p] = i_response[p].rawvalue;
+                    }
+                    rows.push(row);
+                  }
+                }
+              } else {
+                throw new Error(`unhandled statusCode: ${response.statusCode}`);
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid operativeFilesystemType [${operativeFilesystemType}]`
+              );
+              break;
+          }
+        } else {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `invalid zfs types [${types.join(",")}]`
+          );
+        }
+      } catch (err) {
+        let message;
+        if (err.toString().includes("dataset does not exist")) {
+          switch (operativeFilesystemType) {
+            case 1:
+              //message = `invalid configuration: datasetParentName ${datasetParentName} does not exist`;
+              continue;
+              break;
+            case 2:
+              message = `source_volume_id ${source_volume_id} does not exist`;
+              break;
+            case 3:
+              message = `snapshot_id ${snapshot_id} does not exist`;
+              break;
+          }
+          throw new GrpcError(grpc.status.NOT_FOUND, message);
+        }
+        throw new GrpcError(grpc.status.FAILED_PRECONDITION, err.toString());
+      }
+
+      rows.forEach((row) => {
+        // skip any snapshots not explicitly created by CO
+        if (row[MANAGED_PROPERTY_NAME] != "true") {
+          return;
+        }
+
+        // ignore snapshots that are not explicit CO snapshots
+        if (
+          !zb.helpers.isPropertyValueSet(row[SNAPSHOT_CSI_NAME_PROPERTY_NAME])
+        ) {
+          return;
+        }
+
+        // strip parent dataset
+        let source_volume_id = row["name"].replace(
+          new RegExp("^" + datasetParentName + "/"),
+          ""
+        );
+
+        // strip snapshot details (@snapshot-name)
+        if (source_volume_id.includes("@")) {
+          source_volume_id = source_volume_id.substring(
+            0,
+            source_volume_id.indexOf("@")
+          );
+        } else {
+          source_volume_id = source_volume_id.replace(
+            new RegExp("/" + row[SNAPSHOT_CSI_NAME_PROPERTY_NAME] + "$"),
+            ""
+          );
+        }
+
+        if (source_volume_id == datasetParentName) {
+          return;
+        }
+
+        if (source_volume_id)
+          entries.push({
+            snapshot: {
+              /**
+               * The purpose of this field is to give CO guidance on how much space
+               * is needed to create a volume from this snapshot.
+               *
+               * In that vein, I think it's best to return 0 here given the
+               * unknowns of 'cow' implications.
+               */
+              size_bytes: 0,
+
+              // remove parent dataset details
+              snapshot_id: row["name"].replace(
+                new RegExp("^" + datasetParentName + "/"),
+                ""
+              ),
+              source_volume_id: source_volume_id,
+              //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
+              creation_time: {
+                seconds: zb.helpers.isPropertyValueSet(row["creation"])
+                  ? row["creation"]
+                  : 0,
+                nanos: 0,
+              },
+              ready_to_use: true,
+            },
+          });
+      });
+    }
+
+    if (max_entries && entries.length > max_entries) {
+      uuid = uuidv4();
+      this.ctx.cache.set(
+        `ListSnapshots:result:${uuid}`,
+        JSON.parse(JSON.stringify(entries))
+      );
+      next_token = `${uuid}:2`;
+      entries = entries.splice(0, max_entries);
+    }
+
+    const data = {
+      entries: entries,
+      next_token: next_token,
+    };
+
+    return data;
   }
 
   /**
@@ -2552,10 +3504,12 @@ class FreeNASApiDriver extends CsiBaseDriver {
         name;
       snapshotDatasetName = datasetName + "/" + name;
 
+      // create target dataset
       await httpApiClient.DatasetCreate(datasetName, {
         create_ancestors: true,
       });
 
+      // create snapshot on source
       try {
         await httpApiClient.SnapshotCreate(tmpSnapshotName);
       } catch (err) {
@@ -2570,16 +3524,45 @@ class FreeNASApiDriver extends CsiBaseDriver {
       }
 
       try {
-        //TODO: get the value from the response and wait for the job to finish
+        // copy data from source snapshot to target dataset
         response = await httpApiClient.ReplicationRunOnetime({
           direction: "PUSH",
           transport: "LOCAL",
-          source_datasets: [tmpSnapshotName],
+          source_datasets: [zb.helpers.extractDatasetName(tmpSnapshotName)],
           target_dataset: snapshotDatasetName,
+          name_regex: zb.helpers.extractSnapshotName(tmpSnapshotName),
           recursive: false,
-          retention_policy: null,
+          retention_policy: "NONE",
+          readonly: "IGNORE",
+          properties: false,
         });
 
+        let job_id = response;
+        let job;
+
+        // wait for job to finish
+        while (!job || !["SUCCESS", "ABORTED", "FAILED"].includes(job.state)) {
+          job = await httpApiClient.CoreGetJobs({ id: job_id });
+          job = job[0];
+          await sleep(3000);
+        }
+
+        switch (job.state) {
+          case "SUCCESS":
+            break;
+          case "FAILED":
+            // TODO: handle scenarios where the dataset
+            break;
+          case "ABORTED":
+            // TODO: handle this
+            break;
+          default:
+            break;
+        }
+
+        //throw new Error("foobar");
+
+        // set properties on target dataset
         response = await httpApiClient.DatasetSet(
           snapshotDatasetName,
           snapshotProperties
@@ -2601,16 +3584,12 @@ class FreeNASApiDriver extends CsiBaseDriver {
           "@" +
           zb.helpers.extractSnapshotName(tmpSnapshotName),
         {
-          //recurse: true,
-          //force: true,
           defer: true,
         }
       );
 
       // remove snapshot from source
       await httpApiClient.SnapshotDelete(tmpSnapshotName, {
-        //recurse: true,
-        //force: true,
         defer: true,
       });
     } else {
@@ -2636,7 +3615,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       "creation",
       "mountpoint",
       "refquota",
-      "avail",
+      "available",
       "used",
       VOLUME_CSI_NAME_PROPERTY_NAME,
       SNAPSHOT_CSI_NAME_PROPERTY_NAME,
@@ -2661,6 +3640,15 @@ class FreeNASApiDriver extends CsiBaseDriver {
     // set this just before sending out response so we know if volume completed
     // this should give us a relatively sane way to clean up artifacts over time
     //await zb.zfs.set(fullSnapshotName, { [SUCCESS_PROPERTY_NAME]: "true" });
+    if (detachedSnapshot) {
+      await httpApiClient.DatasetSet(fullSnapshotName, {
+        [SUCCESS_PROPERTY_NAME]: "true",
+      });
+    } else {
+      await httpApiClient.SnapshotSet(fullSnapshotName, {
+        [SUCCESS_PROPERTY_NAME]: "true",
+      });
+    }
 
     return {
       snapshot: {
@@ -2681,7 +3669,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
         source_volume_id: source_volume_id,
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
         creation_time: {
-          seconds: properties.creation.rawvalue,
+          seconds: zb.helpers.isPropertyValueSet(properties.creation.rawvalue)
+            ? properties.creation.rawvalue
+            : 0,
           nanos: 0,
         },
         ready_to_use: true,
@@ -2741,8 +3731,6 @@ class FreeNASApiDriver extends CsiBaseDriver {
     } else {
       try {
         await httpApiClient.SnapshotDelete(fullSnapshotName, {
-          //recurse: true,
-          //force: true,
           defer: true,
         });
       } catch (err) {
@@ -2761,7 +3749,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       let containerDataset =
         zb.helpers.extractParentDatasetName(fullSnapshotName);
       try {
-        //await this.removeSnapshotsFromDatatset(containerDataset);
+        await this.removeSnapshotsFromDatatset(containerDataset);
         await httpApiClient.DatasetDelete(containerDataset);
       } catch (err) {
         if (!err.toString().includes("filesystem has children")) {

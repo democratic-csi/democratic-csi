@@ -325,6 +325,46 @@ class Api {
     return arr;
   }
 
+  normalizeProperties(dataset, properties) {
+    let res = {};
+    for (const property of properties) {
+      let p;
+      if (dataset.hasOwnProperty(property)) {
+        p = dataset[property];
+      } else if (
+        dataset.properties &&
+        dataset.properties.hasOwnProperty(property)
+      ) {
+        p = dataset.properties[property];
+      } else if (
+        dataset.user_properties &&
+        dataset.user_properties.hasOwnProperty(property)
+      ) {
+        p = dataset.user_properties[property];
+      } else {
+        p = {
+          value: "-",
+          rawvalue: "-",
+          source: "-",
+        };
+      }
+
+      if (typeof p === "object" && p !== null) {
+        // nothing, leave as is
+      } else {
+        p = {
+          value: p,
+          rawvalue: p,
+          source: "-",
+        };
+      }
+
+      res[property] = p;
+    }
+
+    return res;
+  }
+
   async DatasetCreate(datasetName, data) {
     const httpClient = await this.getHttpClient(false);
     let response;
@@ -441,38 +481,31 @@ class Api {
     response = await httpClient.get(endpoint);
 
     if (response.statusCode == 200) {
-      let res = {};
-      for (const property of properties) {
-        let p;
-        if (response.body.hasOwnProperty(property)) {
-          p = response.body[property];
-        } else if (response.body.user_properties.hasOwnProperty(property)) {
-          p = response.body.user_properties[property];
-        } else {
-          p = {
-            value: "-",
-            rawvalue: "-",
-            source: "-",
-          };
-        }
-
-        if (typeof p === "object" && p !== null) {
-          // nothing, leave as is
-        } else {
-          p = {
-            value: p,
-            rawvalue: p,
-          };
-        }
-
-        res[property] = p;
-      }
-
-      return res;
+      return this.normalizeProperties(response.body, properties);
     }
 
     if (response.statusCode == 404) {
       throw new Error("dataset does not exist");
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async SnapshotSet(snapshotName, properties) {
+    const httpClient = await this.getHttpClient(false);
+    let response;
+    let endpoint;
+
+    endpoint = `/zfs/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    response = await httpClient.put(endpoint, {
+      //...this.getSystemProperties(properties),
+      user_properties_update: this.getPropertiesKeyValueArray(
+        this.getUserProperties(properties)
+      ),
+    });
+
+    if (response.statusCode == 200) {
+      return;
     }
 
     throw new Error(JSON.stringify(response.body));
@@ -495,34 +528,7 @@ class Api {
     response = await httpClient.get(endpoint);
 
     if (response.statusCode == 200) {
-      let res = {};
-      for (const property of properties) {
-        let p;
-        if (response.body.hasOwnProperty(property)) {
-          p = response.body[property];
-        } else if (response.body.properties.hasOwnProperty(property)) {
-          p = response.body.properties[property];
-        } else {
-          p = {
-            value: "-",
-            rawvalue: "-",
-            source: "-",
-          };
-        }
-
-        if (typeof p === "object" && p !== null) {
-          // nothing, leave as is
-        } else {
-          p = {
-            value: p,
-            rawvalue: p,
-          };
-        }
-
-        res[property] = p;
-      }
-
-      return res;
+      return this.normalizeProperties(response.body, properties);
     }
 
     if (response.statusCode == 404) {
@@ -621,6 +627,14 @@ class Api {
   // https://github.com/truenas/middleware/pull/6934
   // then use core.bulk to delete all
 
+  /**
+   *
+   * /usr/lib/python3/dist-packages/middlewared/plugins/replication.py
+   * readonly enum=["SET", "REQUIRE", "IGNORE"]
+   *
+   * @param {*} data
+   * @returns
+   */
   async ReplicationRunOnetime(data) {
     const httpClient = await this.getHttpClient(false);
 
@@ -652,6 +666,8 @@ class Api {
     // 200 means the 'job' was accepted only
     // must continue to check the status of the job to know when it has finished and if it was successful
     // /core/get_jobs [["id", "=", jobidhere]]
+    // state = SUCCESS/ABORTED/FAILED means finality has been reached
+    // state = RUNNING
     if (response.statusCode == 200) {
       return response.body;
     }
