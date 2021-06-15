@@ -5,7 +5,8 @@ FINDMNT_COMMON_OPTIONS = [
   "--output",
   "source,target,fstype,label,options,avail,size,used",
   "-b",
-  "-J"
+  "-J",
+  "--nofsroot", // prevents unwanted behavior with cifs volumes
 ];
 
 class Mount {
@@ -36,7 +37,7 @@ class Mount {
 
     if (!options.executor) {
       options.executor = {
-        spawn: cp.spawn
+        spawn: cp.spawn,
       };
     }
   }
@@ -179,8 +180,8 @@ class Mount {
 
   /**
    * very specifically looking for *devices* vs *filesystems/directories* which were bind mounted
-   * 
-   * @param {*} path 
+   *
+   * @param {*} path
    */
   async isBindMountedBlockDevice(path) {
     const filesystem = new Filesystem();
@@ -290,7 +291,16 @@ class Mount {
       args.unshift(command);
       command = mount.options.paths.sudo;
     }
-    console.log("executing mount command: %s %s", command, args.join(" "));
+    // https://regex101.com/r/FHIbcw/3
+    // replace password=foo with password=redacted
+    // (?<=password=)(?:([\"'])(?:\\\1|.)*?\1|[^,\s]+)
+    const regex = /(?<=password=)(?:([\"'])(?:\\\1|.)*?\1|[^,\s]+)/gi;
+    const cleansedLog = `${command} ${args.join(" ")}`.replace(
+      regex,
+      "redacted"
+    );
+
+    console.log("executing mount command: %s", cleansedLog);
     const child = mount.options.executor.spawn(command, args, options);
 
     let didTimeout = false;
@@ -302,15 +312,15 @@ class Mount {
     }
 
     return new Promise((resolve, reject) => {
-      child.stdout.on("data", function(data) {
+      child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });
 
-      child.stderr.on("data", function(data) {
+      child.stderr.on("data", function (data) {
         stderr = stderr + data;
       });
 
-      child.on("close", function(code) {
+      child.on("close", function (code) {
         const result = { code, stdout, stderr };
         if (timeout) {
           clearTimeout(timeout);
