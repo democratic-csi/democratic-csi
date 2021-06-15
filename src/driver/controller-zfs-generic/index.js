@@ -47,8 +47,9 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
                 ]
               ) {
                 await zb.zfs.set(datasetName, {
-                  [key]: this.options.nfs.shareStrategySetDatasetProperties
-                    .properties[key],
+                  [key]:
+                    this.options.nfs.shareStrategySetDatasetProperties
+                      .properties[key],
                 });
               }
             }
@@ -114,8 +115,10 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
               if (this.options.iscsi.shareStrategyTargetCli.tpg.attributes) {
                 for (const attributeName in this.options.iscsi
                   .shareStrategyTargetCli.tpg.attributes) {
-                  const attributeValue = this.options.iscsi
-                    .shareStrategyTargetCli.tpg.attributes[attributeName];
+                  const attributeValue =
+                    this.options.iscsi.shareStrategyTargetCli.tpg.attributes[
+                      attributeName
+                    ];
                   setAttributesText += "\n";
                   setAttributesText += `set attribute ${attributeName}=${attributeValue}`;
                 }
@@ -124,8 +127,10 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
               if (this.options.iscsi.shareStrategyTargetCli.tpg.auth) {
                 for (const attributeName in this.options.iscsi
                   .shareStrategyTargetCli.tpg.auth) {
-                  const attributeValue = this.options.iscsi
-                    .shareStrategyTargetCli.tpg.auth[attributeName];
+                  const attributeValue =
+                    this.options.iscsi.shareStrategyTargetCli.tpg.auth[
+                      attributeName
+                    ];
                   setAttributesText += "\n";
                   setAttributesText += `set auth ${attributeName}=${attributeValue}`;
                 }
@@ -168,11 +173,11 @@ create /backstores/block/${iscsiName}
 
         volume_context = {
           node_attach_driver: "iscsi",
-          portal: this.options.iscsi.targetPortal,
+          portal: this.options.iscsi.targetPortal || "",
           portals: this.options.iscsi.targetPortals
             ? this.options.iscsi.targetPortals.join(",")
             : "",
-          interface: this.options.iscsi.interface,
+          interface: this.options.iscsi.interface || "",
           iqn: iqn,
           lun: 0,
         };

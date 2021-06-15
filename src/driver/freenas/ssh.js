@@ -1234,7 +1234,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
 
         volume_context = {
           node_attach_driver: "iscsi",
-          portal: this.options.iscsi.targetPortal,
+          portal: this.options.iscsi.targetPortal || "",
           portals: this.options.iscsi.targetPortals
             ? this.options.iscsi.targetPortals.join(",")
             : "",
