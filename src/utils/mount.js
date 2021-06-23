@@ -1,13 +1,16 @@
 const cp = require("child_process");
 const { Filesystem } = require("../utils/filesystem");
 
+// avoid using avail,size,used as it causes hangs when the fs is stale
 FINDMNT_COMMON_OPTIONS = [
   "--output",
-  "source,target,fstype,label,options,avail,size,used",
+  "source,target,fstype,label,options",
   "-b",
   "-J",
   "--nofsroot", // prevents unwanted behavior with cifs volumes
 ];
+
+DEFAUT_TIMEOUT = 30000;
 
 class Mount {
   constructor(options = {}) {
@@ -142,9 +145,15 @@ class Mount {
    *
    * @param {*} path
    */
-  async getMountDetails(path) {
+  async getMountDetails(path, extraOutputProperties = []) {
     const mount = this;
     let args = [];
+    const common_options = FINDMNT_COMMON_OPTIONS;
+    if (extraOutputProperties.length > 0) {
+      common_options[1] =
+        common_options[1] + "," + extraOutputProperties.join(",");
+    }
+
     args = args.concat(["--mountpoint", path]);
     args = args.concat(FINDMNT_COMMON_OPTIONS);
     let result;
@@ -279,7 +288,11 @@ class Mount {
     return true;
   }
 
-  exec(command, args, options) {
+  exec(command, args, options = {}) {
+    if (!options.hasOwnProperty("timeout")) {
+      options.timeout = DEFAUT_TIMEOUT;
+    }
+
     const mount = this;
     args = args || [];
 
@@ -303,6 +316,10 @@ class Mount {
     console.log("executing mount command: %s", cleansedLog);
     const child = mount.options.executor.spawn(command, args, options);
 
+    /**
+     * timeout option natively supported since v16
+     * TODO: properly handle this based on nodejs version
+     */
     let didTimeout = false;
     if (options && options.timeout) {
       timeout = setTimeout(() => {
@@ -321,10 +338,18 @@ class Mount {
       });
 
       child.on("close", function (code) {
-        const result = { code, stdout, stderr };
+        const result = { code, stdout, stderr, timeout: false };
+
         if (timeout) {
           clearTimeout(timeout);
         }
+
+        // timeout scenario
+        if (code === null) {
+          result.timeout = true;
+          reject(result);
+        }
+
         if (code) {
           reject(result);
         } else {

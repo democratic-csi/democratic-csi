@@ -450,7 +450,8 @@ class CsiBaseDriver {
         // compare all device-mapper slaves with the newly created devices
         // if any of the new devices are device-mapper slaves treat this as a
         // multipath scenario
-        let allDeviceMapperSlaves = await filesystem.getAllDeviceMapperSlaveDevices();
+        let allDeviceMapperSlaves =
+          await filesystem.getAllDeviceMapperSlaveDevices();
         let commonDevices = allDeviceMapperSlaves.filter((value) =>
           iscsiDevices.includes(value)
         );
@@ -581,6 +582,7 @@ class CsiBaseDriver {
    * @param {*} call
    */
   async NodeUnstageVolume(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     const iscsi = new ISCSI();
@@ -606,7 +608,21 @@ class CsiBaseDriver {
     //result = await mount.pathIsMounted(block_path);
     //result = await mount.pathIsMounted(staging_target_path)
 
-    result = await mount.pathIsMounted(block_path);
+    try {
+      result = await mount.pathIsMounted(block_path);
+    } catch (err) {
+      /**
+       * on stalled fs such as nfs, even findmnt will return immediately for the base mount point
+       * so in the case of timeout here (base mount point and then a file/folder beneath it) we almost certainly are not a block device
+       * AND the fs is probably stalled
+       */
+      if (err.timeout) {
+        result = false;
+      } else {
+        throw err;
+      }
+    }
+
     if (result) {
       is_block = true;
       access_type = "block";
@@ -626,7 +642,32 @@ class CsiBaseDriver {
 
     result = await mount.pathIsMounted(normalized_staging_path);
     if (result) {
-      result = await mount.umount(normalized_staging_path, umount_args);
+      try {
+        result = await mount.umount(normalized_staging_path, umount_args);
+      } catch (err) {
+        if (err.timeout) {
+          driver.ctx.logger.warn(
+            `hit timeout waiting to unmount path: ${normalized_staging_path}`
+          );
+          result = await mount.getMountDetails(normalized_staging_path);
+          switch (result.fstype) {
+            case "nfs":
+              driver.ctx.logger.warn(
+                `detected stale nfs filesystem, attempting to force unmount: ${normalized_staging_path}`
+              );
+              result = await mount.umount(
+                normalized_staging_path,
+                umount_args.concat(["--force", "--lazy"])
+              );
+              break;
+            default:
+              throw err;
+              break;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     if (is_block) {
@@ -666,14 +707,13 @@ class CsiBaseDriver {
               session.attached_scsi_devices.host &&
               session.attached_scsi_devices.host.devices
             ) {
-              is_attached_to_session = session.attached_scsi_devices.host.devices.some(
-                (device) => {
+              is_attached_to_session =
+                session.attached_scsi_devices.host.devices.some((device) => {
                   if (device.attached_scsi_disk == block_device_info_i.name) {
                     return true;
                   }
                   return false;
-                }
-              );
+                });
             }
 
             if (is_attached_to_session) {
@@ -864,6 +904,7 @@ class CsiBaseDriver {
   }
 
   async NodeUnpublishVolume(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     let result;
@@ -874,7 +915,33 @@ class CsiBaseDriver {
 
     result = await mount.pathIsMounted(target_path);
     if (result) {
-      result = await mount.umount(target_path, umount_args);
+      try {
+        result = await mount.umount(target_path, umount_args);
+      } catch (err) {
+        if (err.timeout) {
+          driver.ctx.logger.warn(
+            `hit timeout waiting to unmount path: ${target_path}`
+          );
+          // bind mounts do show the 'real' fs details
+          result = await mount.getMountDetails(target_path);
+          switch (result.fstype) {
+            case "nfs":
+              driver.ctx.logger.warn(
+                `detected stale nfs filesystem, attempting to force unmount: ${target_path}`
+              );
+              result = await mount.umount(
+                target_path,
+                umount_args.concat(["--force", "--lazy"])
+              );
+              break;
+            default:
+              throw err;
+              break;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     result = await filesystem.pathExists(target_path);
@@ -909,7 +976,7 @@ class CsiBaseDriver {
     //VOLUME_CONDITION
     if (
       semver.satisfies(driver.ctx.csiVersion, ">=1.3.0") &&
-      options.service.node.capabilities.rpc.includes("VOLUME_CONDITION")
+      driver.options.service.node.capabilities.rpc.includes("VOLUME_CONDITION")
     ) {
       // TODO: let drivers fill ths in
       let abnormal = false;
@@ -930,7 +997,11 @@ class CsiBaseDriver {
 
     switch (access_type) {
       case "mount":
-        result = await mount.getMountDetails(device_path);
+        result = await mount.getMountDetails(device_path, [
+          "avail",
+          "size",
+          "used",
+        ]);
 
         res.usage = [
           {

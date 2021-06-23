@@ -614,10 +614,16 @@ class Filesystem {
       });
 
       child.on("close", function (code) {
-        const result = { code, stdout, stderr };
+        const result = { code, stdout, stderr, timeout: false };
         if (timeout) {
           clearTimeout(timeout);
         }
+
+        if (code === null) {
+          result.timeout = true;
+          reject(result);
+        }
+
         if (code) {
           console.log(
             "failed to execute filesystem command: %s, response: %j",
