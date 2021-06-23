@@ -1581,6 +1581,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async removeSnapshotsFromDatatset(datasetName, options = {}) {
+    // TODO: alter the logic here to not be n+1
     const httpClient = await this.getHttpClient();
     const httpApiClient = await this.getTrueNASHttpApiClient();
 
@@ -2132,7 +2133,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   zb.helpers.extractDatasetName(fullSnapshotName),
                 ],
                 target_dataset: datasetName,
-                name_regex: zb.helpers.extractSnapshotName(fullSnapshotName),
+                name_regex: `^${zb.helpers.extractSnapshotName(
+                  fullSnapshotName
+                )}$`,
                 recursive: false,
                 retention_policy: "NONE",
                 readonly: "IGNORE",
@@ -2277,7 +2280,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   zb.helpers.extractDatasetName(fullSnapshotName),
                 ],
                 target_dataset: datasetName,
-                name_regex: zb.helpers.extractSnapshotName(fullSnapshotName),
+                name_regex: `^${zb.helpers.extractSnapshotName(
+                  fullSnapshotName
+                )}$`,
                 recursive: false,
                 retention_policy: "NONE",
                 readonly: "IGNORE",
@@ -3160,6 +3165,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 throw new Error("dataset does not exist");
               } else if (response.statusCode == 200) {
                 for (let snapshot of response.body.snapshots) {
+                  // TODO: alter the logic here to not be n+1
                   let i_response = await httpApiClient.SnapshotGet(
                     snapshot.name,
                     zfsProperties
@@ -3187,6 +3193,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               } else if (response.statusCode == 200) {
                 for (let child of response.body.children) {
                   for (let snapshot of child.snapshots) {
+                    // TODO: alter the logic here to not be n+1
                     let i_response = await httpApiClient.SnapshotGet(
                       snapshot.name,
                       zfsProperties
@@ -3259,6 +3266,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               } else if (response.statusCode == 200) {
                 for (let child of response.body.children) {
                   for (let grandchild of child.children) {
+                    // TODO: ask for full snapshot properties to be returned in the above endpoint to avoid the n+1 logic here
                     let i_response = httpApiClient.normalizeProperties(
                       grandchild,
                       zfsProperties
@@ -3504,7 +3512,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         name;
       snapshotDatasetName = datasetName + "/" + name;
 
-      // create target dataset
+      // create target dataset parent
       await httpApiClient.DatasetCreate(datasetName, {
         create_ancestors: true,
       });
@@ -3530,7 +3538,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           transport: "LOCAL",
           source_datasets: [zb.helpers.extractDatasetName(tmpSnapshotName)],
           target_dataset: snapshotDatasetName,
-          name_regex: zb.helpers.extractSnapshotName(tmpSnapshotName),
+          name_regex: `^${zb.helpers.extractSnapshotName(tmpSnapshotName)}$`,
           recursive: false,
           retention_policy: "NONE",
           readonly: "IGNORE",
