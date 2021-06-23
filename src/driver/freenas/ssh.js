@@ -18,7 +18,7 @@ const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
 
 // used for in-memory cache of the version info
 const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
-class FreeNASDriver extends ControllerZfsSshBaseDriver {
+class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
    * into various calls such as GetControllerCapabilities etc
@@ -1839,4 +1839,4 @@ function IsJsonString(str) {
   return true;
 }
 
-module.exports.FreeNASDriver = FreeNASDriver;
+module.exports.FreeNASSshDriver = FreeNASSshDriver;
