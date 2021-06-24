@@ -316,6 +316,7 @@ class CsiBaseDriver {
 
     switch (node_attach_driver) {
       case "nfs":
+      case "lustre":
         device = `${volume_context.server}:${volume_context.share}`;
         break;
       case "smb":
@@ -814,6 +815,7 @@ class CsiBaseDriver {
     switch (node_attach_driver) {
       case "nfs":
       case "smb":
+      case "lustre":
       case "iscsi":
         // ensure appropriate directories/files
         switch (access_type) {

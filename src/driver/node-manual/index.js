@@ -87,6 +87,9 @@ class NodeManualDriver extends CsiBaseDriver {
       case "smb":
         driverResourceType = "filesystem";
         fs_types = ["cifs"];
+      case "lustre":
+        driverResourceType = "filesystem";
+        fs_types = ["lustre"];
         break;
       case "iscsi":
         driverResourceType = "volume";
