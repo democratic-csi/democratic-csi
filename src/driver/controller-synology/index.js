@@ -271,6 +271,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       case "iscsi":
         let iscsiName = driver.buildIscsiName(name);
         let data;
+        let target;
+        let lun_mapping;
+
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
         data = Object.assign(driver.options.iscsi.targetAttributes, {
           name: iscsiName,
@@ -284,7 +287,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           size: capacity_bytes,
         });
         let lun_uuid = await httpClient.CreateLun(data);
-        let target = await httpClient.GetTargetByTargetID(target_id);
+        target = await httpClient.GetTargetByTargetID(target_id);
 
         if (!target) {
           throw new GrpcError(
@@ -293,11 +296,11 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           );
         }
 
-        if (
-          !target.mapped_luns.some((lun) => {
-            return lun.lun_uuid == lun_uuid;
-          })
-        ) {
+        lun_mapping = target.mapped_luns.find((lun) => {
+          return lun.lun_uuid == lun_uuid;
+        });
+
+        if (!lun_mapping) {
           data = {
             uuid: lun_uuid,
             target_ids: [target_id],
@@ -309,6 +312,19 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           };
           */
           await httpClient.MapLun(data);
+
+          // re-retrieve target to ensure proper lun (mapping_index) value is returned
+          target = await httpClient.GetTargetByTargetID(target_id);
+          lun_mapping = target.mapped_luns.find((lun) => {
+            return lun.lun_uuid == lun_uuid;
+          });
+        }
+
+        if (!lun_mapping) {
+          throw new GrpcError(
+            grpc.status.UNKNOWN,
+            `failed to lookup lun_mapping_id`
+          );
         }
 
         volume_context = {
@@ -319,7 +335,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
             : "",
           interface: driver.options.iscsi.interface || "",
           iqn,
-          lun: 0,
+          lun: lun_mapping.mapping_index,
         };
         break;
       default:
