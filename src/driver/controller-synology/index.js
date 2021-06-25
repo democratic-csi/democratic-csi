@@ -1,5 +1,6 @@
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const SynologyHttpClient = require("./http").SynologyHttpClient;
 
 /**
  *
@@ -57,7 +58,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         //"LIST_SNAPSHOTS",
         //"CLONE_VOLUME",
         //"PUBLISH_READONLY",
-        //"EXPAND_VOLUME",
+        "EXPAND_VOLUME",
       ];
     }
 
@@ -71,6 +72,13 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         //"EXPAND_VOLUME"
       ];
     }
+  }
+
+  async getHttpClient() {
+    if (!this.httpClient) {
+      this.httpClient = new SynologyHttpClient(this.options.httpConnection);
+    }
+    return this.httpClient;
   }
 
   getDriverResourceType() {
@@ -96,6 +104,19 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
     }
+  }
+
+  buildIscsiName(name) {
+    let iscsiName = name;
+    if (this.options.iscsi.namePrefix) {
+      iscsiName = this.options.iscsi.namePrefix + iscsiName;
+    }
+
+    if (this.options.iscsi.nameSuffix) {
+      iscsiName += this.options.iscsi.nameSuffix;
+    }
+
+    return iscsiName.toLowerCase();
   }
 
   assertCapabilities(capabilities) {
@@ -176,6 +197,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    */
   async CreateVolume(call) {
     const driver = this;
+    const httpClient = await driver.getHttpClient();
 
     let name = call.request.name;
     let volume_content_source = call.request.volume_content_source;
@@ -230,22 +252,83 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
+    let volume_context = {};
     switch (driver.getDriverShareType()) {
       case "nfs":
         // TODO: create volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
         break;
       case "smb":
         // TODO: create volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
         break;
       case "iscsi":
-        // TODO: create volume here
+        let iscsiName = driver.buildIscsiName(name);
+        let data;
+        let iqn = driver.options.iscsi.baseiqn + iscsiName;
+        data = Object.assign(driver.options.iscsi.targetAttributes, {
+          name: iscsiName,
+          iqn,
+        });
+
+        let target_id = await httpClient.CreateTarget(data);
+        data = Object.assign(driver.options.iscsi.lunAttributes, {
+          name: iscsiName,
+          location: driver.options.synology.location,
+          size: capacity_bytes,
+        });
+        let lun_uuid = await httpClient.CreateLun(data);
+        let target = await httpClient.GetTargetByTargetID(target_id);
+
+        if (!target) {
+          throw new GrpcError(
+            grpc.status.UNKNOWN,
+            `failed to lookup target: ${target_id}`
+          );
+        }
+
+        if (
+          !target.mapped_luns.some((lun) => {
+            return lun.lun_uuid == lun_uuid;
+          })
+        ) {
+          data = {
+            uuid: lun_uuid,
+            target_ids: [target_id],
+          };
+          /*
+          data = {
+            lun_uuids: [lun_uuid],
+            target_id: target_id,
+          };
+          */
+          await httpClient.MapLun(data);
+        }
+
+        volume_context = {
+          node_attach_driver: "iscsi",
+          portal: driver.options.iscsi.targetPortal || "",
+          portals: driver.options.iscsi.targetPortals
+            ? driver.options.iscsi.targetPortals.join(",")
+            : "",
+          interface: driver.options.iscsi.interface || "",
+          iqn,
+          lun: 0,
+        };
         break;
       default:
-        // throw an error
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
         break;
     }
-
-    let volume_context = driver.getVolumeContext(name);
 
     volume_context["provisioner_driver"] = driver.options.driver;
     if (driver.options.instance_id) {
@@ -256,8 +339,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     const res = {
       volume: {
         volume_id: name,
-        //capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
-        capacity_bytes: 0,
+        capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
         content_source: volume_content_source,
         volume_context,
       },
@@ -273,6 +355,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    */
   async DeleteVolume(call) {
     const driver = this;
+    const httpClient = await driver.getHttpClient();
 
     let name = call.request.volume_id;
 
@@ -283,18 +366,38 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
+    let response;
+
     switch (driver.getDriverShareType()) {
       case "nfs":
         // TODO: delete volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
         break;
       case "smb":
         // TODO: delete volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
         break;
       case "iscsi":
-        // TODO: delete volume here
+        let iscsiName = driver.buildIscsiName(name);
+        let iqn = driver.options.iscsi.baseiqn + iscsiName;
+
+        response = await httpClient.GetLunUUIDByName(iscsiName);
+        await httpClient.DeleteLun(response);
+
+        response = await httpClient.GetTargetIDByIQN(iqn);
+        await httpClient.DeleteTarget(response);
         break;
       default:
-        // throw an error
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
         break;
     }
 
@@ -306,10 +409,90 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async ControllerExpandVolume(call) {
-    throw new GrpcError(
-      grpc.status.UNIMPLEMENTED,
-      `operation not supported by driver`
-    );
+    const driver = this;
+    const httpClient = await driver.getHttpClient();
+
+    let name = call.request.volume_id;
+
+    if (!name) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume_id is required`
+      );
+    }
+
+    let capacity_bytes =
+      call.request.capacity_range.required_bytes ||
+      call.request.capacity_range.limit_bytes;
+    if (!capacity_bytes) {
+      //should never happen, value must be set
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume capacity is required (either required_bytes or limit_bytes)`
+      );
+    }
+
+    if (
+      call.request.capacity_range.required_bytes > 0 &&
+      call.request.capacity_range.limit_bytes > 0 &&
+      call.request.capacity_range.required_bytes >
+        call.request.capacity_range.limit_bytes
+    ) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `required_bytes is greather than limit_bytes`
+      );
+    }
+
+    // ensure *actual* capacity is not greater than limit
+    if (
+      call.request.capacity_range.limit_bytes &&
+      call.request.capacity_range.limit_bytes > 0 &&
+      capacity_bytes > call.request.capacity_range.limit_bytes
+    ) {
+      throw new GrpcError(
+        grpc.status.OUT_OF_RANGE,
+        `required volume capacity is greater than limit`
+      );
+    }
+
+    let node_expansion_required = false;
+    let response;
+
+    switch (driver.getDriverShareType()) {
+      case "nfs":
+        // TODO: expand volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
+        break;
+      case "smb":
+        // TODO: expand volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
+        break;
+      case "iscsi":
+        node_expansion_required = true;
+        let iscsiName = driver.buildIscsiName(name);
+
+        response = await httpClient.GetLunUUIDByName(iscsiName);
+        await httpClient.ExpandISCSILun(response, capacity_bytes);
+        break;
+      default:
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
+        break;
+    }
+
+    return {
+      capacity_bytes,
+      node_expansion_required,
+    };
   }
 
   /**
