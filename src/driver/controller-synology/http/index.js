@@ -46,7 +46,7 @@ class SynologyHttpClient {
     this.logger.debug("SYNOLOGY HTTP BODY: " + JSON.stringify(body));
   }
 
-  async do_request(method, path, data = {}) {
+  async do_request(method, path, data = {}, options = {}) {
     const client = this;
     const isAuth = data.api == "SYNO.API.Auth" && data.method == "login";
     let sid;
@@ -55,6 +55,8 @@ class SynologyHttpClient {
         return await this.login();
       });
     }
+
+    const invoke_options = options;
 
     return new Promise((resolve, reject) => {
       if (data.api != "SYNO.API.Auth") {
@@ -67,9 +69,11 @@ class SynologyHttpClient {
         headers: {
           Accept: "application/json",
           "User-Agent": USER_AGENT,
-          "Content-Type": "application/json",
+          "Content-Type": invoke_options.use_form_encoded
+            ? "application/x-www-form-urlencoded"
+            : "application/json",
         },
-        json: true,
+        json: invoke_options.use_form_encoded ? false : true,
         agentOptions: {
           rejectUnauthorized: !!!client.options.allowInsecure,
         },
@@ -80,7 +84,12 @@ class SynologyHttpClient {
           options.qs = data;
           break;
         default:
-          options.body = data;
+          if (invoke_options.use_form_encoded) {
+            //options.body = URLSearchParams(data);
+            options.form = data;
+          } else {
+            options.body = data;
+          }
           break;
       }
 
@@ -89,6 +98,15 @@ class SynologyHttpClient {
 
         if (error) {
           reject(error);
+        }
+
+        if (
+          typeof response.body !== "object" &&
+          response.body !== null &&
+          response.headers["content-type"] &&
+          response.headers["content-type"].includes("application/json")
+        ) {
+          response.body = JSON.parse(response.body);
         }
 
         if (response.statusCode > 299 || response.statusCode < 200) {
@@ -134,6 +152,15 @@ class SynologyHttpClient {
     return target;
   }
 
+  async GetTargetByIQN(iqn) {
+    let targets = await this.ListTargets();
+    let target = targets.find((i) => {
+      return i.iqn == iqn;
+    });
+
+    return target;
+  }
+
   async ListTargets() {
     const iscsi_target_list = {
       api: "SYNO.Core.ISCSI.Target",
@@ -148,7 +175,7 @@ class SynologyHttpClient {
 
   async CreateLun(data = {}) {
     let response;
-    let iscsi_lun_create = Object.assign(data, {
+    let iscsi_lun_create = Object.assign({}, data, {
       api: "SYNO.Core.ISCSI.LUN",
       version: "1",
       method: "create",
@@ -178,7 +205,7 @@ class SynologyHttpClient {
 
   async MapLun(data = {}) {
     // this is mapping from the perspective of the lun
-    let iscsi_target_map = Object.assign(data, {
+    let iscsi_target_map = Object.assign({}, data, {
       api: "SYNO.Core.ISCSI.LUN",
       method: "map_target",
       version: "1",
@@ -199,42 +226,33 @@ class SynologyHttpClient {
   }
 
   async DeleteLun(uuid) {
+    uuid = uuid || "";
     let iscsi_lun_delete = {
       api: "SYNO.Core.ISCSI.LUN",
       method: "delete",
       version: 1,
-      uuid: uuid || "",
+      //uuid: uuid,
+      uuid: "",
+      uuids: JSON.stringify([uuid]),
+      //is_soft_feas_ignored: false,
+      is_soft_feas_ignored: true,
     };
     try {
       await this.do_request("GET", "entry.cgi", iscsi_lun_delete);
     } catch (err) {
+      /**
+       * 18990710 = already gone
+       * LUN_BAD_LUN_UUID = 18990505
+       * LUN_NO_SUCH_SNAPSHOT = 18990532
+       */
       if (![18990505].includes(err.body.error.code)) {
         throw err;
       }
     }
   }
 
-  async GetTargetIDByIQN(iqn) {
-    const iscsi_target_list = {
-      api: "SYNO.Core.ISCSI.Target",
-      version: "1",
-      path: "entry.cgi",
-      method: "list",
-      additional: '["mapped_lun", "status", "acls", "connected_sessions"]',
-    };
-
-    let response = await this.do_request("GET", "entry.cgi", iscsi_target_list);
-    let target = response.body.data.targets.find((i) => {
-      return i.iqn == iqn;
-    });
-
-    if (target) {
-      return target.target_id;
-    }
-  }
-
   async CreateTarget(data = {}) {
-    let iscsi_target_create = Object.assign(data, {
+    let iscsi_target_create = Object.assign({}, data, {
       api: "SYNO.Core.ISCSI.Target",
       version: "1",
       method: "create",
@@ -262,8 +280,11 @@ class SynologyHttpClient {
           return i.iqn == iscsi_target_create.iqn;
         });
 
-        let target_id = target.target_id;
-        return target_id;
+        if (target) {
+          return target.target_id;
+        } else {
+          throw err;
+        }
       } else {
         throw err;
       }
@@ -282,7 +303,7 @@ class SynologyHttpClient {
       await this.do_request(
         "GET",
         "entry.cgi",
-        Object.assign(iscsi_target_delete, {
+        Object.assign({}, iscsi_target_delete, {
           target_id: JSON.stringify(String(target_id || "")),
         })
       );
@@ -306,7 +327,7 @@ class SynologyHttpClient {
     await this.do_request(
       "GET",
       "entry.cgi",
-      Object.assign(iscsi_lun_extend, { uuid: uuid, new_size: size })
+      Object.assign({}, iscsi_lun_extend, { uuid: uuid, new_size: size })
     );
   }
 }

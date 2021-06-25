@@ -274,32 +274,36 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         let target;
         let lun_mapping;
 
-        let iqn = driver.options.iscsi.baseiqn + iscsiName;
-        data = Object.assign(driver.options.iscsi.targetAttributes, {
-          name: iscsiName,
-          iqn,
-        });
-
-        let target_id = await httpClient.CreateTarget(data);
-        data = Object.assign(driver.options.iscsi.lunAttributes, {
+        // create lun
+        data = Object.assign({}, driver.options.iscsi.lunAttributes, {
           name: iscsiName,
           location: driver.options.synology.location,
           size: capacity_bytes,
         });
         let lun_uuid = await httpClient.CreateLun(data);
-        target = await httpClient.GetTargetByTargetID(target_id);
 
+        // create target
+        let iqn = driver.options.iscsi.baseiqn + iscsiName;
+        data = Object.assign({}, driver.options.iscsi.targetAttributes, {
+          name: iscsiName,
+          iqn,
+        });
+        let target_id = await httpClient.CreateTarget(data);
+        //target = await httpClient.GetTargetByTargetID(target_id);
+        target = await httpClient.GetTargetByIQN(iqn);
         if (!target) {
           throw new GrpcError(
             grpc.status.UNKNOWN,
-            `failed to lookup target: ${target_id}`
+            `failed to lookup target: ${iqn}`
           );
         }
 
+        // check if mapping of lun <-> target already exists
         lun_mapping = target.mapped_luns.find((lun) => {
           return lun.lun_uuid == lun_uuid;
         });
 
+        // create mapping if not present already
         if (!lun_mapping) {
           data = {
             uuid: lun_uuid,
@@ -403,11 +407,13 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         let iscsiName = driver.buildIscsiName(name);
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
 
+        response = await httpClient.GetTargetByIQN(iqn);
+        if (response) {
+          await httpClient.DeleteTarget(response.target_id);
+        }
+
         response = await httpClient.GetLunUUIDByName(iscsiName);
         await httpClient.DeleteLun(response);
-
-        response = await httpClient.GetTargetIDByIQN(iqn);
-        await httpClient.DeleteTarget(response);
         break;
       default:
         throw new GrpcError(
