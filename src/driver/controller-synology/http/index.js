@@ -1,4 +1,5 @@
 const request = require("request");
+const Mutex = require("async-mutex").Mutex;
 
 const USER_AGENT = "democratic-csi";
 
@@ -6,11 +7,14 @@ class SynologyHttpClient {
   constructor(options = {}) {
     this.options = JSON.parse(JSON.stringify(options));
     this.logger = console;
+    this.doLoginMutex = new Mutex();
 
-    setInterval(() => {
-      console.log("WIPING OUT SYNOLOGY SID");
-      this.sid = null;
-    }, 60 * 1000);
+    if (false) {
+      setInterval(() => {
+        console.log("WIPING OUT SYNOLOGY SID");
+        this.sid = null;
+      }, 5 * 1000);
+    }
   }
 
   async login() {
@@ -25,11 +29,11 @@ class SynologyHttpClient {
         format: "sid",
       };
 
-      this.authenticating = true;
       let response = await this.do_request("GET", "auth.cgi", data);
       this.sid = response.body.data.sid;
-      this.authenticating = false;
     }
+
+    return this.sid;
   }
 
   log_response(error, response, body, options) {
@@ -44,13 +48,17 @@ class SynologyHttpClient {
 
   async do_request(method, path, data = {}) {
     const client = this;
-    if (!this.authenticating) {
-      await this.login();
+    const isAuth = data.api == "SYNO.API.Auth" && data.method == "login";
+    let sid;
+    if (!isAuth) {
+      sid = await this.doLoginMutex.runExclusive(async () => {
+        return await this.login();
+      });
     }
 
     return new Promise((resolve, reject) => {
       if (data.api != "SYNO.API.Auth") {
-        data._sid = this.sid;
+        data._sid = sid;
       }
 
       const options = {
@@ -88,6 +96,10 @@ class SynologyHttpClient {
         }
 
         if (response.body.success === false) {
+          // remove invalid sid
+          if (response.body.error.code == 119 && sid == client.sid) {
+            client.sid = null;
+          }
           reject(response);
         }
 
