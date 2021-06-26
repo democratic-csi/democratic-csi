@@ -597,7 +597,8 @@ class CsiBaseDriver {
     const staging_target_path = call.request.staging_target_path;
     const block_path = staging_target_path + "/block_device";
     let normalized_staging_path = staging_target_path;
-    const umount_args = []; // --force
+    const umount_args = [];
+    const umount_force_extra_args = ["--force", "--lazy"];
 
     if (!staging_target_path) {
       throw new GrpcError(
@@ -618,7 +619,14 @@ class CsiBaseDriver {
        * AND the fs is probably stalled
        */
       if (err.timeout) {
-        result = false;
+        driver.ctx.logger.warn(
+          `detected stale mount, attempting to force unmount: ${normalized_staging_path}`
+        );
+        await mount.umount(
+          normalized_staging_path,
+          umount_args.concat(umount_force_extra_args)
+        );
+        result = false; // assume we are *NOT* a block device at this point
       } else {
         throw err;
       }
@@ -653,12 +661,13 @@ class CsiBaseDriver {
           result = await mount.getMountDetails(normalized_staging_path);
           switch (result.fstype) {
             case "nfs":
+            case "nfs4":
               driver.ctx.logger.warn(
                 `detected stale nfs filesystem, attempting to force unmount: ${normalized_staging_path}`
               );
               result = await mount.umount(
                 normalized_staging_path,
-                umount_args.concat(["--force", "--lazy"])
+                umount_args.concat(umount_force_extra_args)
               );
               break;
             default:
@@ -913,9 +922,29 @@ class CsiBaseDriver {
 
     const volume_id = call.request.volume_id;
     const target_path = call.request.target_path;
-    const umount_args = []; // --force
+    const umount_args = [];
+    const umount_force_extra_args = ["--force", "--lazy"];
 
-    result = await mount.pathIsMounted(target_path);
+    try {
+      result = await mount.pathIsMounted(target_path);
+    } catch (err) {
+      // running findmnt on non-existant paths return immediately
+      // the only time this should timeout is on a stale fs
+      // so if timeout is hit we should be near certain it is indeed mounted
+      if (err.timeout) {
+        driver.ctx.logger.warn(
+          `detected stale mount, attempting to force unmount: ${target_path}`
+        );
+        await mount.umount(
+          target_path,
+          umount_args.concat(umount_force_extra_args)
+        );
+        result = false; // assume we have fully unmounted
+      } else {
+        throw err;
+      }
+    }
+
     if (result) {
       try {
         result = await mount.umount(target_path, umount_args);
@@ -928,12 +957,13 @@ class CsiBaseDriver {
           result = await mount.getMountDetails(target_path);
           switch (result.fstype) {
             case "nfs":
+            case "nfs4":
               driver.ctx.logger.warn(
                 `detected stale nfs filesystem, attempting to force unmount: ${target_path}`
               );
               result = await mount.umount(
                 target_path,
-                umount_args.concat(["--force", "--lazy"])
+                umount_args.concat(umount_force_extra_args)
               );
               break;
             default:
