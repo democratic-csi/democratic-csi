@@ -73,8 +73,10 @@ iscsi:
         # mutual CHAP
         #mutual_userid: "baz"
         #mutual_password: "bar"  
-  targetPortal: "server address"
-  targetPortals: []
+  targetPortal: "server[:port]"
+  # for multipath
+  targetPortals: [] # [ "server[:port]", "server[:port]", ... ]
+  # leave empty to omit usage of -I with iscsiadm
   interface: ""
 
   # MUST ensure uniqueness

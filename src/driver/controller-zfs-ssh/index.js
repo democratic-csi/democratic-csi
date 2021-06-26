@@ -1492,7 +1492,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let types = [];
 
     const volumeParentDatasetName = this.getVolumeParentDatasetName();
-    const snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
+    const snapshotParentDatasetName =
+      this.getDetachedSnapshotParentDatasetName();
 
     // get data from cache and return immediately
     if (starting_token) {
@@ -1618,7 +1619,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           }
           throw new GrpcError(grpc.status.NOT_FOUND, message);
         }
-        throw new GrpcError(grpc.status.FAILED_PRECONDITION, e.toString());
+        throw new GrpcError(grpc.status.FAILED_PRECONDITION, err.toString());
       }
 
       response.indexed.forEach((row) => {
@@ -1771,9 +1772,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     const datasetName = datasetParentName + "/" + source_volume_id;
     snapshotProperties[SNAPSHOT_CSI_NAME_PROPERTY_NAME] = name;
-    snapshotProperties[
-      SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME
-    ] = source_volume_id;
+    snapshotProperties[SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME] =
+      source_volume_id;
     snapshotProperties[MANAGED_PROPERTY_NAME] = "true";
 
     driver.ctx.logger.verbose("requested snapshot name: %s", name);
@@ -1995,9 +1995,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     // cleanup parent dataset if possible
     if (detachedSnapshot) {
-      let containerDataset = zb.helpers.extractParentDatasetName(
-        fullSnapshotName
-      );
+      let containerDataset =
+        zb.helpers.extractParentDatasetName(fullSnapshotName);
       try {
         await this.removeSnapshotsFromDatatset(containerDataset);
         await zb.zfs.destroy(containerDataset);

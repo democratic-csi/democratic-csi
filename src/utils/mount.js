@@ -1,12 +1,16 @@
 const cp = require("child_process");
 const { Filesystem } = require("../utils/filesystem");
 
+// avoid using avail,size,used as it causes hangs when the fs is stale
 FINDMNT_COMMON_OPTIONS = [
   "--output",
-  "source,target,fstype,label,options,avail,size,used",
+  "source,target,fstype,label,options",
   "-b",
-  "-J"
+  "-J",
+  "--nofsroot", // prevents unwanted behavior with cifs volumes
 ];
+
+DEFAUT_TIMEOUT = 30000;
 
 class Mount {
   constructor(options = {}) {
@@ -36,7 +40,7 @@ class Mount {
 
     if (!options.executor) {
       options.executor = {
-        spawn: cp.spawn
+        spawn: cp.spawn,
       };
     }
   }
@@ -141,9 +145,15 @@ class Mount {
    *
    * @param {*} path
    */
-  async getMountDetails(path) {
+  async getMountDetails(path, extraOutputProperties = []) {
     const mount = this;
     let args = [];
+    const common_options = FINDMNT_COMMON_OPTIONS;
+    if (extraOutputProperties.length > 0) {
+      common_options[1] =
+        common_options[1] + "," + extraOutputProperties.join(",");
+    }
+
     args = args.concat(["--mountpoint", path]);
     args = args.concat(FINDMNT_COMMON_OPTIONS);
     let result;
@@ -179,8 +189,8 @@ class Mount {
 
   /**
    * very specifically looking for *devices* vs *filesystems/directories* which were bind mounted
-   * 
-   * @param {*} path 
+   *
+   * @param {*} path
    */
   async isBindMountedBlockDevice(path) {
     const filesystem = new Filesystem();
@@ -278,7 +288,11 @@ class Mount {
     return true;
   }
 
-  exec(command, args, options) {
+  exec(command, args, options = {}) {
+    if (!options.hasOwnProperty("timeout")) {
+      options.timeout = DEFAUT_TIMEOUT;
+    }
+
     const mount = this;
     args = args || [];
 
@@ -290,9 +304,22 @@ class Mount {
       args.unshift(command);
       command = mount.options.paths.sudo;
     }
-    console.log("executing mount command: %s %s", command, args.join(" "));
+    // https://regex101.com/r/FHIbcw/3
+    // replace password=foo with password=redacted
+    // (?<=password=)(?:([\"'])(?:\\\1|.)*?\1|[^,\s]+)
+    const regex = /(?<=password=)(?:([\"'])(?:\\\1|.)*?\1|[^,\s]+)/gi;
+    const cleansedLog = `${command} ${args.join(" ")}`.replace(
+      regex,
+      "redacted"
+    );
+
+    console.log("executing mount command: %s", cleansedLog);
     const child = mount.options.executor.spawn(command, args, options);
 
+    /**
+     * timeout option natively supported since v16
+     * TODO: properly handle this based on nodejs version
+     */
     let didTimeout = false;
     if (options && options.timeout) {
       timeout = setTimeout(() => {
@@ -302,19 +329,27 @@ class Mount {
     }
 
     return new Promise((resolve, reject) => {
-      child.stdout.on("data", function(data) {
+      child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });
 
-      child.stderr.on("data", function(data) {
+      child.stderr.on("data", function (data) {
         stderr = stderr + data;
       });
 
-      child.on("close", function(code) {
-        const result = { code, stdout, stderr };
+      child.on("close", function (code) {
+        const result = { code, stdout, stderr, timeout: false };
+
         if (timeout) {
           clearTimeout(timeout);
         }
+
+        // timeout scenario
+        if (code === null) {
+          result.timeout = true;
+          reject(result);
+        }
+
         if (code) {
           reject(result);
         } else {
