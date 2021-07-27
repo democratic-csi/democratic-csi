@@ -413,7 +413,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         );
         break;
       case "iscsi":
-        await httpClient.DeleteAllLuns();
+        //await httpClient.DeleteAllLuns();
 
         let iscsiName = driver.buildIscsiName(name);
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
