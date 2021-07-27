@@ -53,8 +53,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         "CREATE_DELETE_VOLUME",
         //"PUBLISH_UNPUBLISH_VOLUME",
         //"LIST_VOLUMES",
-        //"GET_CAPACITY",
-        //"CREATE_DELETE_SNAPSHOT",
+        "GET_CAPACITY",
+        "CREATE_DELETE_SNAPSHOT",
         //"LIST_SNAPSHOTS",
         //"CLONE_VOLUME",
         //"PUBLISH_READONLY",
@@ -69,7 +69,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         //"UNKNOWN",
         "STAGE_UNSTAGE_VOLUME",
         "GET_VOLUME_STATS",
-        //"EXPAND_VOLUME"
+        "EXPAND_VOLUME",
       ];
     }
   }
@@ -407,13 +407,15 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         let iscsiName = driver.buildIscsiName(name);
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
 
-        response = await httpClient.GetTargetByIQN(iqn);
-        if (response) {
-          await httpClient.DeleteTarget(response.target_id);
+        let target = await httpClient.GetTargetByIQN(iqn);
+        if (target) {
+          await httpClient.DeleteTarget(target.target_id);
         }
 
-        response = await httpClient.GetLunUUIDByName(iscsiName);
-        await httpClient.DeleteLun(response);
+        let lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
+        if (lun_uuid) {
+          await httpClient.DeleteLun(lun_uuid);
+        }
         break;
       default:
         throw new GrpcError(
@@ -523,10 +525,33 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async GetCapacity(call) {
-    throw new GrpcError(
-      grpc.status.UNIMPLEMENTED,
-      `operation not supported by driver`
+    // throw new GrpcError(
+    //   grpc.status.UNIMPLEMENTED,
+    //   `operation not supported by driver`
+    // );
+
+    const driver = this;
+    const httpClient = await driver.getHttpClient();
+
+    if (!driver.options.synology.location) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing location`
+      );
+    }
+
+    if (call.request.volume_capabilities) {
+      const result = this.assertCapabilities(call.request.volume_capabilities);
+
+      if (result.valid !== true) {
+        return { available_capacity: 0 };
+      }
+    }
+
+    let response = await httpClient.GetVolumeInfo(
+      driver.options.synology.location
     );
+    return { available_capacity: response.body.data.volume.size_free_byte };
   }
 
   /**
@@ -558,11 +583,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async CreateSnapshot(call) {
-    throw new GrpcError(
-      grpc.status.UNIMPLEMENTED,
-      `operation not supported by driver`
-    );
     const driver = this;
+    const httpClient = await driver.getHttpClient();
 
     // both these are required
     let source_volume_id = call.request.source_volume_id;
@@ -596,7 +618,47 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
-    // TODO: create snapshot here
+    // create snapshot here
+
+    let iscsiName = driver.buildIscsiName(source_volume_id);
+    let lun = await httpClient.GetLunByName(iscsiName);
+
+    if (!lun) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `invalid source_volume_id: ${source_volume_id}`
+      );
+    }
+
+    // check for already exists
+    let snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
+    if (snapshot) {
+      return {
+        snapshot: {
+          /**
+           * The purpose of this field is to give CO guidance on how much space
+           * is needed to create a volume from this snapshot.
+           */
+          size_bytes: 0,
+          snapshot_id: `/lun/${lun.lun_id}/${snapshot.uuid}`, // add shanpshot_uuid //fixme
+          source_volume_id: source_volume_id,
+          //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
+          creation_time: {
+            seconds: snapshot.time,
+            nanos: 0,
+          },
+          ready_to_use: true,
+        },
+      };
+    }
+
+    let data = Object.assign({}, driver.options.iscsi.lunSnapshotAttributes, {
+      src_lun_uuid: lun.uuid,
+      taken_by: "democratic-csi",
+      description: name, //check
+    });
+
+    let response = await httpClient.CreateSnapshot(data);
 
     return {
       snapshot: {
@@ -605,7 +667,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
          * is needed to create a volume from this snapshot.
          */
         size_bytes: 0,
-        snapshot_id,
+        snapshot_id: `/lun/${lun.lun_id}/${response.body.data.snapshot_uuid}`,
         source_volume_id: source_volume_id,
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
         creation_time: {
@@ -624,12 +686,13 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async DeleteSnapshot(call) {
-    throw new GrpcError(
-      grpc.status.UNIMPLEMENTED,
-      `operation not supported by driver`
-    );
+    // throw new GrpcError(
+    //   grpc.status.UNIMPLEMENTED,
+    //   `operation not supported by driver`
+    // );
 
     const driver = this;
+    const httpClient = await driver.getHttpClient();
 
     const snapshot_id = call.request.snapshot_id;
 
@@ -640,7 +703,19 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
-    // TODO: delete snapshot here
+    let parts = snapshot_id.split("/");
+    let lun_id = parts[2];
+    let snapshot_uuid = parts[3];
+
+    // TODO: delete snapshot
+    let snapshot = await httpClient.GetSnapshotByLunIDAndSnapshotUUID(
+      lun_id,
+      snapshot_uuid
+    );
+
+    if (snapshot) {
+      await httpClient.DeleteSnapshot(snapshot.uuid);
+    }
 
     return {};
   }
