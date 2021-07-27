@@ -1,6 +1,7 @@
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const SynologyHttpClient = require("./http").SynologyHttpClient;
+const sleep = require("../../utils/general").sleep;
 
 /**
  *
@@ -420,7 +421,29 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
         let lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
         if (lun_uuid) {
+          // this is an async process where a success is returned but delete is happening still behind the scenes
+          // therefore we continue to search for the lun after delete success call to ensure full deletion
           await httpClient.DeleteLun(lun_uuid);
+
+          let currentCheck = 0;
+          let maxChecks = 6;
+          let waitTimeBetweenChecks = 5 * 1000;
+
+          await sleep(waitTimeBetweenChecks);
+          lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
+
+          while (currentCheck <= maxChecks && lun_uuid) {
+            currentCheck++;
+            await sleep(waitTimeBetweenChecks);
+            lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
+          }
+
+          if (lun_uuid) {
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `failed to remove lun: ${lun_uuid}`
+            );
+          }
         }
         break;
       default:

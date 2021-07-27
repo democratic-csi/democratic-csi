@@ -348,6 +348,19 @@ class SynologyHttpClient {
     await this.do_request("GET", "entry.cgi", iscsi_lun_delete);
   }
 
+  async DeleteAllLuns() {
+    const lun_list = {
+      api: "SYNO.Core.ISCSI.LUN",
+      version: "1",
+      method: "list",
+    };
+
+    let response = await this.do_request("GET", "entry.cgi", lun_list);
+    for (let lun of response.body.data.luns) {
+      await this.DeleteLun(lun.uuid);
+    }
+  }
+
   async CreateSnapshot(data) {
     data = Object.assign({}, data, {
       api: "SYNO.Core.ISCSI.LUN",
