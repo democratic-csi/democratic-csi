@@ -143,6 +143,111 @@ class SynologyHttpClient {
     }
   }
 
+  async GetLunIDByName(name) {
+    const lun_list = {
+      api: "SYNO.Core.ISCSI.LUN",
+      version: "1",
+      method: "list",
+    };
+
+    let response = await this.do_request("GET", "entry.cgi", lun_list);
+    let lun = response.body.data.luns.find((i) => {
+      return i.name == name;
+    });
+
+    if (lun) {
+      return lun.lun_id;
+    }
+  }
+
+  async GetLunByName(name) {
+    const lun_list = {
+      api: "SYNO.Core.ISCSI.LUN",
+      version: "1",
+      method: "list",
+    };
+
+    let response = await this.do_request("GET", "entry.cgi", lun_list);
+    let lun = response.body.data.luns.find((i) => {
+      return i.name == name;
+    });
+
+    if (lun) {
+      return lun;
+    }
+  }
+
+  async GetSnapshotByLunIDAndName(lun_id, name) {
+    const get_snapshot_info = {
+      lid: lun_id, //check?
+      api: "SYNO.Core.Storage.iSCSILUN",
+      method: "load_snapshot",
+      version: 1,
+    };
+
+    let response = await this.do_request("GET", "entry.cgi", get_snapshot_info);
+
+    if (response.body.data) {
+      let snapshot = response.body.data.find((i) => {
+        return i.desc == name;
+      });
+
+      if (snapshot) {
+        return snapshot;
+      }
+    }
+  }
+
+  async GetSnapshotByLunIDAndSnapshotUUID(lun_id, snapshot_uuid) {
+    const get_snapshot_info = {
+      lid: lun_id, //check?
+      api: "SYNO.Core.Storage.iSCSILUN",
+      method: "load_snapshot",
+      version: 1,
+    };
+
+    let response = await this.do_request("GET", "entry.cgi", get_snapshot_info);
+
+    if (response.body.data) {
+      let snapshot = response.body.data.find((i) => {
+        return i.uuid == snapshot_uuid;
+      });
+
+      if (snapshot) {
+        return snapshot;
+      }
+    }
+  }
+
+  async DeleteSnapshot(snapshot_uuid) {
+    const iscsi_snapshot_delete = {
+      api: "SYNO.Core.ISCSI.LUN",
+      method: "delete_snapshot",
+      version: 1,
+      snapshot_uuid: snapshot_uuid, // snapshot_id
+      deleted_by: "democratic_csi", // ?
+    };
+
+    let response = await this.do_request(
+      "GET",
+      "entry.cgi",
+      iscsi_snapshot_delete
+    );
+    // return?
+  }
+
+  async GetVolumeInfo(volume_path) {
+    let data = {
+      api: "SYNO.Core.Storage.Volume",
+      method: "get",
+      version: "1",
+      //volume_path: "/volume1",
+      volume_path,
+    };
+
+    return await this.do_request("GET", "entry.cgi", data);
+  }
+
   async GetTargetByTargetID(target_id) {
     let targets = await this.ListTargets();
     let target = targets.find((i) => {
@@ -237,18 +342,30 @@ class SynologyHttpClient {
       //is_soft_feas_ignored: false,
       is_soft_feas_ignored: true,
     };
-    try {
-      await this.do_request("GET", "entry.cgi", iscsi_lun_delete);
-    } catch (err) {
-      /**
-       * 18990710 = already gone
-       * LUN_BAD_LUN_UUID = 18990505
-       * LUN_NO_SUCH_SNAPSHOT = 18990532
-       */
-      if (![18990505].includes(err.body.error.code)) {
-        throw err;
-      }
-    }
+
+    await this.do_request("GET", "entry.cgi", iscsi_lun_delete);
+
+    // } catch (err) {
+    //   /**
+    //    * 18990710 = already gone
+    //    * LUN_BAD_LUN_UUID = 18990505
+    //    * LUN_NO_SUCH_SNAPSHOT = 18990532
+    //    *//*
+    //   if (![18990505].includes(err.body.error.code)) {
+    //     throw err;
+    //   }
+    // }
+    // */
+  }
+
+  async CreateSnapshot(data) {
+    data = Object.assign({}, data, {
+      api: "SYNO.Core.ISCSI.LUN",
+      method: "take_snapshot",
+      version: 1,
+    });
+
+    return await this.do_request("GET", "entry.cgi", data);
   }
 
   async CreateTarget(data = {}) {
@@ -311,9 +428,9 @@ class SynologyHttpClient {
       /**
        * 18990710 = non-existant
        */
-      if (![18990710].includes(err.body.error.code)) {
-        throw err;
-      }
+      //if (![18990710].includes(err.body.error.code)) {
+      throw err;
+      //}
     }
   }
 
@@ -324,7 +441,7 @@ class SynologyHttpClient {
       version: 1,
     };
 
-    await this.do_request(
+    return await this.do_request(
       "GET",
       "entry.cgi",
       Object.assign({}, iscsi_lun_extend, { uuid: uuid, new_size: size })
