@@ -25,6 +25,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
     options.service.node.capabilities = options.service.node.capabilities || {};
 
+    const driverResourceType = this.getDriverResourceType();
+
     if (!("service" in options.service.identity.capabilities)) {
       this.ctx.logger.debug("setting default identity service caps");
 
@@ -69,8 +71,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         //"UNKNOWN",
         "STAGE_UNSTAGE_VOLUME",
         "GET_VOLUME_STATS",
-        "EXPAND_VOLUME",
+        //"EXPAND_VOLUME",
       ];
+
+      if (driverResourceType == "volume") {
+        options.service.node.capabilities.rpc.push("EXPAND_VOLUME");
+      }
     }
   }
 
@@ -277,7 +283,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         // create lun
         data = Object.assign({}, driver.options.iscsi.lunAttributes, {
           name: iscsiName,
-          location: driver.options.synology.location,
+          location: driver.options.synology.volume,
           size: capacity_bytes,
         });
         let lun_uuid = await httpClient.CreateLun(data);
@@ -525,18 +531,13 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async GetCapacity(call) {
-    // throw new GrpcError(
-    //   grpc.status.UNIMPLEMENTED,
-    //   `operation not supported by driver`
-    // );
-
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
-    if (!driver.options.synology.location) {
+    if (!driver.options.synology.volume) {
       throw new GrpcError(
         grpc.status.FAILED_PRECONDITION,
-        `invalid configuration: missing location`
+        `invalid configuration: missing volume`
       );
     }
 
@@ -549,7 +550,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     let response = await httpClient.GetVolumeInfo(
-      driver.options.synology.location
+      driver.options.synology.volume
     );
     return { available_capacity: response.body.data.volume.size_free_byte };
   }

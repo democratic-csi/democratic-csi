@@ -315,6 +315,7 @@ class SynologyHttpClient {
       method: "map_target",
       version: "1",
     });
+    iscsi_target_map.uuid = JSON.stringify(iscsi_target_map.uuid);
     iscsi_target_map.target_ids = JSON.stringify(iscsi_target_map.target_ids);
 
     // this is mapping from the perspective of the target
@@ -337,25 +338,14 @@ class SynologyHttpClient {
       method: "delete",
       version: 1,
       //uuid: uuid,
-      uuid: "",
+      uuid: JSON.stringify(""),
       uuids: JSON.stringify([uuid]),
       //is_soft_feas_ignored: false,
       is_soft_feas_ignored: true,
+      //feasibility_precheck: true,
     };
 
     await this.do_request("GET", "entry.cgi", iscsi_lun_delete);
-
-    // } catch (err) {
-    //   /**
-    //    * 18990710 = already gone
-    //    * LUN_BAD_LUN_UUID = 18990505
-    //    * LUN_NO_SUCH_SNAPSHOT = 18990532
-    //    *//*
-    //   if (![18990505].includes(err.body.error.code)) {
-    //     throw err;
-    //   }
-    // }
-    // */
   }
 
   async CreateSnapshot(data) {
