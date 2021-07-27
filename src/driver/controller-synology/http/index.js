@@ -8,6 +8,7 @@ class SynologyHttpClient {
     this.options = JSON.parse(JSON.stringify(options));
     this.logger = console;
     this.doLoginMutex = new Mutex();
+    this.apiSerializeMutex = new Mutex();
 
     if (false) {
       setInterval(() => {
@@ -50,6 +51,7 @@ class SynologyHttpClient {
     const client = this;
     const isAuth = data.api == "SYNO.API.Auth" && data.method == "login";
     let sid;
+    let apiMutexRelease;
     if (!isAuth) {
       sid = await this.doLoginMutex.runExclusive(async () => {
         return await this.login();
@@ -58,8 +60,14 @@ class SynologyHttpClient {
 
     const invoke_options = options;
 
+    if (!isAuth) {
+      if (this.options.serialize) {
+        apiMutexRelease = await this.apiSerializeMutex.acquire();
+      }
+    }
+
     return new Promise((resolve, reject) => {
-      if (data.api != "SYNO.API.Auth") {
+      if (!isAuth) {
         data._sid = sid;
       }
 
@@ -93,36 +101,42 @@ class SynologyHttpClient {
           break;
       }
 
-      request(options, function (error, response, body) {
-        client.log_response(...arguments, options);
+      try {
+        request(options, function (error, response, body) {
+          client.log_response(...arguments, options);
 
-        if (error) {
-          reject(error);
-        }
-
-        if (
-          typeof response.body !== "object" &&
-          response.body !== null &&
-          response.headers["content-type"] &&
-          response.headers["content-type"].includes("application/json")
-        ) {
-          response.body = JSON.parse(response.body);
-        }
-
-        if (response.statusCode > 299 || response.statusCode < 200) {
-          reject(response);
-        }
-
-        if (response.body.success === false) {
-          // remove invalid sid
-          if (response.body.error.code == 119 && sid == client.sid) {
-            client.sid = null;
+          if (error) {
+            reject(error);
           }
-          reject(response);
-        }
 
-        resolve(response);
-      });
+          if (
+            typeof response.body !== "object" &&
+            response.body !== null &&
+            response.headers["content-type"] &&
+            response.headers["content-type"].includes("application/json")
+          ) {
+            response.body = JSON.parse(response.body);
+          }
+
+          if (response.statusCode > 299 || response.statusCode < 200) {
+            reject(response);
+          }
+
+          if (response.body.success === false) {
+            // remove invalid sid
+            if (response.body.error.code == 119 && sid == client.sid) {
+              client.sid = null;
+            }
+            reject(response);
+          }
+
+          resolve(response);
+        });
+      } finally {
+        if (typeof apiMutexRelease == "function") {
+          apiMutexRelease();
+        }
+      }
     });
   }
 
