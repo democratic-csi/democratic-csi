@@ -411,6 +411,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         );
         break;
       case "iscsi":
+        //await httpClient.DeleteAllLuns();
+
         let iscsiName = driver.buildIscsiName(name);
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
 
@@ -426,13 +428,14 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           await httpClient.DeleteLun(lun_uuid);
 
           let currentCheck = 0;
-          let maxChecks = 6;
-          let waitTimeBetweenChecks = 5 * 1000;
+          let settleMaxRetries = driver.options.api.lunDelete.settleMaxRetries || 6;
+          let settleSeconds = driver.options.api.lunDelete.settleSeconds || 5;
+          let waitTimeBetweenChecks = settleSeconds * 1000;
 
           await sleep(waitTimeBetweenChecks);
           lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
 
-          while (currentCheck <= maxChecks && lun_uuid) {
+          while (currentCheck <= settleMaxRetries && lun_uuid) {
             currentCheck++;
             await sleep(waitTimeBetweenChecks);
             lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
