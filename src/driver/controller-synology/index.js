@@ -304,13 +304,13 @@ class ControllerSynologyDriver extends CsiBaseDriver {
               }
               break;
             case "volume":
-              let srcLunName = driver.buildIscsiName(
-                volume_content_source.volume.volume_id
-              );
-              src_lun_uuid = await httpClient.GetLunUUIDByName(srcLunName);
-
-              existingLun = httpClient.GetLunByName(iscsiName);
+              existingLun = await httpClient.GetLunByName(iscsiName);
               if (!existingLun) {
+                let srcLunName = driver.buildIscsiName(
+                  volume_content_source.volume.volume_id
+                );
+
+                src_lun_uuid = await httpClient.GetLunUUIDByName(srcLunName);
                 await httpClient.CreateClonedVolume(src_lun_uuid, iscsiName);
               }
               break;
