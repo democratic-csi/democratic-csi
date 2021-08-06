@@ -148,14 +148,14 @@ class Mount {
   async getMountDetails(path, extraOutputProperties = []) {
     const mount = this;
     let args = [];
-    const common_options = FINDMNT_COMMON_OPTIONS;
+    const common_options = JSON.parse(JSON.stringify(FINDMNT_COMMON_OPTIONS));
     if (extraOutputProperties.length > 0) {
       common_options[1] =
         common_options[1] + "," + extraOutputProperties.join(",");
     }
 
     args = args.concat(["--mountpoint", path]);
-    args = args.concat(FINDMNT_COMMON_OPTIONS);
+    args = args.concat(common_options);
     let result;
 
     try {
