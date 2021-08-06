@@ -59,7 +59,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         "GET_CAPACITY",
         "CREATE_DELETE_SNAPSHOT",
         //"LIST_SNAPSHOTS",
-        //"CLONE_VOLUME",
+        "CLONE_VOLUME",
         //"PUBLISH_READONLY",
         "EXPAND_VOLUME",
       ];
@@ -478,13 +478,21 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           // therefore we continue to search for the lun after delete success call to ensure full deletion
           await httpClient.DeleteLun(lun_uuid);
 
-          let settleEnabled = driver.options.api.lunDelete.settleEnabled;
+          //let settleEnabled = driver.options.api.lunDelete.settleEnabled;
+          let settleEnabled = true;
 
           if (settleEnabled) {
             let currentCheck = 0;
+
+            /*
             let settleMaxRetries =
               driver.options.api.lunDelete.settleMaxRetries || 6;
             let settleSeconds = driver.options.api.lunDelete.settleSeconds || 5;
+            */
+
+            let settleMaxRetries = 6;
+            let settleSeconds = 5;
+
             let waitTimeBetweenChecks = settleSeconds * 1000;
 
             await sleep(waitTimeBetweenChecks);

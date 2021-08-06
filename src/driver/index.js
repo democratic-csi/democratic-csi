@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const os = require("os");
 const fs = require("fs");
 const { GrpcError, grpc } = require("../utils/grpc");
@@ -17,7 +18,23 @@ const sleep = require("../utils/general").sleep;
 class CsiBaseDriver {
   constructor(ctx, options) {
     this.ctx = ctx;
-    this.options = options;
+    this.options = options || {};
+
+    if (!this.options.hasOwnProperty("node")) {
+      this.options.node = {};
+    }
+
+    if (!this.options.node.hasOwnProperty("format")) {
+      this.options.node.format = {};
+    }
+
+    if (!this.options.node.hasOwnProperty("mount")) {
+      this.options.node.mount = {};
+    }
+
+    if (!this.options.node.mount.hasOwnProperty("checkFilesystem")) {
+      this.options.node.mount.checkFilesystem = {};
+    }
   }
 
   /**
@@ -490,7 +507,15 @@ class CsiBaseDriver {
               // format
               result = await filesystem.deviceIsFormatted(device);
               if (!result) {
-                await filesystem.formatDevice(device, fs_type);
+                let formatOptions = _.get(
+                  driver.options.node.format,
+                  [fs_type, "customOptions"],
+                  []
+                );
+                if (!Array.isArray(formatOptions)) {
+                  formatOptions = [];
+                }
+                await filesystem.formatDevice(device, fs_type, formatOptions);
               }
 
               let fs_info = await filesystem.getDeviceFilesystemInfo(device);
@@ -502,9 +527,17 @@ class CsiBaseDriver {
                 staging_target_path
               );
               if (!result) {
-                // TODO: add a parameter to control this behavior
                 // https://github.com/democratic-csi/democratic-csi/issues/52#issuecomment-768463401
-                //await filesystem.checkFilesystem(device, fs_type);
+                let checkFilesystem =
+                  driver.options.node.mount.checkFilesystem[fs_type] || {};
+                if (checkFilesystem.enabled) {
+                  await filesystem.checkFilesystem(
+                    device,
+                    fs_type,
+                    checkFilesystem.customOptions || [],
+                    checkFilesystem.customFilesystemOptions || []
+                  );
+                }
               }
             }
             break;

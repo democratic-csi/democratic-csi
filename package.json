@@ -24,6 +24,7 @@
     "grpc-uds": "^0.1.6",
     "handlebars": "^4.7.7",
     "js-yaml": "^4.0.0",
+    "lodash": "^4.17.21",
     "lru-cache": "^6.0.0",
     "request": "^2.88.2",
     "semver": "^7.3.4",
