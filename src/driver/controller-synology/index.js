@@ -280,14 +280,63 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         let data;
         let target;
         let lun_mapping;
+        let lun_uuid;
+        let existingLun;
 
-        // create lun
-        data = Object.assign({}, driver.options.iscsi.lunAttributes, {
-          name: iscsiName,
-          location: driver.options.synology.volume,
-          size: capacity_bytes,
-        });
-        let lun_uuid = await httpClient.CreateLun(data);
+        if (volume_content_source) {
+          let src_lun_uuid;
+          let src_lun_id;
+          switch (volume_content_source.type) {
+            case "snapshot":
+              let parts = volume_content_source.snapshot.snapshot_id.split("/");
+              src_lun_id = parts[2];
+              let snapshot_uuid = parts[3];
+              let src_lun = await httpClient.GetLunByID(src_lun_id);
+              src_lun_uuid = src_lun.uuid;
+
+              existingLun = await httpClient.GetLunByName(iscsiName);
+              if (!existingLun) {
+                await httpClient.CreateVolumeFromSnapshot(
+                  src_lun_uuid,
+                  snapshot_uuid,
+                  iscsiName
+                );
+              }
+              break;
+            case "volume":
+              let srcLunName = driver.buildIscsiName(
+                volume_content_source.volume.volume_id
+              );
+              src_lun_uuid = await httpClient.GetLunUUIDByName(srcLunName);
+
+              existingLun = httpClient.GetLunByName(iscsiName);
+              if (!existingLun) {
+                await httpClient.CreateClonedVolume(src_lun_uuid, iscsiName);
+              }
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.INVALID_ARGUMENT,
+                `invalid volume_content_source type: ${volume_content_source.type}`
+              );
+              break;
+          }
+          // resize to requested amount
+
+          let lun = await httpClient.GetLunByName(iscsiName);
+          lun_uuid = lun.uuid;
+          if (lun.size < capacity_bytes) {
+            await httpClient.ExpandISCSILun(lun_uuid, capacity_bytes);
+          }
+        } else {
+          // create lun
+          data = Object.assign({}, driver.options.iscsi.lunAttributes, {
+            name: iscsiName,
+            location: driver.options.synology.volume,
+            size: capacity_bytes,
+          });
+          lun_uuid = await httpClient.CreateLun(data);
+        }
 
         // create target
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
@@ -437,16 +486,16 @@ class ControllerSynologyDriver extends CsiBaseDriver {
               driver.options.api.lunDelete.settleMaxRetries || 6;
             let settleSeconds = driver.options.api.lunDelete.settleSeconds || 5;
             let waitTimeBetweenChecks = settleSeconds * 1000;
-  
+
             await sleep(waitTimeBetweenChecks);
             lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
-  
+
             while (currentCheck <= settleMaxRetries && lun_uuid) {
               currentCheck++;
               await sleep(waitTimeBetweenChecks);
               lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
             }
-  
+
             if (lun_uuid) {
               throw new GrpcError(
                 grpc.status.UNKNOWN,
