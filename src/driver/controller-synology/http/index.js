@@ -399,6 +399,8 @@ class SynologyHttpClient {
       version: 1,
     });
 
+    data.src_lun_uuid = JSON.stringify(data.src_lun_uuid);
+
     return await this.do_request("GET", "entry.cgi", data);
   }
 
