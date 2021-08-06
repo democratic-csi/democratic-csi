@@ -255,7 +255,7 @@ class SynologyHttpClient {
       api: "SYNO.Core.ISCSI.LUN",
       method: "delete_snapshot",
       version: 1,
-      snapshot_uuid: snapshot_uuid, // snapshot_id
+      snapshot_uuid: JSON.stringify(snapshot_uuid), // snapshot_id
       deleted_by: "democratic_csi", // ?
     };
 
@@ -480,7 +480,7 @@ class SynologyHttpClient {
     return await this.do_request(
       "GET",
       "entry.cgi",
-      Object.assign({}, iscsi_lun_extend, { uuid: uuid, new_size: size })
+      Object.assign({}, iscsi_lun_extend, { uuid: JSON.stringify(uuid), new_size: size })
     );
   }
 
@@ -502,7 +502,7 @@ class SynologyHttpClient {
       api: "SYNO.Core.ISCSI.LUN",
       version: 1,
       method: "clone_snapshot",
-      src_lun_uuid: src_lun_uuid, // src lun uuid, snapshot id?
+      src_lun_uuid: JSON.stringify(src_lun_uuid), // src lun uuid, snapshot id?
       snapshot_uuid: JSON.stringify(snapshot_uuid), // shaptop uuid
       cloned_lun_name: cloned_lun_name, // cloned lun name
       clone_type: "democratic-csi", // check
