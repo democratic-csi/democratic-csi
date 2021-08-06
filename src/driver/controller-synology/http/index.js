@@ -174,6 +174,23 @@ class SynologyHttpClient {
     }
   }
 
+  async GetLunByID(lun_id) {
+    const lun_list = {
+      api: "SYNO.Core.ISCSI.LUN",
+      version: "1",
+      method: "list",
+    };
+
+    let response = await this.do_request("GET", "entry.cgi", lun_list);
+    let lun = response.body.data.luns.find((i) => {
+      return i.lun_id == lun_id;
+    });
+
+    if (lun) {
+      return lun;
+    }
+  }
+
   async GetLunByName(name) {
     const lun_list = {
       api: "SYNO.Core.ISCSI.LUN",
@@ -464,6 +481,36 @@ class SynologyHttpClient {
       Object.assign({}, iscsi_lun_extend, { uuid: uuid, new_size: size })
     );
   }
+
+
+
+  async CreateClonedVolume(src_lun_uuid, dst_lun_name) {
+    const create_cloned_volume = {
+      api: "SYNO.Core.ISCSI.LUN",
+      version: 1,
+      method: "clone",
+      src_lun_uuid: JSON.stringify(src_lun_uuid), // src lun uuid
+      dst_lun_name: dst_lun_name, // dst lun name
+      is_same_pool: true, // always true? string?
+      clone_type: "democratic-csi", // check
+    }
+    return await this.do_request("GET", "entry.cgi", create_cloned_volume);
+  }
+
+  async CreateVolumeFromSnapshot(src_lun_uuid, snapshot_uuid, cloned_lun_name) {
+    const create_volume_from_snapshot = {
+      api: "SYNO.Core.ISCSI.LUN",
+      version: 1,
+      method: "clone_snapshot",
+      src_lun_uuid: src_lun_uuid, // src lun uuid, snapshot id?
+      snapshot_uuid: JSON.stringify(snapshot_uuid), // shaptop uuid
+      cloned_lun_name: cloned_lun_name, // cloned lun name
+      clone_type: "democratic-csi", // check
+    }
+    return await this.do_request("GET", "entry.cgi", create_volume_from_snapshot);
+  }
+
+
 }
 
 module.exports.SynologyHttpClient = SynologyHttpClient;
