@@ -56,6 +56,13 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
 ENV LANG=en_US.utf8
 ENV NODE_ENV=production
 
+# Workaround for https://github.com/nodejs/node/issues/37219
+RUN test $(uname -m) != armv7l || ( \
+                apt-get update \
+                && apt-get install -y libatomic1 \
+                && rm -rf /var/lib/apt/lists/* \
+        )
+
 # install node
 #ENV PATH=/usr/local/lib/nodejs/bin:$PATH
 #COPY --from=build /usr/local/lib/nodejs /usr/local/lib/nodejs
