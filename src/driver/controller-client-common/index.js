@@ -1,6 +1,7 @@
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const cp = require("child_process");
+const semver = require("semver");
 
 /**
  * Crude nfs-client driver which simply creates directories to be mounted
@@ -59,6 +60,20 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
         //"PUBLISH_READONLY",
         //"EXPAND_VOLUME",
       ];
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        options.service.controller.capabilities.rpc
+          .push
+          //"VOLUME_CONDITION",
+          //"GET_VOLUME"
+          ();
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.controller.capabilities.rpc.push(
+          "SINGLE_NODE_MULTI_WRITER"
+        );
+      }
     }
 
     if (!("rpc" in options.service.node.capabilities)) {
@@ -70,6 +85,18 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
         "GET_VOLUME_STATS",
         //"EXPAND_VOLUME"
       ];
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        //options.service.node.capabilities.rpc.push("VOLUME_CONDITION");
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.node.capabilities.rpc.push("SINGLE_NODE_MULTI_WRITER");
+        /**
+         * This is for volumes that support a mount time gid such as smb or fat
+         */
+        //options.service.node.capabilities.rpc.push("VOLUME_MOUNT_GROUP");
+      }
     }
   }
 
@@ -98,6 +125,8 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
         ![
           "UNKNOWN",
           "SINGLE_NODE_WRITER",
+          "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+          "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
           "SINGLE_NODE_READER_ONLY",
           "MULTI_NODE_READER_ONLY",
           "MULTI_NODE_SINGLE_WRITER",

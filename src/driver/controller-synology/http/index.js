@@ -89,7 +89,13 @@ class SynologyHttpClient {
 
       switch (method) {
         case "GET":
-          options.qs = data;
+          let qsData = JSON.parse(JSON.stringify(data));
+          for (let p in qsData) {
+            if (Array.isArray(qsData[p])) {
+              qsData[p] = JSON.stringify(qsData[p]);
+            }
+          }
+          options.qs = qsData;
           break;
         default:
           if (invoke_options.use_form_encoded) {

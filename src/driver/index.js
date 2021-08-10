@@ -286,6 +286,7 @@ class CsiBaseDriver {
     const volume_context = call.request.volume_context;
     let fs_type;
     let mount_flags;
+    let volume_mount_group;
     const node_attach_driver = volume_context.node_attach_driver;
     const block_path = staging_target_path + "/block_device";
     const bind_mount_flags = [];
@@ -305,6 +306,15 @@ class CsiBaseDriver {
         mount_flags.push(normalizedSecrets.mount_flags);
       }
       mount_flags.push("defaults");
+
+      if (
+        semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
+        driver.options.service.node.capabilities.rpc.includes(
+          "VOLUME_MOUNT_GROUP"
+        )
+      ) {
+        volume_mount_group = capability.mount.volume_mount_group; // in k8s this is derrived from the fsgroup in the pod security context
+      }
     }
 
     if (call.request.volume_context.provisioner_driver == "node-manual") {
@@ -832,6 +842,7 @@ class CsiBaseDriver {
   }
 
   async NodePublishVolume(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     let result;
@@ -841,14 +852,25 @@ class CsiBaseDriver {
     const target_path = call.request.target_path;
     const capability = call.request.volume_capability;
     const access_type = capability.access_type || "mount";
+    let mount_flags;
+    let volume_mount_group;
     const readonly = call.request.readonly;
     const volume_context = call.request.volume_context;
     const bind_mount_flags = [];
     const node_attach_driver = volume_context.node_attach_driver;
 
     if (access_type == "mount") {
-      let mount_flags = capability.mount.mount_flags || [];
+      mount_flags = capability.mount.mount_flags || [];
       bind_mount_flags.push(...mount_flags);
+
+      if (
+        semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
+        driver.options.service.node.capabilities.rpc.includes(
+          "VOLUME_MOUNT_GROUP"
+        )
+      ) {
+        volume_mount_group = capability.mount.volume_mount_group; // in k8s this is derrived from the fsgroup in the pod security context
+      }
     }
 
     bind_mount_flags.push("defaults");

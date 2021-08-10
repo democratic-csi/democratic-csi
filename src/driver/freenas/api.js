@@ -95,9 +95,20 @@ class FreeNASApiDriver extends CsiBaseDriver {
         "CLONE_VOLUME",
         //"PUBLISH_READONLY",
         "EXPAND_VOLUME",
-        //"VOLUME_CONDITION", // added in v1.3.0
-        //"GET_VOLUME", // added in v1.3.0
       ];
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        options.service.controller.capabilities.rpc.push(
+          //"VOLUME_CONDITION",
+          "GET_VOLUME"
+        );
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.controller.capabilities.rpc.push(
+          "SINGLE_NODE_MULTI_WRITER"
+        );
+      }
     }
 
     if (!("rpc" in options.service.node.capabilities)) {
@@ -110,7 +121,6 @@ class FreeNASApiDriver extends CsiBaseDriver {
             "STAGE_UNSTAGE_VOLUME",
             "GET_VOLUME_STATS",
             //"EXPAND_VOLUME",
-            //"VOLUME_CONDITION",
           ];
           break;
         case "volume":
@@ -119,9 +129,20 @@ class FreeNASApiDriver extends CsiBaseDriver {
             "STAGE_UNSTAGE_VOLUME",
             "GET_VOLUME_STATS",
             "EXPAND_VOLUME",
-            //"VOLUME_CONDITION",
           ];
           break;
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        //options.service.node.capabilities.rpc.push("VOLUME_CONDITION");
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.node.capabilities.rpc.push("SINGLE_NODE_MULTI_WRITER");
+        /**
+         * This is for volumes that support a mount time gid such as smb or fat
+         */
+        //options.service.node.capabilities.rpc.push("VOLUME_MOUNT_GROUP");
       }
     }
   }
@@ -1582,6 +1603,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
   async removeSnapshotsFromDatatset(datasetName, options = {}) {
     // TODO: alter the logic here to not be n+1
+    // https://jira.ixsystems.com/browse/NAS-111708
     const httpClient = await this.getHttpClient();
     const httpApiClient = await this.getTrueNASHttpApiClient();
 
@@ -1604,7 +1626,15 @@ class FreeNASApiDriver extends CsiBaseDriver {
     throw new Error("unhandled statusCode: " + response.statusCode);
   }
 
+  /**
+   * Hypothetically this isn't needed. The middleware is supposed to reload stuff as appropriate.
+   *
+   * @param {*} call
+   * @param {*} datasetName
+   * @returns
+   */
   async expandVolume(call, datasetName) {
+    // TODO: fix me
     return;
     const driverShareType = this.getDriverShareType();
     const sshClient = this.getSshClient();
@@ -1844,6 +1874,8 @@ class FreeNASApiDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
@@ -1872,6 +1904,8 @@ class FreeNASApiDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
@@ -2140,6 +2174,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 retention_policy: "NONE",
                 readonly: "IGNORE",
                 properties: false,
+                only_from_scratch: true,
               });
 
               let job_id = response;
@@ -2155,16 +2190,21 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 await sleep(3000);
               }
 
+              job.error = job.error || "";
+
               switch (job.state) {
                 case "SUCCESS":
                   break;
                 case "FAILED":
-                  // TODO: handle scenarios where the dataset
-                  break;
                 case "ABORTED":
-                  // TODO: handle this
-                  break;
                 default:
+                  //[EFAULT] Target dataset 'tank/.../clone-test' already exists.
+                  if (!job.error.includes("already exists")) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `failed to run replication task (${job.state}): ${job.error}`
+                    );
+                  }
                   break;
               }
 
@@ -2287,6 +2327,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 retention_policy: "NONE",
                 readonly: "IGNORE",
                 properties: false,
+                only_from_scratch: true,
               });
 
               let job_id = response;
@@ -2302,16 +2343,21 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 await sleep(3000);
               }
 
+              job.error = job.error || "";
+
               switch (job.state) {
                 case "SUCCESS":
                   break;
                 case "FAILED":
-                  // TODO: handle scenarios where the dataset
-                  break;
                 case "ABORTED":
-                  // TODO: handle this
-                  break;
                 default:
+                  //[EFAULT] Target dataset 'tank/.../clone-test' already exists.
+                  if (!job.error.includes("already exists")) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `failed to run replication task (${job.state}): ${job.error}`
+                    );
+                  }
                   break;
               }
             } catch (err) {
@@ -2442,9 +2488,35 @@ class FreeNASApiDriver extends CsiBaseDriver {
           this.options.zfs.hasOwnProperty("datasetPermissionsUser") ||
           this.options.zfs.hasOwnProperty("datasetPermissionsGroup")
         ) {
-          // TODO: ensure the values are numbers and not strings
           setPerms = true;
+        }
+
+        // user
+        if (this.options.zfs.hasOwnProperty("datasetPermissionsUser")) {
+          if (
+            String(this.options.zfs.datasetPermissionsUser).match(/^[0-9]+$/) ==
+            null
+          ) {
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `datasetPermissionsUser must be numeric: ${this.options.zfs.datasetPermissionsUser}`
+            );
+          }
           perms.uid = Number(this.options.zfs.datasetPermissionsUser);
+        }
+
+        // group
+        if (this.options.zfs.hasOwnProperty("datasetPermissionsGroup")) {
+          if (
+            String(this.options.zfs.datasetPermissionsGroup).match(
+              /^[0-9]+$/
+            ) == null
+          ) {
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `datasetPermissionsGroup must be numeric: ${this.options.zfs.datasetPermissionsGroup}`
+            );
+          }
           perms.gid = Number(this.options.zfs.datasetPermissionsGroup);
         }
 
@@ -2635,6 +2707,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async ControllerExpandVolume(call) {
+    // TODO: https://jira.ixsystems.com/browse/NAS-111707
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -3160,19 +3233,15 @@ class FreeNASApiDriver extends CsiBaseDriver {
               )}`;
               response = await httpClient.get(endpoint, {
                 "extra.snapshots": 1,
+                "extra.snapshots_properties": JSON.stringify(zfsProperties),
               });
               if (response.statusCode == 404) {
                 throw new Error("dataset does not exist");
               } else if (response.statusCode == 200) {
                 for (let snapshot of response.body.snapshots) {
-                  // TODO: alter the logic here to not be n+1
-                  let i_response = await httpApiClient.SnapshotGet(
-                    snapshot.name,
-                    zfsProperties
-                  );
                   let row = {};
-                  for (let p in i_response) {
-                    row[p] = i_response[p].rawvalue;
+                  for (let p in snapshot.properties) {
+                    row[p] = snapshot.properties[p].rawvalue;
                   }
                   rows.push(row);
                 }
@@ -3187,20 +3256,16 @@ class FreeNASApiDriver extends CsiBaseDriver {
               )}`;
               response = await httpClient.get(endpoint, {
                 "extra.snapshots": 1,
+                "extra.snapshots_properties": JSON.stringify(zfsProperties),
               });
               if (response.statusCode == 404) {
                 throw new Error("dataset does not exist");
               } else if (response.statusCode == 200) {
                 for (let child of response.body.children) {
                   for (let snapshot of child.snapshots) {
-                    // TODO: alter the logic here to not be n+1
-                    let i_response = await httpApiClient.SnapshotGet(
-                      snapshot.name,
-                      zfsProperties
-                    );
                     let row = {};
-                    for (let p in i_response) {
-                      row[p] = i_response[p].rawvalue;
+                    for (let p in snapshot.properties) {
+                      row[p] = snapshot.properties[p].rawvalue;
                     }
                     rows.push(row);
                   }
@@ -3266,7 +3331,6 @@ class FreeNASApiDriver extends CsiBaseDriver {
               } else if (response.statusCode == 200) {
                 for (let child of response.body.children) {
                   for (let grandchild of child.children) {
-                    // TODO: ask for full snapshot properties to be returned in the above endpoint to avoid the n+1 logic here
                     let i_response = httpApiClient.normalizeProperties(
                       grandchild,
                       zfsProperties
@@ -3543,6 +3607,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           retention_policy: "NONE",
           readonly: "IGNORE",
           properties: false,
+          only_from_scratch: true,
         });
 
         let job_id = response;
@@ -3555,16 +3620,21 @@ class FreeNASApiDriver extends CsiBaseDriver {
           await sleep(3000);
         }
 
+        job.error = job.error || "";
+
         switch (job.state) {
           case "SUCCESS":
             break;
           case "FAILED":
-            // TODO: handle scenarios where the dataset
-            break;
           case "ABORTED":
-            // TODO: handle this
-            break;
           default:
+            //[EFAULT] Target dataset 'tank/.../clone-test' already exists.
+            if (!job.error.includes("already exists")) {
+              throw new GrpcError(
+                grpc.status.UNKNOWN,
+                `failed to run replication task (${job.state}): ${job.error}`
+              );
+            }
             break;
         }
 

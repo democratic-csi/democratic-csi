@@ -90,9 +90,20 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         "CLONE_VOLUME",
         //"PUBLISH_READONLY",
         "EXPAND_VOLUME",
-        //"VOLUME_CONDITION", // added in v1.3.0
-        //"GET_VOLUME", // added in v1.3.0
       ];
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        options.service.controller.capabilities.rpc.push(
+          //"VOLUME_CONDITION",
+          "GET_VOLUME"
+        );
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.controller.capabilities.rpc.push(
+          "SINGLE_NODE_MULTI_WRITER"
+        );
+      }
     }
 
     if (!("rpc" in options.service.node.capabilities)) {
@@ -117,6 +128,18 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             //"VOLUME_CONDITION",
           ];
           break;
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        //options.service.node.capabilities.rpc.push("VOLUME_CONDITION");
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.node.capabilities.rpc.push("SINGLE_NODE_MULTI_WRITER");
+        /**
+         * This is for volumes that support a mount time gid such as smb or fat
+         */
+        //options.service.node.capabilities.rpc.push("VOLUME_MOUNT_GROUP"); // in k8s is sent in as the security context fsgroup
       }
     }
   }
@@ -219,6 +242,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
@@ -247,6 +272,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
