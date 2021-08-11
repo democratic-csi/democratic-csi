@@ -361,7 +361,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
         } else {
           // create lun
-          data = Object.assign({}, driver.options.iscsi.lunAttributes, {
+          data = Object.assign({}, driver.options.iscsi.lunTemplate, {
             name: iscsiName,
             location: driver.options.synology.volume,
             size: capacity_bytes,
@@ -371,7 +371,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
         // create target
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
-        data = Object.assign({}, driver.options.iscsi.targetAttributes, {
+        data = Object.assign({}, driver.options.iscsi.targetTemplate, {
           name: iscsiName,
           iqn,
         });
