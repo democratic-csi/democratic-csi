@@ -774,7 +774,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       };
     }
 
-    let data = Object.assign({}, driver.options.iscsi.lunSnapshotAttributes, {
+    let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, {
       src_lun_uuid: lun.uuid,
       taken_by: "democratic-csi",
       description: name, //check
