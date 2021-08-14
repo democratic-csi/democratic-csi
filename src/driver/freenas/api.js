@@ -1601,29 +1601,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
   }
 
-  async removeSnapshotsFromDatatset(datasetName, options = {}) {
-    // TODO: alter the logic here to not be n+1
-    // https://jira.ixsystems.com/browse/NAS-111708
-    const httpClient = await this.getHttpClient();
+  async removeSnapshotsFromDatatset(datasetName) {
     const httpApiClient = await this.getTrueNASHttpApiClient();
-
-    let response;
-    let endpoint = `/pool/dataset/id/${encodeURIComponent(datasetName)}`;
-    response = await httpClient.get(endpoint, { "extra.snapshots": 1 });
-
-    //console.log(response);
-
-    if (response.statusCode == 404) {
-      return;
-    }
-    if (response.statusCode == 200) {
-      for (let snapshot of response.body.snapshots) {
-        await httpApiClient.SnapshotDelete(snapshot.name);
-      }
-      return;
-    }
-
-    throw new Error("unhandled statusCode: " + response.statusCode);
+    let job_id = await httpApiClient.DatasetDestroySnapshots(datasetName);
+    await httpApiClient.CoreWaitForJob(job_id, 30);
   }
 
   /**
@@ -2224,9 +2205,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
             }
 
             // remove snapshots from target
-            await this.removeSnapshotsFromDatatset(datasetName, {
-              force: true,
-            });
+            await this.removeSnapshotsFromDatatset(datasetName);
           } else {
             try {
               response = await httpApiClient.CloneCreate(
@@ -2377,9 +2356,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
             );
 
             // remove snapshots from target
-            await this.removeSnapshotsFromDatatset(datasetName, {
-              force: true,
-            });
+            await this.removeSnapshotsFromDatatset(datasetName);
 
             // remove snapshot from source
             await httpApiClient.SnapshotDelete(fullSnapshotName, {
@@ -2707,7 +2684,6 @@ class FreeNASApiDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async ControllerExpandVolume(call) {
-    // TODO: https://jira.ixsystems.com/browse/NAS-111707
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();

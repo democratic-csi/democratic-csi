@@ -1,3 +1,4 @@
+const { sleep } = require("../../../utils/general");
 const { Zetabyte } = require("../../../utils/zfs");
 
 // used for in-memory cache of the version info
@@ -491,6 +492,30 @@ class Api {
     throw new Error(JSON.stringify(response.body));
   }
 
+  async DatasetDestroySnapshots(datasetName, data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    let response;
+    let endpoint;
+
+    data.name = datasetName;
+
+    endpoint = "/pool/dataset/destroy_snapshots";
+    response = await httpClient.post(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    if (
+      response.statusCode == 422 &&
+      JSON.stringify(response.body).includes("already exists")
+    ) {
+      return;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
   async SnapshotSet(snapshotName, properties) {
     const httpClient = await this.getHttpClient(false);
     let response;
@@ -652,6 +677,31 @@ class Api {
     }
 
     throw new Error(JSON.stringify(response.body));
+  }
+
+  async CoreWaitForJob(job_id, timeout = 0) {
+    if (!job_id) {
+      throw new Error("invalid job_id");
+    }
+
+    const startTime = Date.now() / 1000;
+    let currentTime;
+
+    let job;
+
+    // wait for job to finish
+    while (!job || !["SUCCESS", "ABORTED", "FAILED"].includes(job.state)) {
+      job = await this.CoreGetJobs({ id: job_id });
+      job = job[0];
+      await sleep(3000);
+
+      currentTime = Date.now() / 1000;
+      if (timeout > 0 && currentTime > startTime + timeout) {
+        throw new Error("timeout waiting for job to complete");
+      }
+    }
+
+    return job;
   }
 
   async CoreGetJobs(data) {
