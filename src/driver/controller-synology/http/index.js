@@ -91,7 +91,7 @@ class SynologyHttpClient {
         case "GET":
           let qsData = JSON.parse(JSON.stringify(data));
           for (let p in qsData) {
-            if (Array.isArray(qsData[p])) {
+            if (Array.isArray(qsData[p]) || typeof qsData[p] == "boolean") {
               qsData[p] = JSON.stringify(qsData[p]);
             }
           }
@@ -486,7 +486,10 @@ class SynologyHttpClient {
     return await this.do_request(
       "GET",
       "entry.cgi",
-      Object.assign({}, iscsi_lun_extend, { uuid: JSON.stringify(uuid), new_size: size })
+      Object.assign({}, iscsi_lun_extend, {
+        uuid: JSON.stringify(uuid),
+        new_size: size,
+      })
     );
   }
 
