@@ -36,16 +36,12 @@ job "storage-controller" {
         args = [
           "--csi-version=1.2.0",
           "--csi-name=org.democratic-csi.nfs",
-          "--driver-config-file=/config/driver-config-file.yaml",
+          "--driver-config-file=${NOMAD_TASK_DIR}/driver-config-file.yaml",
           "--log-level=debug",
           "--csi-mode=controller",
           "--server-socket=/csi-data/csi.sock",
           "--server-address=0.0.0.0",
           "--server-port=9000",
-        ]
-
-        volumes = [
-          "config/driver-config-file.yaml:/config/driver-config-file.yaml",
         ]
 
         privileged = true
@@ -58,7 +54,7 @@ job "storage-controller" {
       }
 
       template {
-        destination = "config/driver-config-file.yaml"
+        destination = "${NOMAD_TASK_DIR}/driver-config-file.yaml"
 
         data = <<EOH
 config
@@ -91,14 +87,10 @@ job "storage-node" {
         args = [
           "--csi-version=1.2.0",
           "--csi-name=org.democratic-csi.nfs",
-          "--driver-config-file=/config/driver-config-file.yaml",
+          "--driver-config-file=${NOMAD_TASK_DIR}/driver-config-file.yaml",
           "--log-level=debug",
           "--csi-mode=node",
           "--server-socket=/csi-data/csi.sock",
-        ]
-
-        volumes = [
-          "config/driver-config-file.yaml:/config/driver-config-file.yaml",
         ]
 
         privileged = true
@@ -111,7 +103,7 @@ job "storage-node" {
       }
 
       template {
-        destination = "/config/driver-config-file.yaml"
+        destination = "${NOMAD_TASK_DIR}/driver-config-file.yaml"
 
         data = <<EOH
 config
