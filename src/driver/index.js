@@ -571,7 +571,33 @@ class CsiBaseDriver {
             case "ext3":
             case "ext4dev":
               //await filesystem.checkFilesystem(device, fs_info.type);
-              await filesystem.expandFilesystem(device, fs_type);
+              try {
+                await filesystem.expandFilesystem(device, fs_type);
+              } catch (err) {
+                // mount is clean and rw, but it will not expand until clean umount has been done
+                // failed to execute filesystem command: resize2fs /dev/sda, response: {"code":1,"stdout":"Couldn't find valid filesystem superblock.\n","stderr":"resize2fs 1.44.5 (15-Dec-2018)\nresize2fs: Superblock checksum does not match superblock while trying to open /dev/sda\n"}
+                // /dev/sda on /var/lib/kubelet/plugins/kubernetes.io/csi/pv/pvc-4a80757e-5e87-475d-826f-44fcc4719348/globalmount type ext4 (rw,relatime,stripe=256)
+                if (
+                  err.code == 1 &&
+                  err.stdout.includes("find valid filesystem superblock") &&
+                  err.stderr.includes("checksum does not match superblock")
+                ) {
+                  driver.ctx.logger.warn(
+                    `successful mount, unsuccessful fs resize: attempting abnormal umount/mount/resize2fs to clear things up ${staging_target_path} (${device})`
+                  );
+
+                  // try an unmount/mount/fsck cycle again just to clean things up
+                  await mount.umount(staging_target_path, []);
+                  await mount.mount(
+                    device,
+                    staging_target_path,
+                    ["-t", fs_type].concat(["-o", mount_flags.join(",")])
+                  );
+                  await filesystem.expandFilesystem(device, fs_type);
+                } else {
+                  throw err;
+                }
+              }
               break;
             case "xfs":
               //await filesystem.checkFilesystem(device, fs_info.type);

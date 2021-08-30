@@ -426,12 +426,13 @@ class Filesystem {
 
       // echo 1 > /sys/block/sdb/device/rescan
       const sys_file = `/sys/block/${device_name}/device/rescan`;
+      console.log(`executing filesystem command: echo 1 > ${sys_file}`);
       fs.writeFileSync(sys_file, "1");
     }
   }
 
   /**
-   * expand a give filesystem
+   * expand a given filesystem
    *
    * @param {*} device
    * @param {*} fstype
@@ -474,7 +475,7 @@ class Filesystem {
   }
 
   /**
-   * expand a give filesystem
+   * check a given filesystem
    *
    * fsck [options] -- [fs-options] [<filesystem> ...]
    *
@@ -593,7 +594,7 @@ class Filesystem {
       args.unshift(command);
       command = filesystem.options.paths.sudo;
     }
-    console.log("executing fileystem command: %s %s", command, args.join(" "));
+    console.log("executing filesystem command: %s %s", command, args.join(" "));
     const child = filesystem.options.executor.spawn(command, args, options);
 
     let didTimeout = false;
