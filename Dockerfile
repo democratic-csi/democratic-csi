@@ -43,6 +43,8 @@ RUN rm -rf docker
 ######################
 FROM debian:10-slim
 
+LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 ARG TARGETPLATFORM
