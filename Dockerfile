@@ -17,7 +17,7 @@ ENV NODE_VERSION=v12.22.6
 ENV NODE_ENV=production
 
 # install build deps
-RUN apt-get update && apt-get install -y python make gcc g++
+RUN apt-get update && apt-get install -y python make cmake gcc g++
 
 # install node
 RUN apt-get update && apt-get install -y wget xz-utils
