@@ -298,6 +298,14 @@ class CsiBaseDriver {
       call.request.volume_context.provisioner_driver_instance_id
     );
 
+    /*
+    let mount_options = await mount.getMountOptions(staging_target_path);
+    console.log(mount_options);
+    console.log(await mount.getMountOptionValue(mount_options, "stripe"));
+    console.log(await mount.getMountOptionPresent(mount_options, "stripee"));
+    throw new Error("foobar");
+    */
+
     if (access_type == "mount") {
       fs_type = capability.mount.fs_type;
       mount_flags = capability.mount.mount_flags || [];
@@ -306,6 +314,10 @@ class CsiBaseDriver {
         mount_flags.push(normalizedSecrets.mount_flags);
       }
       mount_flags.push("defaults");
+
+      // https://github.com/karelzak/util-linux/issues/1429
+      //mount_flags.push("x-democratic-csi.managed");
+      //mount_flags.push("x-democratic-csi.staged");
 
       if (
         semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
@@ -373,9 +385,27 @@ class CsiBaseDriver {
         // ensure unique entries only
         portals = [...new Set(portals)];
 
+        // stores actual device paths after iscsi login
         let iscsiDevices = [];
 
+        // stores configuration of targets/iqn/luns to connect to
+        let iscsiConnections = [];
         for (let portal of portals) {
+          iscsiConnections.push({
+            portal,
+            iqn: volume_context.iqn,
+            lun: volume_context.lun,
+          });
+        }
+
+        /**
+         * TODO: allow sending in iscsiConnection in a raw/manual format
+         * TODO: allow option to determine if send_targets should be invoked
+         * TODO: allow option to control whether nodedb entry should be created by driver
+         * TODO: allow option to control whether nodedb entry should be deleted by driver
+         */
+
+        for (let iscsiConnection of iscsiConnections) {
           // create DB entry
           // https://library.netapp.com/ecmdocs/ECMP1654943/html/GUID-8EC685B4-8CB6-40D8-A8D5-031A3899BCDC.html
           // put these options in place to force targets managed by csi to be explicitly attached (in the case of unclearn shutdown etc)
@@ -391,24 +421,27 @@ class CsiBaseDriver {
             }
           }
           await iscsi.iscsiadm.createNodeDBEntry(
-            volume_context.iqn,
-            portal,
+            iscsiConnection.iqn,
+            iscsiConnection.portal,
             nodeDB
           );
           // login
-          await iscsi.iscsiadm.login(volume_context.iqn, portal);
+          await iscsi.iscsiadm.login(
+            iscsiConnection.iqn,
+            iscsiConnection.portal
+          );
 
           // get associated session
           let session = await iscsi.iscsiadm.getSession(
-            volume_context.iqn,
-            portal
+            iscsiConnection.iqn,
+            iscsiConnection.portal
           );
 
           // rescan in scenarios when login previously occurred but volumes never appeared
           await iscsi.iscsiadm.rescanSession(session);
 
           // find device name
-          device = `/dev/disk/by-path/ip-${portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
+          device = `/dev/disk/by-path/ip-${iscsiConnection.portal}-iscsi-${iscsiConnection.iqn}-lun-${iscsiConnection.lun}`;
           let deviceByPath = device;
 
           // can take some time for device to show up, loop for some period
@@ -439,7 +472,7 @@ class CsiBaseDriver {
             iscsiDevices.push(device);
 
             driver.ctx.logger.info(
-              `successfully logged into portal ${portal} and created device ${deviceByPath} with realpath ${device}`
+              `successfully logged into portal ${iscsiConnection.portal} and created device ${deviceByPath} with realpath ${device}`
             );
           }
         }
@@ -461,7 +494,7 @@ class CsiBaseDriver {
           );
         }
 
-        if (iscsiDevices.length != portals.length) {
+        if (iscsiDevices.length != iscsiConnections.length) {
           driver.ctx.logger.warn(
             `failed to attach all iscsi devices/targets/portals`
           );
@@ -484,7 +517,8 @@ class CsiBaseDriver {
           iscsiDevices.includes(value)
         );
 
-        const useMultipath = portals.length > 1 || commonDevices.length > 0;
+        const useMultipath =
+          iscsiConnections.length > 1 || commonDevices.length > 0;
 
         // discover multipath device to use
         if (useMultipath) {
@@ -678,6 +712,8 @@ class CsiBaseDriver {
 
     //result = await mount.pathIsMounted(block_path);
     //result = await mount.pathIsMounted(staging_target_path)
+
+    // TODO: use the x-* mount options to detect if we should delete target
 
     try {
       result = await mount.pathIsMounted(block_path);
@@ -900,7 +936,13 @@ class CsiBaseDriver {
     }
 
     bind_mount_flags.push("defaults");
+
+    // https://github.com/karelzak/util-linux/issues/1429
+    //bind_mount_flags.push("x-democratic-csi.managed");
+    //bind_mount_flags.push("x-democratic-csi.published");
+
     if (readonly) bind_mount_flags.push("ro");
+    // , "x-democratic-csi.ro"
 
     switch (node_attach_driver) {
       case "nfs":

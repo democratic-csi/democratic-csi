@@ -145,7 +145,7 @@ class Mount {
    *
    * @param {*} path
    */
-  async getMountDetails(path, extraOutputProperties = []) {
+  async getMountDetails(path, extraOutputProperties = [], extraArgs = []) {
     const mount = this;
     let args = [];
     const common_options = JSON.parse(JSON.stringify(FINDMNT_COMMON_OPTIONS));
@@ -156,6 +156,7 @@ class Mount {
 
     args = args.concat(["--mountpoint", path]);
     args = args.concat(common_options);
+    args = args.concat(extraArgs);
     let result;
 
     try {
@@ -165,6 +166,94 @@ class Mount {
     } catch (err) {
       throw err;
     }
+  }
+
+  /**
+   * parse a mount options string into an array
+   *
+   * @param {*} options
+   * @returns
+   */
+  async parseMountOptions(options) {
+    if (!options) {
+      return [];
+    }
+
+    if (Array.isArray(options)) {
+      return options;
+    }
+
+    options = options.split(",");
+    return options;
+  }
+
+  /**
+   * Given the set of mount options and sought after option, return true if the option is present
+   *
+   * @param {*} options
+   * @param {*} option
+   * @returns
+   */
+  async getMountOptionPresent(options, option) {
+    const mount = this;
+
+    if (!Array.isArray(options)) {
+      options = await mount.parseMountOptions(options);
+    }
+
+    for (let i of options) {
+      let parts = i.split("=", 2);
+      if (parts[0] == option) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the value of the given mount option
+   *
+   * if the mount option is present by has no value null is returned
+   * if the mount option is NOT present undefined is returned
+   * is the mount option has a value that value is returned
+   *
+   * @param {*} options
+   * @param {*} option
+   * @returns
+   */
+  async getMountOptionValue(options, option) {
+    const mount = this;
+
+    if (!Array.isArray(options)) {
+      options = await mount.parseMountOptions(options);
+    }
+
+    for (let i of options) {
+      let parts = i.split("=", 2);
+      if (parts[0] == option) {
+        if (typeof parts[1] === "undefined") {
+          return null;
+        } else {
+          return parts[1];
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get mount optsion for a given path
+   *
+   * @param {*} path
+   * @returns Array
+   */
+  async getMountOptions(path) {
+    const mount = this;
+    let details = await mount.getMountDetails(path, [], ["-m"]);
+
+    return await mount.parseMountOptions(details.options);
   }
 
   /**

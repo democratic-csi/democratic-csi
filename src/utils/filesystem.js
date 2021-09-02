@@ -326,9 +326,14 @@ class Filesystem {
     try {
       result = await filesystem.exec("blkid", args);
     } catch (err) {
+      if (err.code == 2 && err.stderr.includes("No such device or address")) {
+        throw err;
+      }
+
       if (err.code == 2) {
         return false;
       }
+
       throw err;
     }
 
