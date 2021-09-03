@@ -1,3 +1,24 @@
+# v1.3.0
+
+Released 2021-09-02
+
+- use `ghcr.io` for images as well as docker hub (#90)
+- introduce api-only drivers for freenas (`freenas-api-*`)
+- `smb-client` driver which creates folders on an smb share
+- `lustre-client` driver which creates folders on a lustre share
+  attaching to various volumes which have been pre-provisioned by the operator
+- `synology-iscsi` driver
+- various documentation improvements
+- support for csi versions `1.4.0` and `1.5.0`
+- reintroduce advanced options that allow control over `fsck` (#85)
+- advanced options for customizing `mkfs` commands
+- better handling of stale nfs connections
+- do not log potentially sensitive data in mount commands
+- timeouts on various commands to improve driver operations under adverse
+  conditions
+- various fixes and improvements throughout
+- dependency bumps
+
 # v1.2.0
 
 Released 2021-05-12
