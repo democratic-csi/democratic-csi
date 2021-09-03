@@ -201,9 +201,8 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
                   share = {
                     nfs_paths: [properties.mountpoint.value],
                     nfs_comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
-                    nfs_network: this.options.nfs.shareAllowedNetworks.join(
-                      ","
-                    ),
+                    nfs_network:
+                      this.options.nfs.shareAllowedNetworks.join(","),
                     nfs_hosts: this.options.nfs.shareAllowedHosts.join(","),
                     nfs_alldirs: this.options.nfs.shareAlldirs,
                     nfs_ro: false,
@@ -633,11 +632,10 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
           ? this.options.iscsi.extentBlocksize
           : 512;
 
-        const extentDisablePhysicalBlocksize = this.options.iscsi.hasOwnProperty(
-          "extentDisablePhysicalBlocksize"
-        )
-          ? this.options.iscsi.extentDisablePhysicalBlocksize
-          : true;
+        const extentDisablePhysicalBlocksize =
+          this.options.iscsi.hasOwnProperty("extentDisablePhysicalBlocksize")
+            ? this.options.iscsi.extentDisablePhysicalBlocksize
+            : true;
 
         const extentRpm = this.options.iscsi.hasOwnProperty("extentRpm")
           ? this.options.iscsi.extentRpm
@@ -1605,6 +1603,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
   async expandVolume(call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const sshClient = this.getSshClient();
+    const zb = await this.getZetabyte();
 
     switch (driverShareType) {
       case "iscsi":
@@ -1612,7 +1611,29 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
         let command;
         let reload = false;
         if (isScale) {
-          command = sshClient.buildCommand("systemctl", ["reload", "scst"]);
+          let properties;
+          properties = await zb.zfs.get(datasetName, [
+            FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME,
+          ]);
+          properties = properties[datasetName];
+          this.ctx.logger.debug("zfs props data: %j", properties);
+          let iscsiName =
+            properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+
+          /**
+           * command = sshClient.buildCommand("systemctl", ["reload", "scst"]);
+           * does not help ^
+           *
+           * echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size
+           * works ^
+           *
+           * scstadmin -resync_dev ${iscsiName}
+           * works but always give a exit code of 1 ^
+           */
+          command = sshClient.buildCommand("sh", [
+            "-c",
+            `echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size`,
+          ]);
           reload = true;
         } else {
           command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
