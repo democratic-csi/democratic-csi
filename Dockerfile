@@ -12,12 +12,12 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
         && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
 ENV LANG=en_US.utf8
-ENV NODE_VERSION=v12.20.0
+ENV NODE_VERSION=v12.22.6
 #ENV NODE_VERSION=v14.15.1
 ENV NODE_ENV=production
 
 # install build deps
-RUN apt-get update && apt-get install -y python make gcc g++
+RUN apt-get update && apt-get install -y python make cmake gcc g++
 
 # install node
 RUN apt-get update && apt-get install -y wget xz-utils
@@ -42,6 +42,8 @@ RUN rm -rf docker
 # actual image
 ######################
 FROM debian:10-slim
+
+LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
 
 ENV DEBIAN_FRONTEND=noninteractive
 

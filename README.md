@@ -18,13 +18,21 @@ have access to resizing, snapshots, clones, etc functionality.
   - `freenas-nfs` (manages zfs datasets to share over nfs)
   - `freenas-iscsi` (manages zfs zvols to share over iscsi)
   - `freenas-smb` (manages zfs datasets to share over smb)
+  - `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)
+  - `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)
+  - `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
+  - `synology-iscsi` experimental (manages volumes to share over iscsi)
+  - `lustre-client` (crudely provisions storage using a shared lustre
+    share/directory for all volumes)
   - `nfs-client` (crudely provisions storage using a shared nfs share/directory
     for all volumes)
-  - `node-manual` (allows connecting to manually created smb, nfs, and iscsi
-    volumes, see sample PVs in the `examples` directory)
+  - `smb-client` (crudely provisions storage using a shared smb share/directory
+    for all volumes)
+  - `node-manual` (allows connecting to manually created smb, nfs, lustre, and
+    iscsi volumes, see sample PVs in the `examples` directory)
 - framework for developing `csi` drivers
 
 If you have any interest in providing a `csi` driver, simply open an issue to
@@ -40,11 +48,13 @@ Predominantly 3 things are needed:
 - deploy the driver into the cluster (`helm` chart provided with sample
   `values.yaml`)
 
-## Guides
+## Community Guides
 
 - https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
 - https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
   from `nfs-client-provisioner` to `democratic-csi`)
+- https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
+  (migrating between storage classes using `velero`)
 
 ## Node Prep
 
@@ -135,10 +145,15 @@ necessary.
 
 Server preparation depends slightly on which `driver` you are using.
 
-### FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb)
+### FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb, freenas-api-nfs, freenas-api-iscsi, freenas-api-smb)
 
 The recommended version of FreeNAS is 12.0-U2+, however the driver should work
 with much older versions as well.
+
+The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be
+used with SCALE 21.08+. Fundamentally these drivers remove the need for `ssh`
+connections and do all operations entirely with the TrueNAS api. With that in
+mind, any ssh/shell/etc requirements below can be safely ignored.
 
 Ensure the following services are configurged and running:
 
@@ -172,6 +187,7 @@ non-`root` user when connecting to the FreeNAS server:
   ```
   csi ALL=(ALL) NOPASSWD:ALL
   ```
+
   (note this can get reset by FreeNAS if you alter the user via the
   GUI later)
 
@@ -202,6 +218,10 @@ Ensure ssh and zfs is installed on the nfs/iscsi server and that you have instal
 
 - `sudo yum install targetcli -y`
 - `sudo apt-get -y install targetcli-fb`
+
+### Synology (synology-iscsi)
+
+Ensure iscsi manager has been installed and is generally setup/configured.
 
 ## Helm Installation
 
@@ -246,6 +266,9 @@ microk8s helm upgrade \
   --namespace democratic-csi \
   zfs-nfs democratic-csi/democratic-csi
 ```
+
+- microk8s - `/var/snap/microk8s/common/var/lib/kubelet`
+- pivotal - `/var/vcap/data/kubelet`
 
 ### openshift
 

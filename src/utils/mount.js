@@ -1,12 +1,16 @@
 const cp = require("child_process");
 const { Filesystem } = require("../utils/filesystem");
 
+// avoid using avail,size,used as it causes hangs when the fs is stale
 FINDMNT_COMMON_OPTIONS = [
   "--output",
-  "source,target,fstype,label,options,avail,size,used",
+  "source,target,fstype,label,options",
   "-b",
-  "-J"
+  "-J",
+  "--nofsroot", // prevents unwanted behavior with cifs volumes
 ];
+
+DEFAUT_TIMEOUT = 30000;
 
 class Mount {
   constructor(options = {}) {
@@ -36,7 +40,7 @@ class Mount {
 
     if (!options.executor) {
       options.executor = {
-        spawn: cp.spawn
+        spawn: cp.spawn,
       };
     }
   }
@@ -141,11 +145,18 @@ class Mount {
    *
    * @param {*} path
    */
-  async getMountDetails(path) {
+  async getMountDetails(path, extraOutputProperties = [], extraArgs = []) {
     const mount = this;
     let args = [];
+    const common_options = JSON.parse(JSON.stringify(FINDMNT_COMMON_OPTIONS));
+    if (extraOutputProperties.length > 0) {
+      common_options[1] =
+        common_options[1] + "," + extraOutputProperties.join(",");
+    }
+
     args = args.concat(["--mountpoint", path]);
-    args = args.concat(FINDMNT_COMMON_OPTIONS);
+    args = args.concat(common_options);
+    args = args.concat(extraArgs);
     let result;
 
     try {
@@ -155,6 +166,94 @@ class Mount {
     } catch (err) {
       throw err;
     }
+  }
+
+  /**
+   * parse a mount options string into an array
+   *
+   * @param {*} options
+   * @returns
+   */
+  async parseMountOptions(options) {
+    if (!options) {
+      return [];
+    }
+
+    if (Array.isArray(options)) {
+      return options;
+    }
+
+    options = options.split(",");
+    return options;
+  }
+
+  /**
+   * Given the set of mount options and sought after option, return true if the option is present
+   *
+   * @param {*} options
+   * @param {*} option
+   * @returns
+   */
+  async getMountOptionPresent(options, option) {
+    const mount = this;
+
+    if (!Array.isArray(options)) {
+      options = await mount.parseMountOptions(options);
+    }
+
+    for (let i of options) {
+      let parts = i.split("=", 2);
+      if (parts[0] == option) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the value of the given mount option
+   *
+   * if the mount option is present by has no value null is returned
+   * if the mount option is NOT present undefined is returned
+   * is the mount option has a value that value is returned
+   *
+   * @param {*} options
+   * @param {*} option
+   * @returns
+   */
+  async getMountOptionValue(options, option) {
+    const mount = this;
+
+    if (!Array.isArray(options)) {
+      options = await mount.parseMountOptions(options);
+    }
+
+    for (let i of options) {
+      let parts = i.split("=", 2);
+      if (parts[0] == option) {
+        if (typeof parts[1] === "undefined") {
+          return null;
+        } else {
+          return parts[1];
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get mount optsion for a given path
+   *
+   * @param {*} path
+   * @returns Array
+   */
+  async getMountOptions(path) {
+    const mount = this;
+    let details = await mount.getMountDetails(path, [], ["-m"]);
+
+    return await mount.parseMountOptions(details.options);
   }
 
   /**
@@ -179,8 +278,8 @@ class Mount {
 
   /**
    * very specifically looking for *devices* vs *filesystems/directories* which were bind mounted
-   * 
-   * @param {*} path 
+   *
+   * @param {*} path
    */
   async isBindMountedBlockDevice(path) {
     const filesystem = new Filesystem();
@@ -278,7 +377,11 @@ class Mount {
     return true;
   }
 
-  exec(command, args, options) {
+  exec(command, args, options = {}) {
+    if (!options.hasOwnProperty("timeout")) {
+      options.timeout = DEFAUT_TIMEOUT;
+    }
+
     const mount = this;
     args = args || [];
 
@@ -290,9 +393,22 @@ class Mount {
       args.unshift(command);
       command = mount.options.paths.sudo;
     }
-    console.log("executing mount command: %s %s", command, args.join(" "));
+    // https://regex101.com/r/FHIbcw/3
+    // replace password=foo with password=redacted
+    // (?<=password=)(?:([\"'])(?:\\\1|.)*?\1|[^,\s]+)
+    const regex = /(?<=password=)(?:([\"'])(?:\\\1|.)*?\1|[^,\s]+)/gi;
+    const cleansedLog = `${command} ${args.join(" ")}`.replace(
+      regex,
+      "redacted"
+    );
+
+    console.log("executing mount command: %s", cleansedLog);
     const child = mount.options.executor.spawn(command, args, options);
 
+    /**
+     * timeout option natively supported since v16
+     * TODO: properly handle this based on nodejs version
+     */
     let didTimeout = false;
     if (options && options.timeout) {
       timeout = setTimeout(() => {
@@ -302,19 +418,27 @@ class Mount {
     }
 
     return new Promise((resolve, reject) => {
-      child.stdout.on("data", function(data) {
+      child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });
 
-      child.stderr.on("data", function(data) {
+      child.stderr.on("data", function (data) {
         stderr = stderr + data;
       });
 
-      child.on("close", function(code) {
-        const result = { code, stdout, stderr };
+      child.on("close", function (code) {
+        const result = { code, stdout, stderr, timeout: false };
+
         if (timeout) {
           clearTimeout(timeout);
         }
+
+        // timeout scenario
+        if (code === null) {
+          result.timeout = true;
+          reject(result);
+        }
+
         if (code) {
           reject(result);
         } else {

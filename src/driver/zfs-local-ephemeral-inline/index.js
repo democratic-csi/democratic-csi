@@ -2,6 +2,7 @@ const fs = require("fs");
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const { Filesystem } = require("../../utils/filesystem");
+const semver = require("semver");
 const SshClient = require("../../utils/ssh").SshClient;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
@@ -81,6 +82,21 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
         //"PUBLISH_READONLY",
         //"EXPAND_VOLUME"
       ];
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        options.service.controller.capabilities.rpc
+          .push
+          //"VOLUME_CONDITION",
+          //"GET_VOLUME"
+          ();
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.controller.capabilities.rpc
+          .push
+          //"SINGLE_NODE_MULTI_WRITER"
+          ();
+      }
     }
 
     if (!("rpc" in options.service.node.capabilities)) {
@@ -91,6 +107,18 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
         "GET_VOLUME_STATS",
         //"EXPAND_VOLUME",
       ];
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        //options.service.node.capabilities.rpc.push("VOLUME_CONDITION");
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.node.capabilities.rpc.push("SINGLE_NODE_MULTI_WRITER");
+        /**
+         * This is for volumes that support a mount time gid such as smb or fat
+         */
+        //options.service.node.capabilities.rpc.push("VOLUME_MOUNT_GROUP");
+      }
     }
   }
 
@@ -167,6 +195,8 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
             ].includes(capability.access_mode.mode)
           ) {
@@ -192,6 +222,8 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
             ].includes(capability.access_mode.mode)
           ) {

@@ -1,4 +1,4 @@
-driver: freenas-smb
+driver: freenas-api-nfs
 instance_id:
 httpConnection:
   protocol: http
@@ -14,16 +14,6 @@ httpConnection:
   # use apiVersion 2 for TrueNAS-12 and up (will work on 11.x in some scenarios as well)
   # leave unset for auto-detection
   #apiVersion: 2
-sshConnection:
-  host: server address
-  port: 22
-  username: root
-  # use either password or key
-  password: ""
-  privateKey: |
-    -----BEGIN RSA PRIVATE KEY-----
-    ...
-    -----END RSA PRIVATE KEY-----
 zfs:
   # can be used to override defaults if necessary
   # the example below is useful for TrueNAS 12
@@ -44,10 +34,6 @@ zfs:
   #  "org.freenas:test": "{{ parameters.foo }}"
   #  "org.freenas:test2": "some value"
 
-  datasetProperties:
-    aclmode: restricted
-    casesensitivity: mixed
-
   datasetParentName: tank/k8s/a/vols
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
   # they may be siblings, but neither should be nested in the other
@@ -55,33 +41,18 @@ zfs:
   datasetEnableQuotas: true
   datasetEnableReservation: false
   datasetPermissionsMode: "0777"
-  datasetPermissionsUser: nobody
-  datasetPermissionsGroup: nobody
-  datasetPermissionsAcls:
-  - "-m everyone@:full_set:allow"
+  datasetPermissionsUser: 0
+  datasetPermissionsGroup: 0
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"
 
-smb:
+nfs:
   shareHost: server address
-  nameTemplate: ""
-  namePrefix: ""
-  nameSuffix: ""
-  
-  # if any of the shareFoo parameters do not work with your version of FreeNAS
-  # simply comment the param (and use the configuration template if necessary)
-
-  shareAuxiliaryConfigurationTemplate: |
-    #guest ok = yes
-    #guest only = yes
-  shareHome: false
+  shareAlldirs: false
   shareAllowedHosts: []
-  shareDeniedHosts: []
-  #shareDefaultPermissions: true
-  shareGuestOk: true
-  #shareGuestOnly: true
-  #shareShowHiddenFiles: true
-  shareRecycleBin: true
-  shareBrowsable: false
-  shareAccessBasedEnumeration: true
-  shareTimeMachine: false
-  #shareStorageTask:
+  shareAllowedNetworks: []
+  shareMaprootUser: root
+  shareMaprootGroup: root
+  shareMapallUser: ""
+  shareMapallGroup: ""

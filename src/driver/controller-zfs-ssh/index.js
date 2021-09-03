@@ -90,9 +90,20 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         "CLONE_VOLUME",
         //"PUBLISH_READONLY",
         "EXPAND_VOLUME",
-        //"VOLUME_CONDITION", // added in v1.3.0
-        //"GET_VOLUME", // added in v1.3.0
       ];
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        options.service.controller.capabilities.rpc.push(
+          //"VOLUME_CONDITION",
+          "GET_VOLUME"
+        );
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.controller.capabilities.rpc.push(
+          "SINGLE_NODE_MULTI_WRITER"
+        );
+      }
     }
 
     if (!("rpc" in options.service.node.capabilities)) {
@@ -117,6 +128,18 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             //"VOLUME_CONDITION",
           ];
           break;
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
+        //options.service.node.capabilities.rpc.push("VOLUME_CONDITION");
+      }
+
+      if (semver.satisfies(this.ctx.csiVersion, ">=1.5.0")) {
+        options.service.node.capabilities.rpc.push("SINGLE_NODE_MULTI_WRITER");
+        /**
+         * This is for volumes that support a mount time gid such as smb or fat
+         */
+        //options.service.node.capabilities.rpc.push("VOLUME_MOUNT_GROUP"); // in k8s is sent in as the security context fsgroup
       }
     }
   }
@@ -219,6 +242,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
@@ -247,6 +272,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             ![
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
@@ -1492,7 +1519,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let types = [];
 
     const volumeParentDatasetName = this.getVolumeParentDatasetName();
-    const snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
+    const snapshotParentDatasetName =
+      this.getDetachedSnapshotParentDatasetName();
 
     // get data from cache and return immediately
     if (starting_token) {
@@ -1618,7 +1646,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           }
           throw new GrpcError(grpc.status.NOT_FOUND, message);
         }
-        throw new GrpcError(grpc.status.FAILED_PRECONDITION, e.toString());
+        throw new GrpcError(grpc.status.FAILED_PRECONDITION, err.toString());
       }
 
       response.indexed.forEach((row) => {
@@ -1771,9 +1799,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     const datasetName = datasetParentName + "/" + source_volume_id;
     snapshotProperties[SNAPSHOT_CSI_NAME_PROPERTY_NAME] = name;
-    snapshotProperties[
-      SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME
-    ] = source_volume_id;
+    snapshotProperties[SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME] =
+      source_volume_id;
     snapshotProperties[MANAGED_PROPERTY_NAME] = "true";
 
     driver.ctx.logger.verbose("requested snapshot name: %s", name);
@@ -1995,9 +2022,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     // cleanup parent dataset if possible
     if (detachedSnapshot) {
-      let containerDataset = zb.helpers.extractParentDatasetName(
-        fullSnapshotName
-      );
+      let containerDataset =
+        zb.helpers.extractParentDatasetName(fullSnapshotName);
       try {
         await this.removeSnapshotsFromDatatset(containerDataset);
         await zb.zfs.destroy(containerDataset);

@@ -18,7 +18,7 @@ const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
 
 // used for in-memory cache of the version info
 const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
-class FreeNASDriver extends ControllerZfsSshBaseDriver {
+class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
    * into various calls such as GetControllerCapabilities etc
@@ -201,9 +201,8 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
                   share = {
                     nfs_paths: [properties.mountpoint.value],
                     nfs_comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
-                    nfs_network: this.options.nfs.shareAllowedNetworks.join(
-                      ","
-                    ),
+                    nfs_network:
+                      this.options.nfs.shareAllowedNetworks.join(","),
                     nfs_hosts: this.options.nfs.shareAllowedHosts.join(","),
                     nfs_alldirs: this.options.nfs.shareAlldirs,
                     nfs_ro: false,
@@ -633,11 +632,10 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           ? this.options.iscsi.extentBlocksize
           : 512;
 
-        const extentDisablePhysicalBlocksize = this.options.iscsi.hasOwnProperty(
-          "extentDisablePhysicalBlocksize"
-        )
-          ? this.options.iscsi.extentDisablePhysicalBlocksize
-          : true;
+        const extentDisablePhysicalBlocksize =
+          this.options.iscsi.hasOwnProperty("extentDisablePhysicalBlocksize")
+            ? this.options.iscsi.extentDisablePhysicalBlocksize
+            : true;
 
         const extentRpm = this.options.iscsi.hasOwnProperty("extentRpm")
           ? this.options.iscsi.extentRpm
@@ -1232,27 +1230,13 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
           [FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME]: iscsiName,
         });
 
-        // iscsiadm -m discovery -t st -p 172.21.26.81
-        // iscsiadm -m node -T iqn.2011-03.lan.bitness.istgt:test -p bitness.lan -l
-
-        // FROM driver config? no, node attachment should have everything required to remain independent
-        // portal
-        // portals
-        // interface
-        // chap discovery
-        // chap session
-
-        // FROM context
-        // iqn
-        // lun
-
         volume_context = {
           node_attach_driver: "iscsi",
-          portal: this.options.iscsi.targetPortal,
-          portals: this.options.iscsi.targetPortals.join(","),
+          portal: this.options.iscsi.targetPortal || "",
+          portals: this.options.iscsi.targetPortals
+            ? this.options.iscsi.targetPortals.join(",")
+            : "",
           interface: this.options.iscsi.interface || "",
-          //chapDiscoveryEnabled: this.options.iscsi.chapDiscoveryEnabled,
-          //chapSessionEnabled: this.options.iscsi.chapSessionEnabled,
           iqn: iqn,
           lun: 0,
         };
@@ -1619,6 +1603,7 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
   async expandVolume(call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const sshClient = this.getSshClient();
+    const zb = await this.getZetabyte();
 
     switch (driverShareType) {
       case "iscsi":
@@ -1626,7 +1611,29 @@ class FreeNASDriver extends ControllerZfsSshBaseDriver {
         let command;
         let reload = false;
         if (isScale) {
-          command = sshClient.buildCommand("systemctl", ["reload", "scst"]);
+          let properties;
+          properties = await zb.zfs.get(datasetName, [
+            FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME,
+          ]);
+          properties = properties[datasetName];
+          this.ctx.logger.debug("zfs props data: %j", properties);
+          let iscsiName =
+            properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+
+          /**
+           * command = sshClient.buildCommand("systemctl", ["reload", "scst"]);
+           * does not help ^
+           *
+           * echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size
+           * works ^
+           *
+           * scstadmin -resync_dev ${iscsiName}
+           * works but always give a exit code of 1 ^
+           */
+          command = sshClient.buildCommand("sh", [
+            "-c",
+            `echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size`,
+          ]);
           reload = true;
         } else {
           command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
@@ -1853,4 +1860,4 @@ function IsJsonString(str) {
   return true;
 }
 
-module.exports.FreeNASDriver = FreeNASDriver;
+module.exports.FreeNASSshDriver = FreeNASSshDriver;

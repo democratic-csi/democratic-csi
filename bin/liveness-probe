@@ -10,7 +10,16 @@ const args = require("yargs")
   .usage("$0 [options]")
   .option("csi-version", {
     describe: "versin of the csi spec to load",
-    choices: ["0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0", "1.3.0"],
+    choices: [
+      "0.2.0",
+      "0.3.0",
+      "1.0.0",
+      "1.1.0",
+      "1.2.0",
+      "1.3.0",
+      "1.4.0",
+      "1.5.0",
+    ],
   })
   .demandOption(["csi-version"], "csi-version is required")
   .option("csi-address", {
@@ -49,7 +58,7 @@ const clientIdentity = new csi.Identity(
 
 /**
  * Probe the identity service and check for ready state
- * 
+ *
  * https://github.com/kubernetes-csi/livenessprobe/blob/master/cmd/livenessprobe/main.go
  * https://github.com/kubernetes-csi/csi-lib-utils/blob/master/rpc/common.go
  */

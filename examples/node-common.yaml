@@ -1,0 +1,23 @@
+# common options for the node service
+
+node:
+  mount:
+    # should fsck be executed before mounting the fs
+    checkFilesystem:
+      xfs:
+        enabled: false
+        customOptions: []
+      ext4:
+        enabled: false
+        customOptions: []
+        customFilesystemOptions: []
+  format:
+    xfs:
+      customOptions: []
+      #- -K
+      # ...
+    ext4:
+      customOptions: []
+      #- -E
+      #- nodiscard
+      # ...

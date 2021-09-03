@@ -326,9 +326,14 @@ class Filesystem {
     try {
       result = await filesystem.exec("blkid", args);
     } catch (err) {
+      if (err.code == 2 && err.stderr.includes("No such device or address")) {
+        throw err;
+      }
+
       if (err.code == 2) {
         return false;
       }
+
       throw err;
     }
 
@@ -426,12 +431,13 @@ class Filesystem {
 
       // echo 1 > /sys/block/sdb/device/rescan
       const sys_file = `/sys/block/${device_name}/device/rescan`;
+      console.log(`executing filesystem command: echo 1 > ${sys_file}`);
       fs.writeFileSync(sys_file, "1");
     }
   }
 
   /**
-   * expand a give filesystem
+   * expand a given filesystem
    *
    * @param {*} device
    * @param {*} fstype
@@ -474,7 +480,7 @@ class Filesystem {
   }
 
   /**
-   * expand a give filesystem
+   * check a given filesystem
    *
    * fsck [options] -- [fs-options] [<filesystem> ...]
    *
@@ -593,7 +599,7 @@ class Filesystem {
       args.unshift(command);
       command = filesystem.options.paths.sudo;
     }
-    console.log("executing fileystem command: %s %s", command, args.join(" "));
+    console.log("executing filesystem command: %s %s", command, args.join(" "));
     const child = filesystem.options.executor.spawn(command, args, options);
 
     let didTimeout = false;
@@ -614,10 +620,16 @@ class Filesystem {
       });
 
       child.on("close", function (code) {
-        const result = { code, stdout, stderr };
+        const result = { code, stdout, stderr, timeout: false };
         if (timeout) {
           clearTimeout(timeout);
         }
+
+        if (code === null) {
+          result.timeout = true;
+          reject(result);
+        }
+
         if (code) {
           console.log(
             "failed to execute filesystem command: %s, response: %j",

@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const os = require("os");
 const fs = require("fs");
 const { GrpcError, grpc } = require("../utils/grpc");
@@ -17,7 +18,23 @@ const sleep = require("../utils/general").sleep;
 class CsiBaseDriver {
   constructor(ctx, options) {
     this.ctx = ctx;
-    this.options = options;
+    this.options = options || {};
+
+    if (!this.options.hasOwnProperty("node")) {
+      this.options.node = {};
+    }
+
+    if (!this.options.node.hasOwnProperty("format")) {
+      this.options.node.format = {};
+    }
+
+    if (!this.options.node.hasOwnProperty("mount")) {
+      this.options.node.mount = {};
+    }
+
+    if (!this.options.node.mount.hasOwnProperty("checkFilesystem")) {
+      this.options.node.mount.checkFilesystem = {};
+    }
   }
 
   /**
@@ -269,6 +286,7 @@ class CsiBaseDriver {
     const volume_context = call.request.volume_context;
     let fs_type;
     let mount_flags;
+    let volume_mount_group;
     const node_attach_driver = volume_context.node_attach_driver;
     const block_path = staging_target_path + "/block_device";
     const bind_mount_flags = [];
@@ -280,6 +298,14 @@ class CsiBaseDriver {
       call.request.volume_context.provisioner_driver_instance_id
     );
 
+    /*
+    let mount_options = await mount.getMountOptions(staging_target_path);
+    console.log(mount_options);
+    console.log(await mount.getMountOptionValue(mount_options, "stripe"));
+    console.log(await mount.getMountOptionPresent(mount_options, "stripee"));
+    throw new Error("foobar");
+    */
+
     if (access_type == "mount") {
       fs_type = capability.mount.fs_type;
       mount_flags = capability.mount.mount_flags || [];
@@ -288,6 +314,19 @@ class CsiBaseDriver {
         mount_flags.push(normalizedSecrets.mount_flags);
       }
       mount_flags.push("defaults");
+
+      // https://github.com/karelzak/util-linux/issues/1429
+      //mount_flags.push("x-democratic-csi.managed");
+      //mount_flags.push("x-democratic-csi.staged");
+
+      if (
+        semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
+        driver.options.service.node.capabilities.rpc.includes(
+          "VOLUME_MOUNT_GROUP"
+        )
+      ) {
+        volume_mount_group = capability.mount.volume_mount_group; // in k8s this is derrived from the fsgroup in the pod security context
+      }
     }
 
     if (call.request.volume_context.provisioner_driver == "node-manual") {
@@ -316,6 +355,7 @@ class CsiBaseDriver {
 
     switch (node_attach_driver) {
       case "nfs":
+      case "lustre":
         device = `${volume_context.server}:${volume_context.share}`;
         break;
       case "smb":
@@ -345,9 +385,27 @@ class CsiBaseDriver {
         // ensure unique entries only
         portals = [...new Set(portals)];
 
+        // stores actual device paths after iscsi login
         let iscsiDevices = [];
 
+        // stores configuration of targets/iqn/luns to connect to
+        let iscsiConnections = [];
         for (let portal of portals) {
+          iscsiConnections.push({
+            portal,
+            iqn: volume_context.iqn,
+            lun: volume_context.lun,
+          });
+        }
+
+        /**
+         * TODO: allow sending in iscsiConnection in a raw/manual format
+         * TODO: allow option to determine if send_targets should be invoked
+         * TODO: allow option to control whether nodedb entry should be created by driver
+         * TODO: allow option to control whether nodedb entry should be deleted by driver
+         */
+
+        for (let iscsiConnection of iscsiConnections) {
           // create DB entry
           // https://library.netapp.com/ecmdocs/ECMP1654943/html/GUID-8EC685B4-8CB6-40D8-A8D5-031A3899BCDC.html
           // put these options in place to force targets managed by csi to be explicitly attached (in the case of unclearn shutdown etc)
@@ -363,24 +421,27 @@ class CsiBaseDriver {
             }
           }
           await iscsi.iscsiadm.createNodeDBEntry(
-            volume_context.iqn,
-            portal,
+            iscsiConnection.iqn,
+            iscsiConnection.portal,
             nodeDB
           );
           // login
-          await iscsi.iscsiadm.login(volume_context.iqn, portal);
+          await iscsi.iscsiadm.login(
+            iscsiConnection.iqn,
+            iscsiConnection.portal
+          );
 
           // get associated session
           let session = await iscsi.iscsiadm.getSession(
-            volume_context.iqn,
-            portal
+            iscsiConnection.iqn,
+            iscsiConnection.portal
           );
 
           // rescan in scenarios when login previously occurred but volumes never appeared
           await iscsi.iscsiadm.rescanSession(session);
 
           // find device name
-          device = `/dev/disk/by-path/ip-${portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
+          device = `/dev/disk/by-path/ip-${iscsiConnection.portal}-iscsi-${iscsiConnection.iqn}-lun-${iscsiConnection.lun}`;
           let deviceByPath = device;
 
           // can take some time for device to show up, loop for some period
@@ -411,7 +472,7 @@ class CsiBaseDriver {
             iscsiDevices.push(device);
 
             driver.ctx.logger.info(
-              `successfully logged into portal ${portal} and created device ${deviceByPath} with realpath ${device}`
+              `successfully logged into portal ${iscsiConnection.portal} and created device ${deviceByPath} with realpath ${device}`
             );
           }
         }
@@ -433,7 +494,7 @@ class CsiBaseDriver {
           );
         }
 
-        if (iscsiDevices.length != portals.length) {
+        if (iscsiDevices.length != iscsiConnections.length) {
           driver.ctx.logger.warn(
             `failed to attach all iscsi devices/targets/portals`
           );
@@ -450,12 +511,14 @@ class CsiBaseDriver {
         // compare all device-mapper slaves with the newly created devices
         // if any of the new devices are device-mapper slaves treat this as a
         // multipath scenario
-        let allDeviceMapperSlaves = await filesystem.getAllDeviceMapperSlaveDevices();
+        let allDeviceMapperSlaves =
+          await filesystem.getAllDeviceMapperSlaveDevices();
         let commonDevices = allDeviceMapperSlaves.filter((value) =>
           iscsiDevices.includes(value)
         );
 
-        const useMultipath = portals.length > 1 || commonDevices.length > 0;
+        const useMultipath =
+          iscsiConnections.length > 1 || commonDevices.length > 0;
 
         // discover multipath device to use
         if (useMultipath) {
@@ -488,7 +551,15 @@ class CsiBaseDriver {
               // format
               result = await filesystem.deviceIsFormatted(device);
               if (!result) {
-                await filesystem.formatDevice(device, fs_type);
+                let formatOptions = _.get(
+                  driver.options.node.format,
+                  [fs_type, "customOptions"],
+                  []
+                );
+                if (!Array.isArray(formatOptions)) {
+                  formatOptions = [];
+                }
+                await filesystem.formatDevice(device, fs_type, formatOptions);
               }
 
               let fs_info = await filesystem.getDeviceFilesystemInfo(device);
@@ -500,9 +571,17 @@ class CsiBaseDriver {
                 staging_target_path
               );
               if (!result) {
-                // TODO: add a parameter to control this behavior
                 // https://github.com/democratic-csi/democratic-csi/issues/52#issuecomment-768463401
-                //await filesystem.checkFilesystem(device, fs_type);
+                let checkFilesystem =
+                  driver.options.node.mount.checkFilesystem[fs_type] || {};
+                if (checkFilesystem.enabled) {
+                  await filesystem.checkFilesystem(
+                    device,
+                    fs_type,
+                    checkFilesystem.customOptions || [],
+                    checkFilesystem.customFilesystemOptions || []
+                  );
+                }
               }
             }
             break;
@@ -526,7 +605,33 @@ class CsiBaseDriver {
             case "ext3":
             case "ext4dev":
               //await filesystem.checkFilesystem(device, fs_info.type);
-              await filesystem.expandFilesystem(device, fs_type);
+              try {
+                await filesystem.expandFilesystem(device, fs_type);
+              } catch (err) {
+                // mount is clean and rw, but it will not expand until clean umount has been done
+                // failed to execute filesystem command: resize2fs /dev/sda, response: {"code":1,"stdout":"Couldn't find valid filesystem superblock.\n","stderr":"resize2fs 1.44.5 (15-Dec-2018)\nresize2fs: Superblock checksum does not match superblock while trying to open /dev/sda\n"}
+                // /dev/sda on /var/lib/kubelet/plugins/kubernetes.io/csi/pv/pvc-4a80757e-5e87-475d-826f-44fcc4719348/globalmount type ext4 (rw,relatime,stripe=256)
+                if (
+                  err.code == 1 &&
+                  err.stdout.includes("find valid filesystem superblock") &&
+                  err.stderr.includes("checksum does not match superblock")
+                ) {
+                  driver.ctx.logger.warn(
+                    `successful mount, unsuccessful fs resize: attempting abnormal umount/mount/resize2fs to clear things up ${staging_target_path} (${device})`
+                  );
+
+                  // try an unmount/mount/fsck cycle again just to clean things up
+                  await mount.umount(staging_target_path, []);
+                  await mount.mount(
+                    device,
+                    staging_target_path,
+                    ["-t", fs_type].concat(["-o", mount_flags.join(",")])
+                  );
+                  await filesystem.expandFilesystem(device, fs_type);
+                } else {
+                  throw err;
+                }
+              }
               break;
             case "xfs":
               //await filesystem.checkFilesystem(device, fs_info.type);
@@ -581,6 +686,7 @@ class CsiBaseDriver {
    * @param {*} call
    */
   async NodeUnstageVolume(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     const iscsi = new ISCSI();
@@ -594,7 +700,8 @@ class CsiBaseDriver {
     const staging_target_path = call.request.staging_target_path;
     const block_path = staging_target_path + "/block_device";
     let normalized_staging_path = staging_target_path;
-    const umount_args = []; // --force
+    const umount_args = [];
+    const umount_force_extra_args = ["--force", "--lazy"];
 
     if (!staging_target_path) {
       throw new GrpcError(
@@ -606,7 +713,30 @@ class CsiBaseDriver {
     //result = await mount.pathIsMounted(block_path);
     //result = await mount.pathIsMounted(staging_target_path)
 
-    result = await mount.pathIsMounted(block_path);
+    // TODO: use the x-* mount options to detect if we should delete target
+
+    try {
+      result = await mount.pathIsMounted(block_path);
+    } catch (err) {
+      /**
+       * on stalled fs such as nfs, even findmnt will return immediately for the base mount point
+       * so in the case of timeout here (base mount point and then a file/folder beneath it) we almost certainly are not a block device
+       * AND the fs is probably stalled
+       */
+      if (err.timeout) {
+        driver.ctx.logger.warn(
+          `detected stale mount, attempting to force unmount: ${normalized_staging_path}`
+        );
+        await mount.umount(
+          normalized_staging_path,
+          umount_args.concat(umount_force_extra_args)
+        );
+        result = false; // assume we are *NOT* a block device at this point
+      } else {
+        throw err;
+      }
+    }
+
     if (result) {
       is_block = true;
       access_type = "block";
@@ -626,7 +756,33 @@ class CsiBaseDriver {
 
     result = await mount.pathIsMounted(normalized_staging_path);
     if (result) {
-      result = await mount.umount(normalized_staging_path, umount_args);
+      try {
+        result = await mount.umount(normalized_staging_path, umount_args);
+      } catch (err) {
+        if (err.timeout) {
+          driver.ctx.logger.warn(
+            `hit timeout waiting to unmount path: ${normalized_staging_path}`
+          );
+          result = await mount.getMountDetails(normalized_staging_path);
+          switch (result.fstype) {
+            case "nfs":
+            case "nfs4":
+              driver.ctx.logger.warn(
+                `detected stale nfs filesystem, attempting to force unmount: ${normalized_staging_path}`
+              );
+              result = await mount.umount(
+                normalized_staging_path,
+                umount_args.concat(umount_force_extra_args)
+              );
+              break;
+            default:
+              throw err;
+              break;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     if (is_block) {
@@ -666,14 +822,13 @@ class CsiBaseDriver {
               session.attached_scsi_devices.host &&
               session.attached_scsi_devices.host.devices
             ) {
-              is_attached_to_session = session.attached_scsi_devices.host.devices.some(
-                (device) => {
+              is_attached_to_session =
+                session.attached_scsi_devices.host.devices.some((device) => {
                   if (device.attached_scsi_disk == block_device_info_i.name) {
                     return true;
                   }
                   return false;
-                }
-              );
+                });
             }
 
             if (is_attached_to_session) {
@@ -749,6 +904,7 @@ class CsiBaseDriver {
   }
 
   async NodePublishVolume(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     let result;
@@ -758,22 +914,40 @@ class CsiBaseDriver {
     const target_path = call.request.target_path;
     const capability = call.request.volume_capability;
     const access_type = capability.access_type || "mount";
+    let mount_flags;
+    let volume_mount_group;
     const readonly = call.request.readonly;
     const volume_context = call.request.volume_context;
     const bind_mount_flags = [];
     const node_attach_driver = volume_context.node_attach_driver;
 
     if (access_type == "mount") {
-      let mount_flags = capability.mount.mount_flags || [];
+      mount_flags = capability.mount.mount_flags || [];
       bind_mount_flags.push(...mount_flags);
+
+      if (
+        semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
+        driver.options.service.node.capabilities.rpc.includes(
+          "VOLUME_MOUNT_GROUP"
+        )
+      ) {
+        volume_mount_group = capability.mount.volume_mount_group; // in k8s this is derrived from the fsgroup in the pod security context
+      }
     }
 
     bind_mount_flags.push("defaults");
+
+    // https://github.com/karelzak/util-linux/issues/1429
+    //bind_mount_flags.push("x-democratic-csi.managed");
+    //bind_mount_flags.push("x-democratic-csi.published");
+
     if (readonly) bind_mount_flags.push("ro");
+    // , "x-democratic-csi.ro"
 
     switch (node_attach_driver) {
       case "nfs":
       case "smb":
+      case "lustre":
       case "iscsi":
         // ensure appropriate directories/files
         switch (access_type) {
@@ -864,17 +1038,65 @@ class CsiBaseDriver {
   }
 
   async NodeUnpublishVolume(call) {
+    const driver = this;
     const mount = new Mount();
     const filesystem = new Filesystem();
     let result;
 
     const volume_id = call.request.volume_id;
     const target_path = call.request.target_path;
-    const umount_args = []; // --force
+    const umount_args = [];
+    const umount_force_extra_args = ["--force", "--lazy"];
 
-    result = await mount.pathIsMounted(target_path);
+    try {
+      result = await mount.pathIsMounted(target_path);
+    } catch (err) {
+      // running findmnt on non-existant paths return immediately
+      // the only time this should timeout is on a stale fs
+      // so if timeout is hit we should be near certain it is indeed mounted
+      if (err.timeout) {
+        driver.ctx.logger.warn(
+          `detected stale mount, attempting to force unmount: ${target_path}`
+        );
+        await mount.umount(
+          target_path,
+          umount_args.concat(umount_force_extra_args)
+        );
+        result = false; // assume we have fully unmounted
+      } else {
+        throw err;
+      }
+    }
+
     if (result) {
-      result = await mount.umount(target_path, umount_args);
+      try {
+        result = await mount.umount(target_path, umount_args);
+      } catch (err) {
+        if (err.timeout) {
+          driver.ctx.logger.warn(
+            `hit timeout waiting to unmount path: ${target_path}`
+          );
+          // bind mounts do show the 'real' fs details
+          result = await mount.getMountDetails(target_path);
+          switch (result.fstype) {
+            case "nfs":
+            case "nfs4":
+              driver.ctx.logger.warn(
+                `detected stale nfs filesystem, attempting to force unmount: ${target_path}`
+              );
+              result = await mount.umount(
+                target_path,
+                umount_args.concat(umount_force_extra_args)
+              );
+              break;
+            default:
+              throw err;
+              break;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     result = await filesystem.pathExists(target_path);
@@ -909,7 +1131,7 @@ class CsiBaseDriver {
     //VOLUME_CONDITION
     if (
       semver.satisfies(driver.ctx.csiVersion, ">=1.3.0") &&
-      options.service.node.capabilities.rpc.includes("VOLUME_CONDITION")
+      driver.options.service.node.capabilities.rpc.includes("VOLUME_CONDITION")
     ) {
       // TODO: let drivers fill ths in
       let abnormal = false;
@@ -930,7 +1152,11 @@ class CsiBaseDriver {
 
     switch (access_type) {
       case "mount":
-        result = await mount.getMountDetails(device_path);
+        result = await mount.getMountDetails(device_path, [
+          "avail",
+          "size",
+          "used",
+        ]);
 
         res.usage = [
           {
