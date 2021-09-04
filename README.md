@@ -157,7 +157,7 @@ mind, any ssh/shell/etc requirements below can be safely ignored. Also note the
 following known issues:
 
 - https://jira.ixsystems.com/browse/NAS-111870
-- #112
+- https://github.com/democratic-csi/democratic-csi/issues/112
 
 Ensure the following services are configurged and running:
 
