@@ -158,6 +158,7 @@ following known issues:
 
 - https://jira.ixsystems.com/browse/NAS-111870
 - https://github.com/democratic-csi/democratic-csi/issues/112
+- https://github.com/democratic-csi/democratic-csi/issues/101
 
 Ensure the following services are configurged and running:
 
@@ -190,6 +191,24 @@ non-`root` user when connecting to the FreeNAS server:
 
   ```
   csi ALL=(ALL) NOPASSWD:ALL
+
+  # if on CORE 12.0-u3+ you should be able to do the following
+  # which will ensure it does not get reset during reboots etc
+  # at the command prompt
+  cli
+
+  # after you enter the truenas cli and are at that prompt
+  account user query select=id,username,uid,sudo_nopasswd
+
+  # find the `id` of the user you want to update (note, this is distinct from the `uid`)
+  account user update id=<id> sudo_nopasswd=true
+  # optional if you want to disable password
+  #account user update id=<id> password_disabled=true
+
+  # exit cli by hitting ctrl-d
+
+  # confirm sudoers file is appropriate
+  cat /usr/local/etc/sudoers
   ```
 
   (note this can get reset by FreeNAS if you alter the user via the
