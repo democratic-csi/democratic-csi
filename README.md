@@ -153,7 +153,11 @@ with much older versions as well.
 The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be
 used with SCALE 21.08+. Fundamentally these drivers remove the need for `ssh`
 connections and do all operations entirely with the TrueNAS api. With that in
-mind, any ssh/shell/etc requirements below can be safely ignored.
+mind, any ssh/shell/etc requirements below can be safely ignored. Also note the
+following known issues:
+
+- https://jira.ixsystems.com/browse/NAS-111870
+- #112
 
 Ensure the following services are configurged and running:
 
@@ -337,7 +341,7 @@ to your needs to start migrating!
 
 A special shout out to the wonderful sponsors of the project!
 
-[![ixSystems](https://www.ixsystems.com/wp-content/uploads/sites/13/2015/08/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
+[![ixSystems](https://www.ixsystems.com/wp-content/uploads/2021/06/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
 
 # Related
 

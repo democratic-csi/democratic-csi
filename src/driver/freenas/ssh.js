@@ -1629,6 +1629,9 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
            *
            * scstadmin -resync_dev ${iscsiName}
            * works but always give a exit code of 1 ^
+           * 
+           * midclt resync_lun_size_for_zvol tank/foo/bar
+           * works on SCALE only ^
            */
           command = sshClient.buildCommand("sh", [
             "-c",
