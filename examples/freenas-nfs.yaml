@@ -58,6 +58,7 @@ zfs:
   #- "-m u:kube:full_set:allow"
 
 nfs:
+  #shareCommentTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   shareHost: server address
   shareAlldirs: false
   shareAllowedHosts: []

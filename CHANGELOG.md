@@ -1,3 +1,10 @@
+# v1.3.1
+
+Released 2021-09-08
+
+- support using a template for nfs share comment in `freenas-nfs` and
+  `freenas-api-nfs` (see #115)
+
 # v1.3.0
 
 Released 2021-09-02

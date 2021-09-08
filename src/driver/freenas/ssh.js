@@ -193,6 +193,25 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
             properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value
           )
         ) {
+          let nfsShareComment;
+          if (this.options.nfs.shareCommentTemplate) {
+            nfsShareComment = Handlebars.compile(
+              this.options.nfs.shareCommentTemplate
+            )({
+              name: call.request.name,
+              parameters: call.request.parameters,
+              csi: {
+                name: this.ctx.args.csiName,
+                version: this.ctx.args.csiVersion,
+              },
+              zfs: {
+                datasetName: datasetName,
+              },
+            });
+          } else {
+            nfsShareComment = `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`;
+          }
+
           switch (apiVersion) {
             case 1:
             case 2:
@@ -200,7 +219,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
                 case 1:
                   share = {
                     nfs_paths: [properties.mountpoint.value],
-                    nfs_comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
+                    nfs_comment: nfsShareComment || "",
                     nfs_network:
                       this.options.nfs.shareAllowedNetworks.join(","),
                     nfs_hosts: this.options.nfs.shareAllowedHosts.join(","),
@@ -217,7 +236,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
                 case 2:
                   share = {
                     paths: [properties.mountpoint.value],
-                    comment: `democratic-csi (${this.ctx.args.csiName}): ${datasetName}`,
+                    comment: nfsShareComment || "",
                     networks: this.options.nfs.shareAllowedNetworks,
                     hosts: this.options.nfs.shareAllowedHosts,
                     alldirs: this.options.nfs.shareAlldirs,
@@ -1629,7 +1648,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
            *
            * scstadmin -resync_dev ${iscsiName}
            * works but always give a exit code of 1 ^
-           * 
+           *
            * midclt resync_lun_size_for_zvol tank/foo/bar
            * works on SCALE only ^
            */
