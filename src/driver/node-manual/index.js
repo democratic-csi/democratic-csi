@@ -115,6 +115,7 @@ class NodeManualDriver extends CsiBaseDriver {
       case "smb":
         driverResourceType = "filesystem";
         fs_types = ["cifs"];
+        break;
       case "lustre":
         driverResourceType = "filesystem";
         fs_types = ["lustre"];
