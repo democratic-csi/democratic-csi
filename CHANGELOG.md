@@ -1,3 +1,9 @@
+# v1.3.2
+
+Released 2021-09-09
+
+- fix missing `break` in the `node-manual` driver using `smb` / `cifs`
+
 # v1.3.1
 
 Released 2021-09-08
