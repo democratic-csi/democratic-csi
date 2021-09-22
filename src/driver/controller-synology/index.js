@@ -247,11 +247,28 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
-    if (call.request.volume_capabilities) {
+    if (
+      call.request.volume_capabilities &&
+      call.request.volume_capabilities.length > 0
+    ) {
       const result = this.assertCapabilities(call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
+    } else {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        "missing volume_capabilities"
+      );
+    }
+
+    if (
+      !call.request.capacity_range ||
+      Object.keys(call.request.capacity_range).length === 0
+    ) {
+      call.request.capacity_range = {
+        required_bytes: 1073741824,
+      };
     }
 
     if (
@@ -314,16 +331,68 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         let lun_uuid;
         let existingLun;
 
+        // ensure volumes with the same name being requested a 2nd time but with a different size fails
+        try {
+          let lun = await httpClient.GetLunByName(iscsiName);
+          if (lun) {
+            let size = lun.size;
+            let check = true;
+            if (check) {
+              if (
+                (call.request.capacity_range.required_bytes &&
+                  call.request.capacity_range.required_bytes > 0 &&
+                  size < call.request.capacity_range.required_bytes) ||
+                (call.request.capacity_range.limit_bytes &&
+                  call.request.capacity_range.limit_bytes > 0 &&
+                  size > call.request.capacity_range.limit_bytes)
+              ) {
+                throw new GrpcError(
+                  grpc.status.ALREADY_EXISTS,
+                  `volume has already been created with a different size, existing size: ${size}, required_bytes: ${call.request.capacity_range.required_bytes}, limit_bytes: ${call.request.capacity_range.limit_bytes}`
+                );
+              }
+            }
+          }
+        } catch (err) {
+          throw err;
+        }
+
         if (volume_content_source) {
           let src_lun_uuid;
           let src_lun_id;
           switch (volume_content_source.type) {
             case "snapshot":
               let parts = volume_content_source.snapshot.snapshot_id.split("/");
+
               src_lun_id = parts[2];
+              if (!src_lun_id) {
+                throw new GrpcError(
+                  grpc.status.NOT_FOUND,
+                  `invalid snapshot_id: ${volume_content_source.snapshot.snapshot_id}`
+                );
+              }
+
               let snapshot_uuid = parts[3];
+              if (!snapshot_uuid) {
+                throw new GrpcError(
+                  grpc.status.NOT_FOUND,
+                  `invalid snapshot_id: ${volume_content_source.snapshot.snapshot_id}`
+                );
+              }
+
               let src_lun = await httpClient.GetLunByID(src_lun_id);
               src_lun_uuid = src_lun.uuid;
+
+              let snapshot = await httpClient.GetSnapshotByLunIDAndSnapshotUUID(
+                src_lun_id,
+                snapshot_uuid
+              );
+              if (!snapshot) {
+                throw new GrpcError(
+                  grpc.status.NOT_FOUND,
+                  `invalid snapshot_id: ${volume_content_source.snapshot.snapshot_id}`
+                );
+              }
 
               existingLun = await httpClient.GetLunByName(iscsiName);
               if (!existingLun) {
@@ -340,8 +409,20 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                 let srcLunName = driver.buildIscsiName(
                   volume_content_source.volume.volume_id
                 );
+                if (!srcLunName) {
+                  throw new GrpcError(
+                    grpc.status.NOT_FOUND,
+                    `invalid volume_id: ${volume_content_source.volume.volume_id}`
+                  );
+                }
 
                 src_lun_uuid = await httpClient.GetLunUUIDByName(srcLunName);
+                if (!src_lun_uuid) {
+                  throw new GrpcError(
+                    grpc.status.NOT_FOUND,
+                    `invalid volume_id: ${volume_content_source.volume.volume_id}`
+                  );
+                }
                 await httpClient.CreateClonedVolume(src_lun_uuid, iscsiName);
               }
               break;
@@ -740,8 +821,6 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
-    // create snapshot here
-
     let iscsiName = driver.buildIscsiName(source_volume_id);
     let lun = await httpClient.GetLunByName(iscsiName);
 
@@ -750,6 +829,19 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         grpc.status.INVALID_ARGUMENT,
         `invalid source_volume_id: ${source_volume_id}`
       );
+    }
+    
+    // check for other snapshopts with the same name on other volumes and fail as appropriate
+    // TODO: technically this should only be checking lun/snapshots relevant to this specific install of the driver
+    // but alas an isolation/namespacing mechanism does not exist in synology
+    let snapshots = await httpClient.GetSnapshots();
+    for (let snapshot of snapshots) {
+      if (snapshot.description == name && snapshot.parent_uuid != lun.uuid) {
+        throw new GrpcError(
+          grpc.status.ALREADY_EXISTS,
+          `snapshot name: ${name} is incompatible with source_volume_id: ${source_volume_id} due to being used with another source_volume_id`
+        );
+      }
     }
 
     // check for already exists
@@ -827,7 +919,14 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
     let parts = snapshot_id.split("/");
     let lun_id = parts[2];
+    if (!lun_id) {
+      return {};
+    }
+
     let snapshot_uuid = parts[3];
+    if (!snapshot_uuid) {
+      return {};
+    }
 
     // TODO: delete snapshot
     let snapshot = await httpClient.GetSnapshotByLunIDAndSnapshotUUID(
@@ -848,8 +947,55 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    */
   async ValidateVolumeCapabilities(call) {
     const driver = this;
-    const result = this.assertCapabilities(call.request.volume_capabilities);
+    const httpClient = await driver.getHttpClient();
 
+    let response;
+
+    const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
+
+    const capabilities = call.request.volume_capabilities;
+    if (!capabilities || capabilities.length === 0) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing capabilities`);
+    }
+
+    switch (driver.getDriverShareType()) {
+      case "nfs":
+        // TODO: expand volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
+        break;
+      case "smb":
+        // TODO: expand volume here
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
+        break;
+      case "iscsi":
+        let iscsiName = driver.buildIscsiName(volume_id);
+
+        response = await httpClient.GetLunUUIDByName(iscsiName);
+        if (!response) {
+          throw new GrpcError(
+            grpc.status.NOT_FOUND,
+            `invalid volume_id: ${volume_id}`
+          );
+        }
+        break;
+      default:
+        throw new GrpcError(
+          grpc.status.UNIMPLEMENTED,
+          `operation not supported by driver`
+        );
+        break;
+    }
+
+    const result = this.assertCapabilities(call.request.volume_capabilities);
     if (result.valid !== true) {
       return { message: result.message };
     }

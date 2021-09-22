@@ -146,6 +146,17 @@ class SynologyHttpClient {
     });
   }
 
+  async GetLuns() {
+    const lun_list = {
+      api: "SYNO.Core.ISCSI.LUN",
+      version: "1",
+      method: "list",
+    };
+
+    let response = await this.do_request("GET", "entry.cgi", lun_list);
+    return response.body.data.luns;
+  }
+
   async GetLunUUIDByName(name) {
     const lun_list = {
       api: "SYNO.Core.ISCSI.LUN",
@@ -212,6 +223,30 @@ class SynologyHttpClient {
     if (lun) {
       return lun;
     }
+  }
+
+  async GetSnapshots() {
+    let luns = await this.GetLuns();
+    let snapshots = [];
+
+    for (let lun of luns) {
+      const get_snapshot_info = {
+        api: "SYNO.Core.ISCSI.LUN",
+        method: "list_snapshot",
+        version: 1,
+        src_lun_uuid: JSON.stringify(lun.uuid),
+      };
+
+      let response = await this.do_request(
+        "GET",
+        "entry.cgi",
+        get_snapshot_info
+      );
+
+      snapshots = snapshots.concat(response.body.data.snapshots);
+    }
+
+    return snapshots;
   }
 
   async GetSnapshotByLunIDAndName(lun_id, name) {

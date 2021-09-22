@@ -167,7 +167,9 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
    * @param {*} datasetName
    */
   async createShare(call, datasetName) {
+    const driver = this;
     const driverShareType = this.getDriverShareType();
+    const sshClient = this.getSshClient();
     const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
@@ -617,15 +619,18 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
         iscsiName = iscsiName.toLowerCase();
 
         let extentDiskName = "zvol/" + datasetName;
+        let maxZvolNameLength = await driver.getMaxZvolNameLength();
+        driver.ctx.logger.debug("max zvol name length: %s", maxZvolNameLength);
 
         /**
          * limit is a FreeBSD limitation
          * https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
          */
-        if (extentDiskName.length > 63) {
+
+        if (extentDiskName.length > maxZvolNameLength) {
           throw new GrpcError(
             grpc.status.FAILED_PRECONDITION,
-            `extent disk name cannot exceed 63 characters:  ${extentDiskName}`
+            `extent disk name cannot exceed ${maxZvolNameLength} characters:  ${extentDiskName}`
           );
         }
 
