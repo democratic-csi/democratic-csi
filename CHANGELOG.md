@@ -1,3 +1,16 @@
+# v1.4.0
+
+Released 2021-09-21
+
+- more advanced logic for iscsi naming limits (allowing > 63 chars in certain
+  circumstances, SCALE, linux, FreeBSD 13+)
+- various updates to support running the csi-test tool and conform to expected
+  responses/behaviors (full conformance for several drivers!)
+- default `fs_type` during `NodeStageVolume` when omitted by `CO`
+- automatcally add `guest` mount option to `cifs` shares when creds are absent
+- fix `ListVolumes` and `ListSnapshot` behavior on various `zfs-generic-*` and
+  `freenas-*` drivers
+
 # v1.3.2
 
 Released 2021-09-09

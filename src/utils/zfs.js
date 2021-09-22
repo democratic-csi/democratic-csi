@@ -1153,14 +1153,15 @@ class Zetabyte {
 
           args.push("'" + command.join(" ") + "'");
 
-          zb.exec("/bin/sh", args, { timeout: zb.options.timeout }, function (
-            error,
-            stdout,
-            stderr
-          ) {
-            if (error) return reject(zb.helpers.zfsError(error, stderr));
-            return resolve(stdout);
-          });
+          zb.exec(
+            "/bin/sh",
+            args,
+            { timeout: zb.options.timeout },
+            function (error, stdout, stderr) {
+              if (error) return reject(zb.helpers.zfsError(error, stderr));
+              return resolve(stdout);
+            }
+          );
         });
       },
 
@@ -1230,6 +1231,7 @@ class Zetabyte {
        *  filesystem|volume|snapshot...
        *
        * @param {*} dataset
+       * @param {*} properties
        * @param {*} options
        */
       list: function (dataset, properties, options = {}) {

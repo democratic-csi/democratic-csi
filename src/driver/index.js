@@ -280,8 +280,20 @@ class CsiBaseDriver {
     let device;
 
     const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
     const staging_target_path = call.request.staging_target_path;
+    if (!staging_target_path) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `missing staging_target_path`
+      );
+    }
     const capability = call.request.volume_capability;
+    if (!capability || Object.keys(capability).length === 0) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing capability`);
+    }
     const access_type = capability.access_type || "mount";
     const volume_context = call.request.volume_context;
     let fs_type;
@@ -360,6 +372,24 @@ class CsiBaseDriver {
         break;
       case "smb":
         device = `//${volume_context.server}/${volume_context.share}`;
+
+        // if not present add guest
+        let has_username = mount_flags.some((element) => {
+          element = element.trim().toLowerCase();
+          return element.startsWith("username=");
+        });
+
+        // prevents driver from hanging on stdin waiting for a password to be entered at the cli
+        if (!has_username) {
+          let has_guest = mount_flags.some((element) => {
+            element = element.trim().toLowerCase();
+            return element === "guest";
+          });
+
+          if (!has_guest) {
+            mount_flags.push("guest");
+          }
+        }
         break;
       case "iscsi":
         let portals = [];
@@ -547,6 +577,10 @@ class CsiBaseDriver {
         switch (node_attach_driver) {
           // block specific logic
           case "iscsi":
+            if (!fs_type) {
+              fs_type = "ext4";
+            }
+
             if (await filesystem.isBlockDevice(device)) {
               // format
               result = await filesystem.deviceIsFormatted(device);
@@ -591,6 +625,24 @@ class CsiBaseDriver {
 
         result = await mount.deviceIsMountedAtPath(device, staging_target_path);
         if (!result) {
+          if (!fs_type) {
+            switch (node_attach_driver) {
+              case "nfs":
+                fs_type = "nfs";
+                break;
+              case "lustre":
+                fs_type = "lustre";
+                break;
+              case "smb":
+                fs_type = "cifs";
+                break;
+              case "iscsi":
+                fs_type = "ext4";
+                break;
+              default:
+                break;
+            }
+          }
           await mount.mount(
             device,
             staging_target_path,
@@ -697,18 +749,20 @@ class CsiBaseDriver {
     let access_type = "mount";
 
     const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
     const staging_target_path = call.request.staging_target_path;
-    const block_path = staging_target_path + "/block_device";
-    let normalized_staging_path = staging_target_path;
-    const umount_args = [];
-    const umount_force_extra_args = ["--force", "--lazy"];
-
     if (!staging_target_path) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
         `missing staging_target_path`
       );
     }
+    const block_path = staging_target_path + "/block_device";
+    let normalized_staging_path = staging_target_path;
+    const umount_args = [];
+    const umount_force_extra_args = ["--force", "--lazy"];
 
     //result = await mount.pathIsMounted(block_path);
     //result = await mount.pathIsMounted(staging_target_path)
@@ -910,9 +964,18 @@ class CsiBaseDriver {
     let result;
 
     const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
     const staging_target_path = call.request.staging_target_path || "";
     const target_path = call.request.target_path;
+    if (!target_path) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing target_path`);
+    }
     const capability = call.request.volume_capability;
+    if (!capability || Object.keys(capability).length === 0) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing capability`);
+    }
     const access_type = capability.access_type || "mount";
     let mount_flags;
     let volume_mount_group;
@@ -1044,7 +1107,13 @@ class CsiBaseDriver {
     let result;
 
     const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
     const target_path = call.request.target_path;
+    if (!target_path) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing target_path`);
+    }
     const umount_args = [];
     const umount_force_extra_args = ["--force", "--lazy"];
 
@@ -1119,6 +1188,9 @@ class CsiBaseDriver {
     let device_path;
     let access_type;
     const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
     const volume_path = call.request.volume_path;
     const block_path = volume_path + "/block_device";
 
@@ -1152,6 +1224,12 @@ class CsiBaseDriver {
 
     switch (access_type) {
       case "mount":
+        if (!(await mount.pathIsMounted(device_path))) {
+          throw new GrpcError(
+            grpc.status.NOT_FOUND,
+            `nothing mounted at path: ${device_path}`
+          );
+        }
         result = await mount.getMountDetails(device_path, [
           "avail",
           "size",
@@ -1168,6 +1246,12 @@ class CsiBaseDriver {
         ];
         break;
       case "block":
+        if (!(await filesystem.pathExists(device_path))) {
+          throw new GrpcError(
+            grpc.status.NOT_FOUND,
+            `nothing mounted at path: ${device_path}`
+          );
+        }
         result = await filesystem.getBlockDevice(device_path);
 
         res.usage = [
@@ -1208,14 +1292,16 @@ class CsiBaseDriver {
     let is_device_mapper = false;
 
     const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
     const volume_path = call.request.volume_path;
-    const block_path = volume_path + "/block_device";
-    const capacity_range = call.request.capacity_range;
-    const volume_capability = call.request.volume_capability;
-
     if (!volume_path) {
       throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_path`);
     }
+    const block_path = volume_path + "/block_device";
+    const capacity_range = call.request.capacity_range;
+    const volume_capability = call.request.volume_capability;
 
     if (
       (await mount.isBindMountedBlockDevice(volume_path)) ||
@@ -1235,7 +1321,7 @@ class CsiBaseDriver {
     } catch (err) {
       if (err.code == 1) {
         throw new GrpcError(
-          grpc.status.FAILED_PRECONDITION,
+          grpc.status.NOT_FOUND,
           `volume_path ${volume_path} is not currently mounted`
         );
       }

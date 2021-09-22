@@ -393,6 +393,62 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   }
 
   /**
+   * Get the max size a zvol name can be
+   *
+   * https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=238112
+   * https://svnweb.freebsd.org/base?view=revision&revision=343485
+   */
+  async getMaxZvolNameLength() {
+    const driver = this;
+    const sshClient = driver.getSshClient();
+
+    let response;
+    let command;
+    let kernel;
+    let kernel_release;
+
+    // get kernel
+    command = "uname -s";
+    driver.ctx.logger.verbose("uname command: %s", command);
+    response = await sshClient.exec(command);
+    if (response.code !== 0) {
+      throw new Error("failed to run uname to determine max zvol name length");
+    } else {
+      kernel = response.stdout.trim();
+    }
+
+    switch (kernel.toLowerCase().trim()) {
+      // Linux is 255 (probably larger 4096) but scst may have a 255 limit
+      // https://ngelinux.com/what-is-the-maximum-file-name-length-in-linux-and-how-to-see-this-is-this-really-255-characters-answer-is-no/
+      // https://github.com/dmeister/scst/blob/master/iscsi-scst/include/iscsi_scst.h#L28
+      case "linux":
+        return 255;
+      case "freebsd":
+        // get kernel_release
+        command = "uname -r";
+        driver.ctx.logger.verbose("uname command: %s", command);
+        response = await sshClient.exec(command);
+        if (response.code !== 0) {
+          throw new Error(
+            "failed to run uname to determine max zvol name length"
+          );
+        } else {
+          kernel_release = response.stdout;
+          let parts = kernel_release.split(".");
+          let kernel_release_major = parts[0];
+
+          if (kernel_release_major >= 13) {
+            return 255;
+          } else {
+            return 63;
+          }
+        }
+      default:
+        throw new Error(`unknown kernel: ${kernel}`);
+    }
+  }
+
+  /**
    * Ensure sane options are used etc
    * true = ready
    * false = not ready, but progressiong towards ready
@@ -498,11 +554,28 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       );
     }
 
-    if (call.request.volume_capabilities) {
+    if (
+      call.request.volume_capabilities &&
+      call.request.volume_capabilities.length > 0
+    ) {
       const result = this.assertCapabilities(call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
+    } else {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        "missing volume_capabilities"
+      );
+    }
+
+    if (
+      !call.request.capacity_range ||
+      Object.keys(call.request.capacity_range).length === 0
+    ) {
+      call.request.capacity_range = {
+        required_bytes: 1073741824,
+      };
     }
 
     if (
@@ -554,18 +627,75 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       );
     }
 
+    // ensure volumes with the same name being requested a 2nd time but with a different size fails
+    try {
+      let properties = await zb.zfs.get(datasetName, ["volsize", "refquota"]);
+      properties = properties[datasetName];
+      let size;
+      switch (driverZfsResourceType) {
+        case "volume":
+          size = properties["volsize"].value;
+          break;
+        case "filesystem":
+          size = properties["refquota"].value;
+          break;
+        default:
+          throw new Error(
+            `unknown zfs resource type: ${driverZfsResourceType}`
+          );
+      }
+
+      let check = false;
+      if (driverZfsResourceType == "volume") {
+        check = true;
+      }
+
+      if (
+        driverZfsResourceType == "filesystem" &&
+        this.options.zfs.datasetEnableQuotas
+      ) {
+        check = true;
+      }
+
+      if (check) {
+        if (
+          (call.request.capacity_range.required_bytes &&
+            call.request.capacity_range.required_bytes > 0 &&
+            size < call.request.capacity_range.required_bytes) ||
+          (call.request.capacity_range.limit_bytes &&
+            call.request.capacity_range.limit_bytes > 0 &&
+            size > call.request.capacity_range.limit_bytes)
+        ) {
+          throw new GrpcError(
+            grpc.status.ALREADY_EXISTS,
+            `volume has already been created with a different size, existing size: ${size}, required_bytes: ${call.request.capacity_range.required_bytes}, limit_bytes: ${call.request.capacity_range.limit_bytes}`
+          );
+        }
+      }
+    } catch (err) {
+      if (err.toString().includes("dataset does not exist")) {
+        // does NOT already exist
+      } else {
+        throw err;
+      }
+    }
+
     /**
      * This is specifically a FreeBSD limitation, not sure what linux limit is
      * https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
      * https://www.ixsystems.com/documentation/freenas/11.3-BETA1/intro.html#path-and-name-lengths
      * https://www.freebsd.org/cgi/man.cgi?query=devfs
+     * https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=238112
      */
     if (driverZfsResourceType == "volume") {
       let extentDiskName = "zvol/" + datasetName;
-      if (extentDiskName.length > 63) {
+      let maxZvolNameLength = await driver.getMaxZvolNameLength();
+      driver.ctx.logger.debug("max zvol name length: %s", maxZvolNameLength);
+
+      if (extentDiskName.length > maxZvolNameLength) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
-          `extent disk name cannot exceed 63 characters:  ${extentDiskName}`
+          `extent disk name cannot exceed ${maxZvolNameLength} characters:  ${extentDiskName}`
         );
       }
     }
@@ -658,7 +788,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
                 throw new GrpcError(
-                  grpc.status.FAILED_PRECONDITION,
+                  grpc.status.NOT_FOUND,
                   `snapshot source_snapshot_id ${volume_content_source_snapshot_id} does not exist`
                 );
               }
@@ -700,7 +830,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
                 throw new GrpcError(
-                  grpc.status.FAILED_PRECONDITION,
+                  grpc.status.NOT_FOUND,
                   "dataset does not exists"
                 );
               }
@@ -720,7 +850,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
                 throw new GrpcError(
-                  grpc.status.FAILED_PRECONDITION,
+                  grpc.status.NOT_FOUND,
                   `snapshot source_snapshot_id ${volume_content_source_snapshot_id} does not exist`
                 );
               }
@@ -766,7 +896,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           } catch (err) {
             if (err.toString().includes("dataset does not exist")) {
               throw new GrpcError(
-                grpc.status.FAILED_PRECONDITION,
+                grpc.status.NOT_FOUND,
                 "dataset does not exists"
               );
             }
@@ -816,7 +946,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
                 throw new GrpcError(
-                  grpc.status.FAILED_PRECONDITION,
+                  grpc.status.NOT_FOUND,
                   "dataset does not exists"
                 );
               }
@@ -1274,10 +1404,20 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     const datasetName = datasetParentName;
 
     let properties;
-    properties = await zb.zfs.get(datasetName, ["avail"]);
-    properties = properties[datasetName];
+    try {
+      properties = await zb.zfs.get(datasetName, ["avail"]);
+      properties = properties[datasetName];
 
-    return { available_capacity: properties.available.value };
+      return { available_capacity: properties.available.value };
+    } catch (err) {
+      throw err;
+      // gracefully handle csi-test suite when parent dataset does not yet exist
+      if (err.toString().includes("dataset does not exist")) {
+        return { available_capacity: 0 };
+      } else {
+        throw err;
+      }
+    }
   }
 
   /**
@@ -1375,7 +1515,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let entries = [];
     let entries_length = 0;
     let next_token;
-    let uuid, page, next_page;
+    let uuid;
     let response;
 
     const max_entries = call.request.max_entries;
@@ -1385,15 +1525,18 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     if (starting_token) {
       let parts = starting_token.split(":");
       uuid = parts[0];
-      page = parseInt(parts[1]);
+      let start_position = parseInt(parts[1]);
+      let end_position;
+      if (max_entries > 0) {
+        end_position = start_position + max_entries;
+      }
       entries = this.ctx.cache.get(`ListVolumes:result:${uuid}`);
       if (entries) {
         entries = JSON.parse(JSON.stringify(entries));
         entries_length = entries.length;
-        entries = entries.splice((page - 1) * max_entries, max_entries);
-        if (page * max_entries < entries_length) {
-          next_page = page + 1;
-          next_token = `${uuid}:${next_page}`;
+        entries = entries.slice(start_position, end_position);
+        if (max_entries > 0 && end_position > entries_length) {
+          next_token = `${uuid}:${end_position}`;
         } else {
           next_token = null;
         }
@@ -1404,7 +1547,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
         return data;
       } else {
-        // TODO: throw error / cache expired
+        throw new GrpcError(
+          grpc.status.ABORTED,
+          `invalid starting_token: ${starting_token}`
+        );
       }
     }
 
@@ -1469,7 +1615,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     for (let row of response.indexed) {
       // ignore rows were csi_name is empty
       if (row[MANAGED_PROPERTY_NAME] != "true") {
-        return;
+        continue;
       }
 
       let volume = await driver.populateCsiVolumeFromData(row);
@@ -1487,8 +1633,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         `ListVolumes:result:${uuid}`,
         JSON.parse(JSON.stringify(entries))
       );
-      next_token = `${uuid}:2`;
-      entries = entries.splice(0, max_entries);
+      next_token = `${uuid}:${max_entries}`;
+      entries = entries.slice(0, max_entries);
     }
 
     const data = {
@@ -1511,7 +1657,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     let entries = [];
     let entries_length = 0;
     let next_token;
-    let uuid, page, next_page;
+    let uuid;
 
     const max_entries = call.request.max_entries;
     const starting_token = call.request.starting_token;
@@ -1526,15 +1672,18 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     if (starting_token) {
       let parts = starting_token.split(":");
       uuid = parts[0];
-      page = parseInt(parts[1]);
+      let start_position = parseInt(parts[1]);
+      let end_position;
+      if (max_entries > 0) {
+        end_position = start_position + max_entries;
+      }
       entries = this.ctx.cache.get(`ListSnapshots:result:${uuid}`);
       if (entries) {
         entries = JSON.parse(JSON.stringify(entries));
         entries_length = entries.length;
-        entries = entries.splice((page - 1) * max_entries, max_entries);
-        if (page * max_entries < entries_length) {
-          next_page = page + 1;
-          next_token = `${uuid}:${next_page}`;
+        entries = entries.slice(start_position, end_position);
+        if (max_entries > 0 && end_position > entries_length) {
+          next_token = `${uuid}:${end_position}`;
         } else {
           next_token = null;
         }
@@ -1545,7 +1694,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
         return data;
       } else {
-        // TODO: throw error / cache expired
+        throw new GrpcError(
+          grpc.status.ABORTED,
+          `invalid starting_token: ${starting_token}`
+        );
       }
     }
 
@@ -1639,9 +1791,11 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
               break;
             case 2:
               message = `source_volume_id ${source_volume_id} does not exist`;
+              continue;
               break;
             case 3:
               message = `snapshot_id ${snapshot_id} does not exist`;
+              continue;
               break;
           }
           throw new GrpcError(grpc.status.NOT_FOUND, message);
@@ -1720,8 +1874,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         `ListSnapshots:result:${uuid}`,
         JSON.parse(JSON.stringify(entries))
       );
-      next_token = `${uuid}:2`;
-      entries = entries.splice(0, max_entries);
+      next_token = `${uuid}:${max_entries}`;
+      entries = entries.slice(0, max_entries);
     }
 
     const data = {
@@ -1821,6 +1975,54 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     name = name.replace(/[^a-z0-9_\-:.+]+/gi, "");
 
     driver.ctx.logger.verbose("cleansed snapshot name: %s", name);
+
+    // check for other snapshopts with the same name on other volumes and fail as appropriate
+    {
+      try {
+        let datasets = [];
+        datasets = await zb.zfs.list(
+          this.getDetachedSnapshotParentDatasetName(),
+          [],
+          { recurse: true, types }
+        );
+        for (let dataset of datasets.indexed) {
+          let parts = dataset.name.split("/").slice(-2);
+          if (parts[1] != name) {
+            continue;
+          }
+
+          if (parts[0] != source_volume_id) {
+            throw new GrpcError(
+              grpc.status.ALREADY_EXISTS,
+              `snapshot name: ${name} is incompatible with source_volume_id: ${source_volume_id} due to being used with another source_volume_id`
+            );
+          }
+        }
+      } catch (err) {
+        if (!err.toString().includes("dataset does not exist")) {
+          throw err;
+        }
+      }
+
+      let snapshots = [];
+      snapshots = await zb.zfs.list(this.getVolumeParentDatasetName(), [], {
+        recurse: true,
+        types,
+      });
+      for (let snapshot of snapshots.indexed) {
+        let parts = zb.helpers.extractLeafName(snapshot.name).split("@");
+        if (parts[1] != name) {
+          continue;
+        }
+
+        if (parts[0] != source_volume_id) {
+          throw new GrpcError(
+            grpc.status.ALREADY_EXISTS,
+            `snapshot name: ${name} is incompatible with source_volume_id: ${source_volume_id} due to being used with another source_volume_id`
+          );
+        }
+      }
+    }
 
     let fullSnapshotName;
     let snapshotDatasetName;
@@ -2043,6 +2245,42 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
    */
   async ValidateVolumeCapabilities(call) {
     const driver = this;
+    const zb = await this.getZetabyte();
+
+    const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
+
+    const capabilities = call.request.volume_capabilities;
+    if (!capabilities || capabilities.length === 0) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing capabilities`);
+    }
+
+    let datasetParentName = this.getVolumeParentDatasetName();
+    let name = volume_id;
+
+    if (!datasetParentName) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `invalid configuration: missing datasetParentName`
+      );
+    }
+
+    const datasetName = datasetParentName + "/" + name;
+    try {
+      await zb.zfs.get(datasetName, []);
+    } catch (err) {
+      if (err.toString().includes("dataset does not exist")) {
+        throw new GrpcError(
+          grpc.status.NOT_FOUND,
+          `invalid volume_id: ${volume_id}`
+        );
+      } else {
+        throw err;
+      }
+    }
+
     const result = this.assertCapabilities(call.request.volume_capabilities);
 
     if (result.valid !== true) {

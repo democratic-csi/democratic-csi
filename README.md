@@ -201,6 +201,7 @@ non-`root` user when connecting to the FreeNAS server:
   account user query select=id,username,uid,sudo_nopasswd
 
   # find the `id` of the user you want to update (note, this is distinct from the `uid`)
+  account user update id=<id> sudo=true
   account user update id=<id> sudo_nopasswd=true
   # optional if you want to disable password
   #account user update id=<id> password_disabled=true

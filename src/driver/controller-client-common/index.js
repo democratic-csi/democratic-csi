@@ -1,6 +1,7 @@
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const cp = require("child_process");
+const fs = require("fs");
 const semver = require("semver");
 
 /**
@@ -329,6 +330,10 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     ]);
   }
 
+  async directoryExists(path) {
+    return fs.existsSync(path);
+  }
+
   /**
    * Create a volume doing in essence the following:
    * 1. create directory
@@ -353,11 +358,28 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       );
     }
 
-    if (call.request.volume_capabilities) {
+    if (
+      call.request.volume_capabilities &&
+      call.request.volume_capabilities.length > 0
+    ) {
       const result = this.assertCapabilities(call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
+    } else {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        "missing volume_capabilities"
+      );
+    }
+
+    if (
+      !call.request.capacity_range ||
+      Object.keys(call.request.capacity_range).length === 0
+    ) {
+      call.request.capacity_range = {
+        required_bytes: 1073741824, // meaningless
+      };
     }
 
     if (
@@ -429,6 +451,13 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
             `invalid volume_content_source type: ${volume_content_source.type}`
           );
           break;
+      }
+
+      if (!(await driver.directoryExists(source_path))) {
+        throw new GrpcError(
+          grpc.status.NOT_FOUND,
+          `invalid volume_content_source path: ${source_path}`
+        );
       }
 
       driver.ctx.logger.debug("controller source path: %s", source_path);
@@ -630,7 +659,10 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     const volume_path = driver.getControllerVolumePath(source_volume_id);
     const snapshot_path = driver.getControllerSnapshotPath(snapshot_id);
 
-    await driver.cloneDir(volume_path, snapshot_path);
+    // do NOT overwrite existing snapshot
+    if (!(await driver.directoryExists(snapshot_path))) {
+      await driver.cloneDir(volume_path, snapshot_path);
+    }
 
     return {
       snapshot: {
@@ -681,6 +713,25 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    */
   async ValidateVolumeCapabilities(call) {
     const driver = this;
+
+    const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing volume_id`);
+    }
+
+    const capabilities = call.request.volume_capabilities;
+    if (!capabilities || capabilities.length === 0) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing capabilities`);
+    }
+
+    const volume_path = driver.getControllerVolumePath(volume_id);
+    if (!(await driver.directoryExists(volume_path))) {
+      throw new GrpcError(
+        grpc.status.NOT_FOUND,
+        `invalid volume_id: ${volume_id}`
+      );
+    }
+
     const result = this.assertCapabilities(call.request.volume_capabilities);
 
     if (result.valid !== true) {
