@@ -1,3 +1,10 @@
+# v1.4.1
+
+Released 2021-09-21
+
+- `k8s-csi-cleaner` script (see #81)
+- bump deps
+
 # v1.4.0
 
 Released 2021-09-21
