@@ -2,7 +2,10 @@
 
 /**
  * The purpose of this script is to prune volumes in the storage system which
- * do not have correlating PVs in k8s
+ * do not have correlating PVs in k8s.
+ * 
+ * kubectl -n democratic-csi exec -ti <controller pod> --container=csi-driver -- bash
+ * ./bin/k8s-csi-cleaner
  *
  * env vars:
  * # prevents manual input on a per-volume basis to confirm delete action
