@@ -18,6 +18,7 @@
  * CSI_ENDPOINT="localhost:50051"
  */
 
+const _ = require("lodash");
 const k8s = require("@kubernetes/client-node");
 const prompt = require("prompt");
 
@@ -43,7 +44,8 @@ var protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 var csi = protoDescriptor.csi.v1;
 //console.log(csi);
 
-var connectionEndpoint = process.env.CSI_ENDPOINT || "unix:///csi-data/csi.sock";
+var connectionEndpoint =
+  process.env.CSI_ENDPOINT || "unix:///csi-data/csi.sock";
 
 var clientIdentity = new csi.Identity(
   connectionEndpoint,
@@ -124,10 +126,10 @@ async function main() {
     let volume_id = csiVolume.volume.volume_id;
     //console.log(`processing csi volume ${volume_id}`);
     let k8sVolume = k8sVolumes.find((i_k8sVolume) => {
-      return i_k8sVolume.metadata.name == volume_id;
+      let volume_handle = _.get(i_k8sVolume, "spec.csi.volumeHandle", null);
+      return volume_handle == volume_id;
     });
 
-    //let delete = false;
     if (!k8sVolume) {
       console.log(`volume ${volume_id} is NOT in k8s`);
       if (process.env.DRY_RUN == "1") {
