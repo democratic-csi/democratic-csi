@@ -1,0 +1,172 @@
+#!/usr/bin/env -S node --nouse-idle-notification --expose-gc
+
+/**
+ * The purpose of this script is to prune volumes in the storage system which
+ * do not have correlating PVs in k8s
+ *
+ * env vars:
+ * # prevents manual input on a per-volume basis to confirm delete action
+ * # default is 0
+ * AUTO_DELETE=1
+ *
+ * # outputs to the console which volumes would be cleaned vs not
+ * # default is 0
+ * DRY_RUN=1
+ *
+ * # endpoint for the csi grpc connection
+ * # default is unix:///csi-data/csi.sock
+ * CSI_ENDPOINT="localhost:50051"
+ */
+
+const k8s = require("@kubernetes/client-node");
+const prompt = require("prompt");
+
+prompt.start();
+
+const PROTO_PATH = __dirname + "/../csi_proto/csi-v1.5.0.proto";
+//var grpc = require("grpc-uds");
+var grpc = require("@grpc/grpc-js");
+var protoLoader = require("@grpc/proto-loader");
+const { rsort } = require("semver");
+// Suggested options for similarity to existing grpc.load behavior
+var packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true,
+});
+
+var protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
+
+// The protoDescriptor object has the full package hierarchy
+var csi = protoDescriptor.csi.v1;
+//console.log(csi);
+
+var connectionEndpoint = process.env.CSI_ENDPOINT || "unix:///csi-data/csi.sock";
+
+var clientIdentity = new csi.Identity(
+  connectionEndpoint,
+  grpc.credentials.createInsecure()
+);
+
+var clientController = new csi.Controller(
+  connectionEndpoint,
+  grpc.credentials.createInsecure()
+);
+
+var clientNode = new csi.Node(
+  connectionEndpoint,
+  grpc.credentials.createInsecure()
+);
+
+async function executeRPC(service, methodName, options = {}) {
+  //console.log(service[methodName]);
+  return new Promise((resolve, reject) => {
+    const call = service[methodName](options, (error, data) => {
+      //console.log("%s - error: %j, data: %j", methodName, error, data);
+
+      if (error) {
+        reject(error);
+      }
+
+      resolve(data);
+    });
+  });
+}
+
+async function runControllerListVolumes(starting_token = "") {
+  const req = {
+    //max_entries: 3,
+    //starting_token: "77e73621-6fbc-4aec-9d6b-fc9ac2fd1a44:2"
+    starting_token,
+  };
+
+  return executeRPC(clientController, "ListVolumes", req);
+}
+
+async function runControllerDeleteVolume(volume_id) {
+  const req = {
+    volume_id: volume_id,
+  };
+
+  return executeRPC(clientController, "DeleteVolume", req);
+}
+
+async function main() {
+  // get k8s volumes
+  let k8sVolumes = await new Promise((resolve, reject) => {
+    const kc = new k8s.KubeConfig();
+    kc.loadFromDefault();
+    const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+    // V1PersistentVolumeList
+    k8sApi.listPersistentVolume().then((res) => {
+      //console.log(res);
+      //console.dir(res.body.items, { depth: null }); // `depth: null` ensures unlimited recursion
+      resolve(res.body.items);
+    });
+  });
+  console.log(`${k8sVolumes.length} k8s PVs discovered`);
+
+  // get csi volumes
+  let res;
+  let csiVolumes = [];
+  do {
+    res = await runControllerListVolumes();
+    csiVolumes = csiVolumes.concat(res.entries);
+  } while (res.next_token);
+  console.log(`${csiVolumes.length} csi volumes discovered`);
+
+  //console.log(k8sVolumes);
+  //console.log(csiVolumes);
+
+  for (let csiVolume of csiVolumes) {
+    let volume_id = csiVolume.volume.volume_id;
+    //console.log(`processing csi volume ${volume_id}`);
+    let k8sVolume = k8sVolumes.find((i_k8sVolume) => {
+      return i_k8sVolume.metadata.name == volume_id;
+    });
+
+    //let delete = false;
+    if (!k8sVolume) {
+      console.log(`volume ${volume_id} is NOT in k8s`);
+      if (process.env.DRY_RUN == "1") {
+        continue;
+      }
+
+      let del = false;
+      if (process.env.AUTO_DELETE == "1") {
+        del = true;
+      } else {
+        res = await prompt.get([
+          {
+            name: "delete",
+            required: true,
+            type: "boolean",
+          },
+        ]);
+        del = res.delete;
+      }
+      if (del) {
+        res = await runControllerDeleteVolume(volume_id);
+        console.log(`csi volume ${volume_id} deleted`);
+      } else {
+        console.log(`skipping delete of csi volume ${volume_id}`);
+      }
+    } else {
+      console.log(`volume ${volume_id} is in k8s`);
+    }
+  }
+
+  console.log("Fin");
+}
+
+if (require.main === module) {
+  (async function () {
+    try {
+      await main();
+    } catch (e) {
+      console.log(e);
+    }
+  })();
+}
