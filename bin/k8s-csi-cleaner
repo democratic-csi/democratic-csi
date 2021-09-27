@@ -31,7 +31,7 @@ const PROTO_PATH = __dirname + "/../csi_proto/csi-v1.5.0.proto";
 //var grpc = require("grpc-uds");
 var grpc = require("@grpc/grpc-js");
 var protoLoader = require("@grpc/proto-loader");
-const { rsort } = require("semver");
+
 // Suggested options for similarity to existing grpc.load behavior
 var packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,

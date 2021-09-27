@@ -9,14 +9,44 @@ on:
       - next
 
 jobs:
-  build:
+  cancel-previous-runs:
     runs-on: ubuntu-latest
-
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.6.0
         with:
           access_token: ${{ github.token }}
+
+  csi-sanity-synology:
+    strategy:
+      matrix:
+        config:
+          - synlogy-iscsi/default.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          export CI_BUILD_KEY=$(uuidgen)
+          sudo ci/bin/launch-server.sh &
+          # wait for server to launch
+          sleep 10
+          sudo ci/bin/launch-csi-sanity.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          SYNOLOGY_HOST: ${{ secrets.SANITY_SYNOLOGY_HOST }}
+          SYNOLOGY_PORT: ${{ secrets.SANITY_SYNOLOGY_PORT }}
+          SYNOLOGY_USERNAME: ${{ secrets.SANITY_SYNOLOGY_USERNAME }}
+          SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
+          SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
+          TARGET_PORTAL: ${{ secrets.SANITY_SYNOLOGY_TARGET_PORTAL }}
+
+  build:
+    needs:
+      - csi-sanity-synology
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v2
       - name: docker build
         run: |
