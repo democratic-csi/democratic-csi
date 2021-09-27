@@ -29,10 +29,19 @@ jobs:
       - name: csi-sanity
         run: |
           export PATH="/usr/local/lib/nodejs/bin:${PATH}"
+          # install deps
+          npm i
+          
+          # generate key for paths etc
           export CI_BUILD_KEY=$(uuidgen)
+
+          # launch the server
           sudo -E ci/bin/launch-server.sh &
+
           # wait for server to launch
           sleep 10
+          
+          # launch csi-sanity
           sudo -E ci/bin/launch-csi-sanity.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
