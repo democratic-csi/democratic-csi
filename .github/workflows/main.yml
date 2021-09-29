@@ -115,6 +115,7 @@ jobs:
       - csi-sanity-synology
       - csi-sanity-truenas-scale
       - csi-sanity-truenas-core
+      - csi-sanity-zfs-generic
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
