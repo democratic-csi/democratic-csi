@@ -45,6 +45,7 @@ jobs:
         config:
           - truenas/scale-iscsi.yaml
           - truenas/scale-nfs.yaml
+          # 80 char limit
           #- truenas/scale-smb.yaml
     runs-on:
       - self-hosted
@@ -65,8 +66,10 @@ jobs:
     strategy:
       matrix:
         config:
-          - truenas/core-iscsi.yaml
+          # 63 char limit
+          #- truenas/core-iscsi.yaml
           - truenas/core-nfs.yaml
+          # 80 char limit
           #- truenas/core-smb.yaml
     runs-on:
       - self-hosted
