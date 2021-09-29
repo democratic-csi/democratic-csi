@@ -2,7 +2,6 @@ const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const sleep = require("../../utils/general").sleep;
 
-
 const Handlebars = require("handlebars");
 
 const ISCSI_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:iscsi_assets_name";
@@ -210,7 +209,15 @@ create /backstores/block/${iscsiName}
                   key
                 ]
               ) {
-                await zb.zfs.inherit(datasetName, key);
+                try {
+                  await zb.zfs.inherit(datasetName, key);
+                } catch (err) {
+                  if (err.toString().includes("dataset does not exist")) {
+                    // do nothing
+                  } else {
+                    throw err;
+                  }
+                }
               }
             }
             await sleep(2000); // let things settle
