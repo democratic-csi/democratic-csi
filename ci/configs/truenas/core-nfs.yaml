@@ -1,10 +1,16 @@
-driver: freenas-api-nfs
+driver: freenas-nfs
 
 httpConnection:
   protocol: http
   host: ${TRUENAS_HOST}
   port: 80
   #apiKey: 
+  username: ${TRUENAS_USERNAME}
+  password: ${TRUENAS_PASSWORD}
+
+sshConnection:
+  host: ${TRUENAS_HOST}
+  port: 22
   username: ${TRUENAS_USERNAME}
   password: ${TRUENAS_PASSWORD}
 

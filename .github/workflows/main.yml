@@ -45,7 +45,7 @@ jobs:
         config:
           - truenas/scale-iscsi.yaml
           - truenas/scale-nfs.yaml
-          - truenas/scale-smb.yaml
+          #- truenas/scale-smb.yaml
     runs-on:
       - self-hosted
     steps:
@@ -67,7 +67,7 @@ jobs:
         config:
           - truenas/core-iscsi.yaml
           - truenas/core-nfs.yaml
-          - truenas/core-smb.yaml
+          #- truenas/core-smb.yaml
     runs-on:
       - self-hosted
     steps:
