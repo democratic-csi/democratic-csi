@@ -19,6 +19,7 @@ jobs:
 
   csi-sanity-synology:
     strategy:
+      fail-fast: false
       matrix:
         config:
           - synlogy/iscsi.yaml
@@ -41,6 +42,7 @@ jobs:
   # api-based drivers
   csi-sanity-truenas-scale:
     strategy:
+      fail-fast: false
       matrix:
         config:
           - truenas/scale-iscsi.yaml
@@ -64,6 +66,7 @@ jobs:
   # ssh-based drivers
   csi-sanity-truenas-core:
     strategy:
+      fail-fast: false
       matrix:
         config:
           # 63 char limit
