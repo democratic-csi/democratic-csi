@@ -21,28 +21,15 @@ jobs:
     strategy:
       matrix:
         config:
-          - synlogy-iscsi/default.yaml
+          - synlogy/iscsi.yaml
     runs-on:
       - self-hosted
     steps:
       - uses: actions/checkout@v2
       - name: csi-sanity
         run: |
-          export PATH="/usr/local/lib/nodejs/bin:${PATH}"
-          # install deps
-          npm i
-          
-          # generate key for paths etc
-          export CI_BUILD_KEY=$(uuidgen)
-
-          # launch the server
-          sudo -E ci/bin/launch-server.sh &
-
-          # wait for server to launch
-          sleep 10
-          
-          # launch csi-sanity
-          sudo -E ci/bin/launch-csi-sanity.sh
+          # run tests
+          ci/bin/run.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
           SYNOLOGY_HOST: ${{ secrets.SANITY_SYNOLOGY_HOST }}
@@ -50,11 +37,56 @@ jobs:
           SYNOLOGY_USERNAME: ${{ secrets.SANITY_SYNOLOGY_USERNAME }}
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
-          TARGET_PORTAL: ${{ secrets.SANITY_SYNOLOGY_TARGET_PORTAL }}
+
+  # api-based drivers
+  csi-sanity-truenas-scale:
+    strategy:
+      matrix:
+        config:
+          - truenas/scale-iscsi.yaml
+          - truenas/scale-nfs.yaml
+          - truenas/scale-smb.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_SCALE_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_SCALE_PASSWORD }}
+
+  # ssh-based drivers
+  csi-sanity-truenas-core:
+    strategy:
+      matrix:
+        config:
+          - truenas/core-iscsi.yaml
+          - truenas/core-nfs.yaml
+          - truenas/core-smb.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_CORE_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_CORE_PASSWORD }}
 
   build:
     needs:
       - csi-sanity-synology
+      - csi-sanity-truenas-scale
+      - csi-sanity-truenas-core
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

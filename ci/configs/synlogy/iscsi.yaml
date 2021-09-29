@@ -13,10 +13,10 @@ synology:
   volume: ${SYNOLOGY_VOLUME}
 
 iscsi:
-  targetPortal: ${TARGET_PORTAL}
+  targetPortal: ${SYNOLOGY_HOST}
   targetPortals: []
   baseiqn: "iqn.2000-01.com.synology:XpenoDsm62x."
-  namePrefix: "csi-${CI_BUILD_KEY}"
+  namePrefix: "csi-${CI_BUILD_KEY}-"
   nameSuffix: "-ci"
 
   lunTemplate:
