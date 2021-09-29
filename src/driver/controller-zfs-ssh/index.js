@@ -1,6 +1,7 @@
 const { CsiBaseDriver } = require("../index");
 const SshClient = require("../../utils/ssh").SshClient;
 const { GrpcError, grpc } = require("../../utils/grpc");
+const sleep = require("../../utils/general").sleep;
 
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
@@ -1243,7 +1244,27 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
     try {
-      await zb.zfs.destroy(datasetName, { recurse: true, force: true });
+      let max_tries = 5;
+      let sleep_time = 3000;
+      let current_try = 1;
+      let success = false;
+      while(!success && current_try <= max_tries) {
+        try {
+          await zb.zfs.destroy(datasetName, { recurse: true, force: true });
+          success = true;
+        } catch (err) {
+          if (err.toString().includes("dataset is busy")) {
+            current_try++;
+            if (current_try > max_tries) {
+              throw err;
+            } else {
+              await sleep(sleep_time);
+            }
+          } else {
+            throw err;
+          }
+        }
+      }
     } catch (err) {
       if (err.toString().includes("filesystem has dependent clones")) {
         throw new GrpcError(
