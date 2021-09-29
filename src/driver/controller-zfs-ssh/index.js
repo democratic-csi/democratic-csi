@@ -1403,6 +1403,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     const datasetName = datasetParentName;
 
+    await zb.zfs.create(datasetName, {
+      parents: true,
+    });
+
     let properties;
     try {
       properties = await zb.zfs.get(datasetName, ["avail"]);

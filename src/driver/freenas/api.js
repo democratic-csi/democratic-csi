@@ -2964,6 +2964,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     const datasetName = datasetParentName;
 
+    await httpApiClient.DatasetCreate(datasetName, {
+      create_ancestors: true,
+    });
+
     let properties;
     properties = await httpApiClient.DatasetGet(datasetName, ["available"]);
 
