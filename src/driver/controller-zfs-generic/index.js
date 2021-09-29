@@ -204,8 +204,6 @@ create /backstores/block/${iscsiName}
       case "zfs-generic-nfs":
         switch (this.options.nfs.shareStrategy) {
           case "setDatasetProperties":
-            // remove the dataset properties
-            // sleep to let things settle
             for (let key of ["share", "sharenfs"]) {
               if (
                 this.options.nfs.shareStrategySetDatasetProperties.properties[
