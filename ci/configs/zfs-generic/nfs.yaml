@@ -17,7 +17,7 @@ zfs:
   datasetPermissionsGroup: 0
 
 nfs:
-  shareHost: ${TRUENAS_HOST}
+  shareHost: ${SERVER_HOST}
   shareStrategy: "setDatasetProperties"
   shareStrategySetDatasetProperties:
     properties:
