@@ -1,3 +1,10 @@
+# v1.4.2
+
+Released 2021-09-29
+
+- general improvements to help ci
+- cover most drivers with ci
+
 # v1.4.1
 
 Released 2021-09-21
