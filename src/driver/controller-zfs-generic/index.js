@@ -1,5 +1,7 @@
 const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const sleep = require("../../utils/general").sleep;
+
 
 const Handlebars = require("handlebars");
 
@@ -202,6 +204,18 @@ create /backstores/block/${iscsiName}
       case "zfs-generic-nfs":
         switch (this.options.nfs.shareStrategy) {
           case "setDatasetProperties":
+            // remove the dataset properties
+            // sleep to let things settle
+            for (let key of ["share", "sharenfs"]) {
+              if (
+                this.options.nfs.shareStrategySetDatasetProperties.properties[
+                  key
+                ]
+              ) {
+                await zb.zfs.inherit(datasetName, key);
+              }
+            }
+            await sleep(2000); // let things settle
             break;
           default:
             throw new GrpcError(
