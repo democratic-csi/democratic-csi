@@ -368,3 +368,5 @@ A special shout out to the wonderful sponsors of the project!
 - https://github.com/nmaupu/freenas-provisioner
 - https://github.com/travisghansen/freenas-iscsi-provisioner
 - https://datamattsson.tumblr.com/post/624751011659202560/welcome-truenas-core-container-storage-provider
+- https://github.com/dravanet/truenas-csi
+- https://github.com/SynologyOpenSource/synology-csi

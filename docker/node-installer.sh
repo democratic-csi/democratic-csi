@@ -28,8 +28,11 @@ fi
 
 echo "I am installing node $NODE_VERSION $NODE_DISTRO"
 
+if [[ "x${NODE_TARGET_DIR}" == "x" ]]; then
+  NODE_TARGET_DIR="/usr/local/lib/nodejs"
+fi
+
 wget https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz >/dev/null 2>&1
-mkdir -p /usr/local/lib/nodejs
-tar -xJf node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz -C /usr/local/lib/nodejs --strip-components=1
+mkdir -p ${NODE_TARGET_DIR}
+tar -xJf node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz -C ${NODE_TARGET_DIR} --strip-components=1
 rm node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz
-rm -rf /var/lib/apt/lists/*

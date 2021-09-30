@@ -1,0 +1,24 @@
+driver: zfs-generic-nfs
+
+sshConnection:
+  host: ${SERVER_HOST}
+  port: 22
+  username: ${SERVER_USERNAME}
+  password: ${SERVER_PASSWORD}
+
+zfs:
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  datasetEnableQuotas: true
+  datasetEnableReservation: true
+  datasetPermissionsMode: "0777"
+  datasetPermissionsUser: 0
+  datasetPermissionsGroup: 0
+
+nfs:
+  shareHost: ${SERVER_HOST}
+  shareStrategy: "setDatasetProperties"
+  shareStrategySetDatasetProperties:
+    properties:
+      sharenfs: "on"

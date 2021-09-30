@@ -9,14 +9,115 @@ on:
       - next
 
 jobs:
-  build:
+  cancel-previous-runs:
     runs-on: ubuntu-latest
-
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.6.0
         with:
           access_token: ${{ github.token }}
+
+  csi-sanity-synology:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - synlogy/iscsi.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          SYNOLOGY_HOST: ${{ secrets.SANITY_SYNOLOGY_HOST }}
+          SYNOLOGY_PORT: ${{ secrets.SANITY_SYNOLOGY_PORT }}
+          SYNOLOGY_USERNAME: ${{ secrets.SANITY_SYNOLOGY_USERNAME }}
+          SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
+          SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
+
+  # api-based drivers
+  csi-sanity-truenas-scale:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - truenas/scale-iscsi.yaml
+          - truenas/scale-nfs.yaml
+          # 80 char limit
+          #- truenas/scale-smb.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_SCALE_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_SCALE_PASSWORD }}
+
+  # ssh-based drivers
+  csi-sanity-truenas-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          # 63 char limit
+          #- truenas/core-iscsi.yaml
+          - truenas/core-nfs.yaml
+          # 80 char limit
+          #- truenas/core-smb.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_CORE_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_CORE_PASSWORD }}
+
+  # ssh-based drivers
+  csi-sanity-zfs-generic:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - zfs-generic/iscsi.yaml
+          - zfs-generic/nfs.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
+          SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
+          SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
+
+  build:
+    needs:
+      - csi-sanity-synology
+      - csi-sanity-truenas-scale
+      - csi-sanity-truenas-core
+      - csi-sanity-zfs-generic
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v2
       - name: docker build
         run: |

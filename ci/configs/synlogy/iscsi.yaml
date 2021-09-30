@@ -1,0 +1,77 @@
+driver: synology-iscsi
+httpConnection:
+  protocol: http
+  host: ${SYNOLOGY_HOST}
+  port: ${SYNOLOGY_PORT}
+  username: ${SYNOLOGY_USERNAME}
+  password: ${SYNOLOGY_PASSWORD}
+  allowInsecure: true
+  session: "democratic-csi-${CI_BUILD_KEY}"
+  serialize: true
+
+synology:
+  volume: ${SYNOLOGY_VOLUME}
+
+iscsi:
+  targetPortal: ${SYNOLOGY_HOST}
+  targetPortals: []
+  baseiqn: "iqn.2000-01.com.synology:XpenoDsm62x."
+  namePrefix: "csi-${CI_BUILD_KEY}-"
+  nameSuffix: "-ci"
+
+  lunTemplate:
+    # btrfs thin provisioning
+    type: "BLUN"
+    # tpws = Hardware-assisted zeroing
+    # caw = Hardware-assisted locking
+    # 3pc = Hardware-assisted data transfer
+    # tpu = Space reclamation
+    # can_snapshot = Snapshot
+    #dev_attribs:
+    #- dev_attrib: emulate_tpws
+    #  enable: 1
+    #- dev_attrib: emulate_caw
+    #  enable: 1
+    #- dev_attrib: emulate_3pc
+    #  enable: 1
+    #- dev_attrib: emulate_tpu
+    #  enable: 0
+    #- dev_attrib: can_snapshot
+    #  enable: 1
+
+    # btfs thick provisioning
+    # only zeroing and locking supported
+    #type: "BLUN_THICK"
+    # tpws = Hardware-assisted zeroing
+    # caw = Hardware-assisted locking
+    #dev_attribs:
+    #- dev_attrib: emulate_tpws
+    #  enable: 1
+    #- dev_attrib: emulate_caw
+    #  enable: 1
+
+    # ext4 thinn provisioning UI sends everything with enabled=0
+    #type: "THIN"
+
+    # ext4 thin with advanced legacy features set
+    # can only alter tpu (all others are set as enabled=1)
+    #type: "ADV"
+    #dev_attribs:
+    #- dev_attrib: emulate_tpu
+    #  enable: 1
+
+    # ext4 thick
+    # can only alter caw
+    #type: "FILE"
+    #dev_attribs:
+    #- dev_attrib: emulate_caw
+    #  enable: 1
+
+  lunSnapshotTemplate:
+    is_locked: true
+    # https://kb.synology.com/en-me/DSM/tutorial/What_is_file_system_consistent_snapshot
+    is_app_consistent: true
+
+  targetTemplate:
+    auth_type: 0
+    max_sessions: 0

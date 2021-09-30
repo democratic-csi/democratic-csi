@@ -1,0 +1,56 @@
+driver: freenas-api-smb
+
+httpConnection:
+  protocol: http
+  host: ${TRUENAS_HOST}
+  port: 80
+  #apiKey: 
+  username: ${TRUENAS_USERNAME}
+  password: ${TRUENAS_PASSWORD}
+
+zfs:
+  datasetProperties:
+    # smb options
+    #aclmode: restricted
+    #casesensitivity: mixed
+
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  datasetEnableQuotas: true
+  datasetEnableReservation: true
+  datasetPermissionsMode: "0777"
+  datasetPermissionsUser: 0
+  datasetPermissionsGroup: 0
+  
+  # for smb with guest
+  #datasetPermissionsUser: nobody
+  #datasetPermissionsGroup: nobody
+  
+  #datasetPermissionsGroup: root
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
+
+  #datasetPermissionsAcls:
+  #- "-m u:kube:full_set:allow"
+
+smb:
+  shareHost: ${TRUENAS_HOST}
+  #nameTemplate: ""
+  namePrefix: "csi-ci-${CI_BUILD_KEY}"
+  nameSuffix: ""
+  shareAuxiliaryConfigurationTemplate: |
+    #guest ok = yes
+    #guest only = yes
+  shareHome: false
+  shareAllowedHosts: []
+  shareDeniedHosts: []
+  #shareDefaultPermissions: true
+  shareGuestOk: true
+  #shareGuestOnly: true
+  #shareShowHiddenFiles: true
+  shareRecycleBin: true
+  shareBrowsable: false
+  shareAccessBasedEnumeration: true
+  shareTimeMachine: false
+  #shareStorageTask:
