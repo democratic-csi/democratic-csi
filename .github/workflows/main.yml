@@ -25,6 +25,7 @@ jobs:
           - synlogy/iscsi.yaml
     runs-on:
       - self-hosted
+      - csi-sanity-synology
     steps:
       - uses: actions/checkout@v2
       - name: csi-sanity
@@ -51,6 +52,7 @@ jobs:
           #- truenas/scale-smb.yaml
     runs-on:
       - self-hosted
+      - csi-sanity-truenas-scale
     steps:
       - uses: actions/checkout@v2
       - name: csi-sanity
@@ -76,6 +78,7 @@ jobs:
           #- truenas/core-smb.yaml
     runs-on:
       - self-hosted
+      - csi-sanity-truenas-core
     steps:
       - uses: actions/checkout@v2
       - name: csi-sanity
@@ -98,6 +101,7 @@ jobs:
           - zfs-generic/nfs.yaml
     runs-on:
       - self-hosted
+      - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - name: csi-sanity
