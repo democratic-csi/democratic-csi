@@ -1054,6 +1054,15 @@ class CsiBaseDriver {
             normalized_staging_path = staging_target_path;
           }
 
+          // sanity check to ensure the staged path is actually mounted
+          result = await mount.pathIsMounted(normalized_staging_path);
+          if (!result) {
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `staging path is not mounted: ${normalized_staging_path}`
+            );
+          }
+
           result = await mount.pathIsMounted(target_path);
           // if not mounted, mount
           if (!result) {
