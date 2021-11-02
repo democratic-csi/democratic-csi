@@ -670,7 +670,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
          * The purpose of this field is to give CO guidance on how much space
          * is needed to create a volume from this snapshot.
          */
-        size_bytes: 0,
+        //size_bytes: 0,
         snapshot_id,
         source_volume_id: source_volume_id,
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto

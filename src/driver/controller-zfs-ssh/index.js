@@ -1874,7 +1874,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
                * In that vein, I think it's best to return 0 here given the
                * unknowns of 'cow' implications.
                */
-              size_bytes: 0,
+              //size_bytes: 0,
 
               // remove parent dataset details
               snapshot_id: row["name"].replace(
@@ -2173,7 +2173,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
          * In that vein, I think it's best to return 0 here given the
          * unknowns of 'cow' implications.
          */
-        size_bytes: 0,
+        //size_bytes: 0,
 
         // remove parent dataset details
         snapshot_id: properties.name.value.replace(
