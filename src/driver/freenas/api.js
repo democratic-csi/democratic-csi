@@ -1844,6 +1844,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
     return client;
   }
 
+  async getMinimumVolumeSize() {
+    return 1073741824;
+  }
+
   async getTrueNASHttpApiClient() {
     const driver = this;
     const httpClient = await this.getHttpClient();
@@ -2004,6 +2008,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
     let volume_content_source = call.request.volume_content_source;
+    let minimum_volume_size = await driver.getMinimumVolumeSize();
 
     if (!datasetParentName) {
       throw new GrpcError(
@@ -2039,7 +2044,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       Object.keys(call.request.capacity_range).length === 0
     ) {
       call.request.capacity_range = {
-        required_bytes: 1073741824,
+        required_bytes: minimum_volume_size,
       };
     }
 
@@ -2077,6 +2082,14 @@ class FreeNASApiDriver extends CsiBaseDriver {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
         `volume capacity is required (either required_bytes or limit_bytes)`
+      );
+    }
+
+    // ensure *actual* capacity is not too small
+    if (capacity_bytes < minimum_volume_size) {
+      throw new GrpcError(
+        grpc.status.OUT_OF_RANGE,
+        `volume capacity is smaller than the minimum: ${minimum_volume_size}`
       );
     }
 
@@ -2976,8 +2989,14 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     let properties;
     properties = await httpApiClient.DatasetGet(datasetName, ["available"]);
+    let minimum_volume_size = await driver.getMinimumVolumeSize();
 
-    return { available_capacity: Number(properties.available.rawvalue) };
+    return {
+      available_capacity: Number(properties.available.rawvalue),
+      minimum_volume_size: {
+        value: Number(minimum_volume_size),
+      },
+    };
   }
 
   /**
