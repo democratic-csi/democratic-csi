@@ -14,6 +14,20 @@ class Client {
   }
   getBaseURL() {
     const server = this.options;
+    if (!server.protocol) {
+      if (server.port) {
+        if (String(server.port).includes("80")) {
+          server.protocol = "http";
+        }
+        if (String(server.port).includes("443")) {
+          server.protocol = "https";
+        }
+      }
+    }
+    if (!server.protocol) {
+      server.protocol = "http";
+    }
+
     const options = {
       scheme: server.protocol,
       host: server.host,
