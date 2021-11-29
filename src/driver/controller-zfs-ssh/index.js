@@ -1375,9 +1375,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         properties.volsize = capacity_bytes;
         setProps = true;
 
-        if (this.options.zfs.zvolEnableReservation) {
-          properties.refreservation = capacity_bytes;
-        }
+        // managed automatically for zvols
+        //if (this.options.zfs.zvolEnableReservation) {
+        //  properties.refreservation = capacity_bytes;
+        //}
         break;
     }
 

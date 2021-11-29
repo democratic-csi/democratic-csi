@@ -3,6 +3,7 @@ const { CsiBaseDriver } = require("../index");
 const HttpClient = require("./http").Client;
 const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte } = require("../../utils/zfs");
+const getLargestNumber = require("../../utils/general").getLargestNumber;
 const sleep = require("../../utils/general").sleep;
 
 const Handlebars = require("handlebars");
@@ -2197,10 +2198,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     // zvol enables reservation by default
     // this implements 'sparse' zvols
+    let sparse;
     if (driverZfsResourceType == "volume") {
+      // this is managed by the `sparse` option in the api
       if (!this.options.zfs.zvolEnableReservation) {
         volumeProperties.refreservation = 0;
       }
+      sparse = Boolean(!this.options.zfs.zvolEnableReservation);
     }
 
     let detachedClone = false;
@@ -2539,6 +2543,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         ...httpApiClient.getSystemProperties(volumeProperties),
         type: driverZfsResourceType.toUpperCase(),
         volsize: driverZfsResourceType == "volume" ? capacity_bytes : undefined,
+        sparse: driverZfsResourceType == "volume" ? sparse : undefined,
         create_ancestors: true,
         user_properties: httpApiClient.getPropertiesKeyValueArray(
           httpApiClient.getUserProperties(volumeProperties)
@@ -2913,9 +2918,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
         properties.volsize = capacity_bytes;
         setProps = true;
 
-        if (this.options.zfs.zvolEnableReservation) {
-          properties.refreservation = capacity_bytes;
-        }
+        // managed automatically for zvols
+        //if (this.options.zfs.zvolEnableReservation) {
+        //  properties.refreservation = capacity_bytes;
+        //}
         break;
     }
 
@@ -3326,6 +3332,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
           "refquota",
           "available",
           "used",
+          "volsize",
+          "referenced",
+          "logicalreferenced",
           VOLUME_CSI_NAME_PROPERTY_NAME,
           SNAPSHOT_CSI_NAME_PROPERTY_NAME,
           MANAGED_PROPERTY_NAME,
@@ -3546,6 +3555,20 @@ class FreeNASApiDriver extends CsiBaseDriver {
           return;
         }
 
+        // TODO: properly handle use-case where datasetEnableQuotas is not turned on
+        let size_bytes = 0;
+        if (driverZfsResourceType == "filesystem") {
+          // independent of detached snapshots when creating a volume from a 'snapshot'
+          // we could be using detached clones (ie: send/receive)
+          // so we must be cognizant and use the highest possible value here
+          // note that whatever value is returned here can/will essentially impact the refquota
+          // value of a derived volume
+          size_bytes = getLargestNumber(row.referenced, row.logicalreferenced);
+        } else {
+          // get the size of the parent volume
+          size_bytes = row.volsize;
+        }
+
         if (source_volume_id)
           entries.push({
             snapshot: {
@@ -3556,7 +3579,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                * In that vein, I think it's best to return 0 here given the
                * unknowns of 'cow' implications.
                */
-              //size_bytes: 0,
+              size_bytes,
 
               // remove parent dataset details
               snapshot_id: row["name"].replace(
@@ -3606,6 +3629,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
 
+    let size_bytes = 0;
     let detachedSnapshot = false;
     try {
       let tmpDetachedSnapshot = JSON.parse(
@@ -3904,6 +3928,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
       "refquota",
       "available",
       "used",
+      "volsize",
+      "referenced",
+      "refreservation",
+      "logicalused",
+      "logicalreferenced",
       VOLUME_CSI_NAME_PROPERTY_NAME,
       SNAPSHOT_CSI_NAME_PROPERTY_NAME,
       SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME,
@@ -3923,6 +3952,22 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     driver.ctx.logger.verbose("snapshot properties: %j", properties);
+
+    // TODO: properly handle use-case where datasetEnableQuotas is not turned on
+    if (driverZfsResourceType == "filesystem") {
+      // independent of detached snapshots when creating a volume from a 'snapshot'
+      // we could be using detached clones (ie: send/receive)
+      // so we must be cognizant and use the highest possible value here
+      // note that whatever value is returned here can/will essentially impact the refquota
+      // value of a derived volume
+      size_bytes = getLargestNumber(
+        properties.referenced.rawvalue,
+        properties.logicalreferenced.rawvalue
+      );
+    } else {
+      // get the size of the parent volume
+      size_bytes = properties.volsize.rawvalue;
+    }
 
     // set this just before sending out response so we know if volume completed
     // this should give us a relatively sane way to clean up artifacts over time
@@ -3946,7 +3991,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
          * In that vein, I think it's best to return 0 here given the
          * unknowns of 'cow' implications.
          */
-        //size_bytes: 0,
+        size_bytes,
 
         // remove parent dataset details
         snapshot_id: properties.name.value.replace(
