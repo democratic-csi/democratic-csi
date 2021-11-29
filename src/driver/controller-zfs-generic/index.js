@@ -353,7 +353,21 @@ delete ${iscsiName}
 
     driver.ctx.logger.verbose("TargetCLI command: " + logCommand);
 
-    let response = await sshClient.exec(sshClient.buildCommand(command, args));
+    // https://github.com/democratic-csi/democratic-csi/issues/127
+    // https://bugs.launchpad.net/ubuntu/+source/python-configshell-fb/+bug/1776761
+    // can apply the linked patch with some modifications to overcome the
+    // KeyErrors or we can simply start a fake tty which does not seem to have
+    // a detrimental effect, only affects Ubuntu 18.04 and older
+    let options = {
+      pty: true,
+    };
+    let response = await sshClient.exec(
+      sshClient.buildCommand(command, args),
+      options
+    );
+    if (response.code != 0) {
+      throw new Error(response.stderr);
+    }
     driver.ctx.logger.verbose(
       "TargetCLI response: " + JSON.stringify(response)
     );
