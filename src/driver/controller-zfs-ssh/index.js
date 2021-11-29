@@ -2162,6 +2162,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       }
     }
 
+    // TODO: let things settle to ensure proper size_bytes is reported
+    // sysctl -d vfs.zfs.txg.timeout  # vfs.zfs.txg.timeout: Max seconds worth of delta per txg
     let properties;
     properties = await zb.zfs.get(
       fullSnapshotName,

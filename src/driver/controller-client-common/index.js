@@ -228,6 +228,12 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     return this.getControllerSnapshotBasePath() + "/" + snapshot_id;
   }
 
+  async getDirectoryUsage(path) {
+    let result = await this.exec("du", ["-s", "--block-size=1", path]);
+    let size = result.stdout.split("\t", 1)[0];
+    return size;
+  }
+
   exec(command, args, options = {}) {
     args = args || [];
 
@@ -664,13 +670,14 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       await driver.cloneDir(volume_path, snapshot_path);
     }
 
+    let size_bytes = await driver.getDirectoryUsage(snapshot_path);
     return {
       snapshot: {
         /**
          * The purpose of this field is to give CO guidance on how much space
          * is needed to create a volume from this snapshot.
          */
-        //size_bytes: 0,
+        size_bytes,
         snapshot_id,
         source_volume_id: source_volume_id,
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto

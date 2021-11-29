@@ -830,7 +830,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         `invalid source_volume_id: ${source_volume_id}`
       );
     }
-    
+
     // check for other snapshopts with the same name on other volumes and fail as appropriate
     // TODO: technically this should only be checking lun/snapshots relevant to this specific install of the driver
     // but alas an isolation/namespacing mechanism does not exist in synology
@@ -845,34 +845,22 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     // check for already exists
-    let snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
-    if (snapshot) {
-      return {
-        snapshot: {
-          /**
-           * The purpose of this field is to give CO guidance on how much space
-           * is needed to create a volume from this snapshot.
-           */
-          //size_bytes: 0,
-          snapshot_id: `/lun/${lun.lun_id}/${snapshot.uuid}`, // add shanpshot_uuid //fixme
-          source_volume_id: source_volume_id,
-          //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
-          creation_time: {
-            seconds: snapshot.time,
-            nanos: 0,
-          },
-          ready_to_use: true,
-        },
-      };
+    let snapshot;
+    snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
+    if (!snapshot) {
+      let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, {
+        src_lun_uuid: lun.uuid,
+        taken_by: "democratic-csi",
+        description: name, //check
+      });
+
+      await httpClient.CreateSnapshot(data);
+      snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
+
+      if (!snapshot) {
+        throw new Error(`failed to create snapshot`);
+      }
     }
-
-    let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, {
-      src_lun_uuid: lun.uuid,
-      taken_by: "democratic-csi",
-      description: name, //check
-    });
-
-    let response = await httpClient.CreateSnapshot(data);
 
     return {
       snapshot: {
@@ -880,12 +868,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
          * The purpose of this field is to give CO guidance on how much space
          * is needed to create a volume from this snapshot.
          */
-        //size_bytes: 0,
-        snapshot_id: `/lun/${lun.lun_id}/${response.body.data.snapshot_uuid}`,
+        size_bytes: snapshot.total_size,
+        snapshot_id: `/lun/${lun.lun_id}/${snapshot.uuid}`, // add shanpshot_uuid //fixme
         source_volume_id: source_volume_id,
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
         creation_time: {
-          seconds: Math.round(new Date().getTime() / 1000),
+          seconds: snapshot.time,
           nanos: 0,
         },
         ready_to_use: true,
