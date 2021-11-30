@@ -1845,7 +1845,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getMinimumVolumeSize() {
-    return 1073741824;
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    switch (driverZfsResourceType) {
+      case "filesystem":
+        return 1073741824;
+    }
   }
 
   async getTrueNASHttpApiClient() {
@@ -2009,6 +2013,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     let name = call.request.name;
     let volume_content_source = call.request.volume_content_source;
     let minimum_volume_size = await driver.getMinimumVolumeSize();
+    let default_required_bytes = 1073741824;
 
     if (!datasetParentName) {
       throw new GrpcError(
@@ -2044,7 +2049,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       Object.keys(call.request.capacity_range).length === 0
     ) {
       call.request.capacity_range = {
-        required_bytes: minimum_volume_size,
+        required_bytes: default_required_bytes,
       };
     }
 
@@ -2086,7 +2091,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     // ensure *actual* capacity is not too small
-    if (capacity_bytes < minimum_volume_size) {
+    if (minimum_volume_size > 0 && capacity_bytes < minimum_volume_size) {
       throw new GrpcError(
         grpc.status.OUT_OF_RANGE,
         `volume capacity is smaller than the minimum: ${minimum_volume_size}`
@@ -2993,9 +2998,12 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     return {
       available_capacity: Number(properties.available.rawvalue),
-      minimum_volume_size: {
-        value: Number(minimum_volume_size),
-      },
+      minimum_volume_size:
+        minimum_volume_size > 0
+          ? {
+              value: Number(minimum_volume_size),
+            }
+          : undefined,
     };
   }
 
