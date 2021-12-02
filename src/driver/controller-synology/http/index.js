@@ -20,9 +20,10 @@ class SynologyHttpClient {
 
   async login() {
     if (!this.sid) {
+      // See https://global.download.synology.com/download/Document/Software/DeveloperGuide/Os/DSM/All/enu/DSM_Login_Web_API_Guide_enu.pdf
       const data = {
         api: "SYNO.API.Auth",
-        version: "2",
+        version: "6",
         method: "login",
         account: this.options.username,
         passwd: this.options.password,

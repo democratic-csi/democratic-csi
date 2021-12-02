@@ -2,6 +2,7 @@ const { CsiBaseDriver } = require("../index");
 const SshClient = require("../../utils/ssh").SshClient;
 const { GrpcError, grpc } = require("../../utils/grpc");
 const sleep = require("../../utils/general").sleep;
+const getLargestNumber = require("../../utils/general").getLargestNumber;
 
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
@@ -1248,7 +1249,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       let sleep_time = 3000;
       let current_try = 1;
       let success = false;
-      while(!success && current_try <= max_tries) {
+      while (!success && current_try <= max_tries) {
         try {
           await zb.zfs.destroy(datasetName, { recurse: true, force: true });
           success = true;
@@ -1374,9 +1375,10 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         properties.volsize = capacity_bytes;
         setProps = true;
 
-        if (this.options.zfs.zvolEnableReservation) {
-          properties.refreservation = capacity_bytes;
-        }
+        // managed automatically for zvols
+        //if (this.options.zfs.zvolEnableReservation) {
+        //  properties.refreservation = capacity_bytes;
+        //}
         break;
     }
 
@@ -1800,6 +1802,9 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             "refquota",
             "avail",
             "used",
+            "volsize",
+            "referenced",
+            "logicalreferenced",
             VOLUME_CSI_NAME_PROPERTY_NAME,
             SNAPSHOT_CSI_NAME_PROPERTY_NAME,
             MANAGED_PROPERTY_NAME,
@@ -1864,6 +1869,20 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           return;
         }
 
+        // TODO: properly handle use-case where datasetEnableQuotas is not turned on
+        let size_bytes = 0;
+        if (driverZfsResourceType == "filesystem") {
+          // independent of detached snapshots when creating a volume from a 'snapshot'
+          // we could be using detached clones (ie: send/receive)
+          // so we must be cognizant and use the highest possible value here
+          // note that whatever value is returned here can/will essentially impact the refquota
+          // value of a derived volume
+          size_bytes = getLargestNumber(row.referenced, row.logicalreferenced);
+        } else {
+          // get the size of the parent volume
+          size_bytes = row.volsize;
+        }
+
         if (source_volume_id)
           entries.push({
             snapshot: {
@@ -1874,7 +1893,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
                * In that vein, I think it's best to return 0 here given the
                * unknowns of 'cow' implications.
                */
-              size_bytes: 0,
+              size_bytes,
 
               // remove parent dataset details
               snapshot_id: row["name"].replace(
@@ -1920,6 +1939,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
 
+    let size_bytes = 0;
     let detachedSnapshot = false;
     try {
       let tmpDetachedSnapshot = JSON.parse(
@@ -1976,6 +1996,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       );
     }
 
+    const volumeDatasetName = volumeParentDatasetName + "/" + source_volume_id;
     const datasetName = datasetParentName + "/" + source_volume_id;
     snapshotProperties[SNAPSHOT_CSI_NAME_PROPERTY_NAME] = name;
     snapshotProperties[SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME] =
@@ -2062,12 +2083,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     if (detachedSnapshot) {
       tmpSnapshotName =
-        volumeParentDatasetName +
-        "/" +
-        source_volume_id +
-        "@" +
-        VOLUME_SOURCE_DETACHED_SNAPSHOT_PREFIX +
-        name;
+        volumeDatasetName + "@" + VOLUME_SOURCE_DETACHED_SNAPSHOT_PREFIX + name;
       snapshotDatasetName = datasetName + "/" + name;
 
       await zb.zfs.create(datasetName, { parents: true });
@@ -2123,11 +2139,17 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         force: true,
         defer: true,
       });
+
+      // let things settle down
+      //await sleep(3000);
     } else {
       try {
         await zb.zfs.snapshot(fullSnapshotName, {
           properties: snapshotProperties,
         });
+
+        // let things settle down
+        //await sleep(3000);
       } catch (err) {
         if (err.toString().includes("dataset does not exist")) {
           throw new GrpcError(
@@ -2140,6 +2162,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       }
     }
 
+    // TODO: let things settle to ensure proper size_bytes is reported
+    // sysctl -d vfs.zfs.txg.timeout  # vfs.zfs.txg.timeout: Max seconds worth of delta per txg
     let properties;
     properties = await zb.zfs.get(
       fullSnapshotName,
@@ -2150,6 +2174,11 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         "refquota",
         "avail",
         "used",
+        "volsize",
+        "referenced",
+        "refreservation",
+        "logicalused",
+        "logicalreferenced",
         VOLUME_CSI_NAME_PROPERTY_NAME,
         SNAPSHOT_CSI_NAME_PROPERTY_NAME,
         SNAPSHOT_CSI_SOURCE_VOLUME_ID_PROPERTY_NAME,
@@ -2159,6 +2188,22 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     );
     properties = properties[fullSnapshotName];
     driver.ctx.logger.verbose("snapshot properties: %j", properties);
+
+    // TODO: properly handle use-case where datasetEnableQuotas is not turned on
+    if (driverZfsResourceType == "filesystem") {
+      // independent of detached snapshots when creating a volume from a 'snapshot'
+      // we could be using detached clones (ie: send/receive)
+      // so we must be cognizant and use the highest possible value here
+      // note that whatever value is returned here can/will essentially impact the refquota
+      // value of a derived volume
+      size_bytes = getLargestNumber(
+        properties.referenced.value,
+        properties.logicalreferenced.value
+      );
+    } else {
+      // get the size of the parent volume
+      size_bytes = properties.volsize.value;
+    }
 
     // set this just before sending out response so we know if volume completed
     // this should give us a relatively sane way to clean up artifacts over time
@@ -2173,7 +2218,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
          * In that vein, I think it's best to return 0 here given the
          * unknowns of 'cow' implications.
          */
-        size_bytes: 0,
+        size_bytes,
 
         // remove parent dataset details
         snapshot_id: properties.name.value.replace(

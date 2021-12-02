@@ -33,25 +33,28 @@ class SshClient {
       var conn = new Client();
 
       if (client.options.connection.debug == true) {
-        client.options.connection.debug = function(msg) {
+        client.options.connection.debug = function (msg) {
           client.debug(msg);
         };
       }
-      
 
       conn
-        .on("error", function(err) {
+        .on("error", function (err) {
           client.debug("Client :: error");
           reject(err);
         })
-        .on("ready", function() {
+        .on("ready", function () {
           client.debug("Client :: ready");
-          conn.exec(command, options, function(err, stream) {
+          //options.pty = true;
+          //options.env = {
+          //  TERM: "",
+          //};
+          conn.exec(command, options, function (err, stream) {
             if (err) reject(err);
             let stderr;
             let stdout;
             stream
-              .on("close", function(code, signal) {
+              .on("close", function (code, signal) {
                 client.debug(
                   "Stream :: close :: code: " + code + ", signal: " + signal
                 );
@@ -61,7 +64,7 @@ class SshClient {
                 resolve({ stderr, stdout, code, signal });
                 conn.end();
               })
-              .on("data", function(data) {
+              .on("data", function (data) {
                 client.debug("STDOUT: " + data);
                 if (stream_proxy) {
                   stream_proxy.stdout.emit("data", ...arguments);
@@ -71,7 +74,7 @@ class SshClient {
                 }
                 stdout = stdout.concat(data);
               })
-              .stderr.on("data", function(data) {
+              .stderr.on("data", function (data) {
                 client.debug("STDERR: " + data);
                 if (stream_proxy) {
                   stream_proxy.stderr.emit("data", ...arguments);
@@ -86,7 +89,7 @@ class SshClient {
         .connect(client.options.connection);
 
       if (stream_proxy) {
-        stream_proxy.on("kill", signal => {
+        stream_proxy.on("kill", (signal) => {
           conn.end();
         });
       }

@@ -1,3 +1,15 @@
+# v1.4.3
+
+Released 2021-12-01
+
+- more appropriate handling of `size_bytes` for snapshots
+- more robust handling of `NodePublishVolume` to ensure the staging path is
+  actually mounted
+- allow control of the `mount` / `umount` / `findmnt` command timeout via
+  `MOUNT_DEFAULT_TIMEOUT` env var
+- minor fix for `zfs-generic-iscsi` with `targetCli` to work-around Ubuntu
+  18:04 bug (see #127)
+
 # v1.4.2
 
 Released 2021-09-29
