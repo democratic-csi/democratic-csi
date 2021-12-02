@@ -2119,10 +2119,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
       let size;
       switch (driverZfsResourceType) {
         case "volume":
-          size = properties["volsize"].value;
+          size = properties["volsize"].rawvalue;
           break;
         case "filesystem":
-          size = properties["refquota"].value;
+          size = properties["refquota"].rawvalue;
           break;
         default:
           throw new Error(
