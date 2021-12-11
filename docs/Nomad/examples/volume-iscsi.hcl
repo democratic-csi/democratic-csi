@@ -9,3 +9,10 @@ capability {
   access_mode     = "single-node-writer"
   attachment_mode = "file-system"
 }
+
+mount_options {
+  # ext4|xfs
+  # default is ext4 when left unset
+  #fs_type     = "ext4"
+  #mount_flags = ["noatime"]
+}

@@ -571,6 +571,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       );
     }
 
+    // if no capacity_range specified set a required_bytes at least
     if (
       !call.request.capacity_range ||
       Object.keys(call.request.capacity_range).length === 0
@@ -592,16 +593,19 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       );
     }
 
-    /**
-     * NOTE: avoid the urge to templatize this given the name length limits for zvols
-     * ie: namespace-name may quite easily exceed 58 chars
-     */
-    const datasetName = datasetParentName + "/" + name;
     let capacity_bytes =
       call.request.capacity_range.required_bytes ||
       call.request.capacity_range.limit_bytes;
 
-    if (capacity_bytes && driverZfsResourceType == "volume") {
+      if (!capacity_bytes) {
+        //should never happen, value must be set
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `volume capacity is required (either required_bytes or limit_bytes)`
+        );
+      }
+    
+      if (capacity_bytes && driverZfsResourceType == "volume") {
       //make sure to align capacity_bytes with zvol blocksize
       //volume size must be a multiple of volume block size
       capacity_bytes = zb.helpers.generateZvolSize(
@@ -609,13 +613,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         zvolBlocksize
       );
     }
-    if (!capacity_bytes) {
-      //should never happen, value must be set
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `volume capacity is required (either required_bytes or limit_bytes)`
-      );
-    }
+    
 
     // ensure *actual* capacity is not greater than limit
     if (
@@ -628,6 +626,12 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         `required volume capacity is greater than limit`
       );
     }
+
+    /**
+     * NOTE: avoid the urge to templatize this given the name length limits for zvols
+     * ie: namespace-name may quite easily exceed 58 chars
+     */
+    const datasetName = datasetParentName + "/" + name;
 
     // ensure volumes with the same name being requested a 2nd time but with a different size fails
     try {
