@@ -4,7 +4,7 @@ set -e
 set -x
 
 _term() {
-  [[ -n "${SUDO_PID}" ]] && kill -- "${SUDO_PID}"
+  [[ -n "${SUDO_PID}" ]] && sudo kill -- "${SUDO_PID}"
 }
 
 trap _term EXIT
