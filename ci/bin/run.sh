@@ -3,7 +3,8 @@
 set -e
 set -x
 
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+trap 'kill $(jobs -p)' EXIT
+#trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 export PATH="/usr/local/lib/nodejs/bin:${PATH}"
 # install deps
