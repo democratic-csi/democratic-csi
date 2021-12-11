@@ -17,4 +17,7 @@ sudo -E ci/bin/launch-server.sh &
 sleep 10
 
 # launch csi-sanity
-sudo -E ci/bin/launch-csi-sanity.sh
+#sudo -E ci/bin/launch-csi-sanity.sh
+
+# kill all processes of the session
+sudo kill $(ps -s $$ -o pid=) || true
