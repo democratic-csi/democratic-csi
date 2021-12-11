@@ -3,7 +3,8 @@
 set -e
 set -x
 
-trap 'sudo kill -- -$PGID' EXIT
+trap 'kill -- -$PGID' EXIT
+#trap 'sudo kill -- -$PGID' EXIT
 #trap 'sudo kill $(jobs -p)' EXIT
 #trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
