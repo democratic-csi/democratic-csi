@@ -3,7 +3,13 @@
 set -e
 set -x
 
-trap 'kill -- -$(ps -o pgid= $PID | grep -o '[0-9]*')' EXIT
+_term() {
+  [[ -n "${SUDO_PID}" ]] && kill -- "${SUDO_PID}"
+}
+
+trap _term EXIT
+
+#trap 'kill -- -$(ps -o pgid= $PID | grep -o '[0-9]*')' EXIT
 #trap 'kill -- -$PGID' EXIT
 #trap 'sudo kill -- -$PGID' EXIT
 #trap 'sudo kill $(jobs -p)' EXIT
@@ -18,6 +24,7 @@ export CI_BUILD_KEY=$(uuidgen | cut -d "-" -f 1)
 
 # launch the server
 sudo -E ci/bin/launch-server.sh &
+SUDO_PID=$!
 
 # wait for server to launch
 sleep 10
