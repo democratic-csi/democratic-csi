@@ -3,7 +3,8 @@
 set -e
 set -x
 
-trap 'kill -- -$PGID' EXIT
+trap 'kill -- -$(ps -o pgid= $PID | grep -o '[0-9]*')' EXIT
+#trap 'kill -- -$PGID' EXIT
 #trap 'sudo kill -- -$PGID' EXIT
 #trap 'sudo kill $(jobs -p)' EXIT
 #trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
