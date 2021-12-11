@@ -3,6 +3,8 @@
 set -e
 set -x
 
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+
 export PATH="/usr/local/lib/nodejs/bin:${PATH}"
 # install deps
 npm i
@@ -20,4 +22,4 @@ sleep 10
 #sudo -E ci/bin/launch-csi-sanity.sh
 
 # kill all processes of the session
-sudo kill $(ps -s $$ -o pid=) || true
+#sudo kill $(ps -s $$ -o pid=) || true
