@@ -4,9 +4,9 @@ set -e
 set -x
 
 _term() {
+  # no idea why this does not work
   #[[ -n "${SUDO_PID}" ]] && sudo kill -15 "${SUDO_PID}"
-  #[[ -n "${SUDO_PID}" ]] && kill -15 "${SUDO_PID}"
-  [[ -n "${SUDO_PID}" ]] && sudo kill -15 $(pgrep -P "${SUDO_PID}")
+  [[ -n "${SUDO_PID}" ]] && sudo kill -15 $(pgrep -P "${SUDO_PID}") || true
 }
 
 trap _term EXIT
@@ -26,4 +26,4 @@ SUDO_PID=$!
 sleep 10
 
 # launch csi-sanity
-#sudo -E ci/bin/launch-csi-sanity.sh
+sudo -E ci/bin/launch-csi-sanity.sh

@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const { CsiBaseDriver } = require("../index");
 const HttpClient = require("./http").Client;
@@ -3271,7 +3272,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       }
       entries = this.ctx.cache.get(`ListSnapshots:result:${uuid}`);
       if (entries) {
-        entries = JSON.parse(JSON.stringify(entries));
+        entries = _.cloneDeep(entries);
         entries_length = entries.length;
         entries = entries.slice(start_position, end_position);
         if (max_entries > 0 && end_position > entries_length) {
@@ -3637,10 +3638,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     if (max_entries && entries.length > max_entries) {
       uuid = uuidv4();
-      this.ctx.cache.set(
-        `ListSnapshots:result:${uuid}`,
-        JSON.parse(JSON.stringify(entries))
-      );
+      this.ctx.cache.set(`ListSnapshots:result:${uuid}`, _.cloneDeep(entries));
       next_token = `${uuid}:${max_entries}`;
       entries = entries.slice(0, max_entries);
     }
