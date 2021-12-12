@@ -4,16 +4,11 @@ set -e
 set -x
 
 _term() {
-  [[ -n "${SUDO_PID}" ]] && sudo kill -- "${SUDO_PID}"
+  #[[ -n "${SUDO_PID}" ]] && sudo kill -15 "${SUDO_PID}"
+  [[ -n "${SUDO_PID}" ]] && kill -15 "${SUDO_PID}"
 }
 
 trap _term EXIT
-
-#trap 'kill -- -$(ps -o pgid= $PID | grep -o '[0-9]*')' EXIT
-#trap 'kill -- -$PGID' EXIT
-#trap 'sudo kill -- -$PGID' EXIT
-#trap 'sudo kill $(jobs -p)' EXIT
-#trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 export PATH="/usr/local/lib/nodejs/bin:${PATH}"
 # install deps
@@ -31,6 +26,3 @@ sleep 10
 
 # launch csi-sanity
 #sudo -E ci/bin/launch-csi-sanity.sh
-
-# kill all processes of the session
-#sudo kill $(ps -s $$ -o pid=) || true
