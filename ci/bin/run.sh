@@ -5,7 +5,8 @@ set -x
 
 _term() {
   #[[ -n "${SUDO_PID}" ]] && sudo kill -15 "${SUDO_PID}"
-  [[ -n "${SUDO_PID}" ]] && kill -15 "${SUDO_PID}"
+  #[[ -n "${SUDO_PID}" ]] && kill -15 "${SUDO_PID}"
+  [[ -n "${SUDO_PID}" ]] && sudo kill -15 $(pgrep -P "${SUDO_PID}")
 }
 
 trap _term EXIT
