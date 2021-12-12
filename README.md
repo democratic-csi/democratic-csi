@@ -347,6 +347,7 @@ Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as approp
 
 - https://kubernetes.io/docs/concepts/storage/volume-snapshots/
 - https://github.com/kubernetes-csi/external-snapshotter#usage
+- https://github.com/democratic-csi/democratic-csi/issues/129#issuecomment-961489810
 
 # Migrating from freenas-provisioner and freenas-iscsi-provisioner
 

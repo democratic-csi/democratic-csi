@@ -9,3 +9,7 @@ capability {
   access_mode     = "multi-node-multi-writer"
   attachment_mode = "file-system"
 }
+
+mount_options {
+  mount_flags = ["noatime", "nfsvers=3"]
+}
