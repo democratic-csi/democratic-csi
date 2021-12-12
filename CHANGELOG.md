@@ -1,3 +1,11 @@
+# v1.4.4
+
+Release 2021-12-11
+
+- better adherence to expected csi behavior when volume request for less than
+  minimum volume size is requested (see #137)
+- avoid unnecessary data copy for `ListVolumes` operation
+
 # v1.4.3
 
 Released 2021-12-01
