@@ -2,7 +2,7 @@
 ![Image](https://img.shields.io/github/workflow/status/democratic-csi/democratic-csi/CI?style=flat-square)
 
 # Introduction
-**What is Democratic-CSI?**
+## What is Democratic-CSI?
 `Democratic-CSI` implements the `csi` (Container Storage Interface) specifications
 providing storage for various container orchestration systems (*ie: Kubernetes, Nomad, OpenShift*).
 
@@ -13,7 +13,7 @@ The current drivers implement the depth and breadth of the `csi` specifications,
 have access to resizing, snapshots, clones, etc functionality.
 
 
-**What can Democratic-CSI offer?**  
+## What can Democratic-CSI offer?  
 **Several implementations of `CSI` drivers**  
     » `freenas-nfs` (manages zfs datasets to share over nfs)  
     »  `freenas-iscsi` (manages zfs zvols to share over iscsi)  
