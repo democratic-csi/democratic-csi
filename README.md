@@ -2,57 +2,59 @@
 ![Image](https://img.shields.io/github/workflow/status/democratic-csi/democratic-csi/CI?style=flat-square)
 
 # Introduction
+**What is Democratic-CSI?**
+`Democratic-CSI` implements the `csi` (Container Storage Interface) specifications
+providing storage for various container orchestration systems (*ie: Kubernetes, Nomad, OpenShift*).
 
-`democratic-csi` implements the `csi` (container storage interface) spec
-providing storage for various container orchestration systems (ie: Kubernetes).
+The current focus is providing storage via iSCSI or NFS from ZFS-based storage
+systems, predominantly `TrueNAS / FreeNAS` and `ZoL on Ubuntu`.
 
-The current focus is providing storage via iscsi/nfs from zfs-based storage
-systems, predominantly `FreeNAS / TrueNAS` and `ZoL` on `Ubuntu`.
-
-The current drivers implement the depth and breadth of the `csi` spec, so you
+The current drivers implement the depth and breadth of the `csi` specifications, so you
 have access to resizing, snapshots, clones, etc functionality.
 
-`democratic-csi` is 2 things:
 
-- several implementations of `csi` drivers
-  - `freenas-nfs` (manages zfs datasets to share over nfs)
-  - `freenas-iscsi` (manages zfs zvols to share over iscsi)
-  - `freenas-smb` (manages zfs datasets to share over smb)
-  - `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)
-  - `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)
-  - `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)
-  - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
-  - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
-  - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
-  - `synology-iscsi` experimental (manages volumes to share over iscsi)
-  - `lustre-client` (crudely provisions storage using a shared lustre
-    share/directory for all volumes)
-  - `nfs-client` (crudely provisions storage using a shared nfs share/directory
-    for all volumes)
-  - `smb-client` (crudely provisions storage using a shared smb share/directory
-    for all volumes)
-  - `node-manual` (allows connecting to manually created smb, nfs, lustre, and
-    iscsi volumes, see sample PVs in the `examples` directory)
-- framework for developing `csi` drivers
+**What can Democratic-CSI offer?**
+  **Several implementations of `csi` drivers**
+    - `freenas-nfs` (manages zfs datasets to share over nfs)
+    - `freenas-iscsi` (manages zfs zvols to share over iscsi)
+    - `freenas-smb` (manages zfs datasets to share over smb)
+    - `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)
+    - `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)
+    - `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)
+    - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
+    - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
+    - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
+    - `synology-iscsi` experimental (manages volumes to share over iscsi)
+    - `lustre-client` (crudely provisions storage using a shared lustre
+      share/directory for all volumes)
+    - `nfs-client` (crudely provisions storage using a shared nfs share/directory
+      for all volumes)
+    - `smb-client` (crudely provisions storage using a shared smb share/directory
+      for all volumes)
+    - `node-manual` (allows connecting to manually created smb, nfs, lustre, and
+      iscsi volumes, see sample PVs in the `examples` directory)
 
-If you have any interest in providing a `csi` driver, simply open an issue to
+  **Development**
+  - Framework for developing `CSI` drivers
+
+If you have any interest in providing a `CSI` driver, simply open an issue to
 discuss. The project provides an extensive framework to build from making it
 relatively easy to implement new drivers.
 
 # Installation
 
-Predominantly 3 things are needed:
+Predominantly 3 prerequisites are needed:
 
-- node prep (ie: your kubernetes cluster nodes)
-- server prep (ie: your storage server)
-- deploy the driver into the cluster (`helm` chart provided with sample
+- Nodes preperation (ie: Kubernetes cluster nodes)
+- Storage server preperation
+- Deployment of the driver into the cluster (`helm` chart provided with sample
   `values.yaml`)
 
 ## Community Guides
 
 - https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
 - https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
-  from `nfs-client-provisioner` to `democratic-csi`)
+  from `nfs-client-provisioner` to `democratic-CSI`)
 - https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
   (migrating between storage classes using `velero`)
 
@@ -162,10 +164,10 @@ following known issues:
 
 Ensure the following services are configurged and running:
 
-- ssh (if you use a password for authentication make sure it is allowed)
-- ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
-- nfs
-- iscsi
+- SSH (if you use a password for authentication make sure it is allowed)
+- Ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
+- NFS
+- iSCSI
   - (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
     `/etc/ctl.conf` file on the server can become invalid, some sample scripts
     are provided in the `contrib` directory to clean things up ie: copy the
@@ -180,17 +182,17 @@ Ensure the following services are configurged and running:
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/portal'`
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
-- smb
+- SMB
 
-If you would prefer you can configure `democratic-csi` to use a
+If you would prefer you can configure `Democratic-CSI` to use a
 non-`root` user when connecting to the FreeNAS server:
 
-- Create a non-`root` user (e.g., `csi`)
+- Create a non-`root` user (e.g., `CSI`)
 
 - Ensure that user has passwordless `sudo` privileges:
 
   ```
-  csi ALL=(ALL) NOPASSWD:ALL
+  csi-username ALL=(ALL) NOPASSWD:ALL
 
   # if on CORE 12.0-u3+ you should be able to do the following
   # which will ensure it does not get reset during reboots etc
@@ -215,7 +217,7 @@ non-`root` user when connecting to the FreeNAS server:
   (note this can get reset by FreeNAS if you alter the user via the
   GUI later)
 
-- Instruct `democratic-csi` to use `sudo` by adding the following to
+- Instruct `Democratic-CSI` to use `sudo` by adding the following to
   your driver configuration:
 
   ```
@@ -296,7 +298,7 @@ microk8s helm upgrade \
 
 ### openshift
 
-`democratic-csi` generally works fine with openshift. Some special parameters
+`Democratic-CSI` generally works fine with openshift. Some special parameters
 need to be set with helm (support added in chart version `0.6.1`):
 
 ```
@@ -323,7 +325,7 @@ You may install multiple deployments of each/any driver. It requires the followi
 
 # Snapshot Support
 
-Install beta (v1.17+) CRDs (once per cluster):
+Install beta (v1.17+) CRDs (one per cluster):
 
 - https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
 
@@ -343,7 +345,7 @@ kubectl apply -f rbac-snapshot-controller.yaml
 kubectl apply -f setup-snapshot-controller.yaml
 ```
 
-Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as appropriate.
+Install `Democratic-CSI` as usual with `volumeSnapshotClasses` defined as appropriate.
 
 - https://kubernetes.io/docs/concepts/storage/volume-snapshots/
 - https://github.com/kubernetes-csi/external-snapshotter#usage
@@ -352,7 +354,7 @@ Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as approp
 # Migrating from freenas-provisioner and freenas-iscsi-provisioner
 
 It is possible to migrate all volumes from the non-csi freenas provisioners
-to `democratic-csi`.
+to `Democratic-CSI`.
 
 Copy the `contrib/freenas-provisioner-to-democratic-csi.sh` script from the
 project to your workstation, read the script in detail, and edit the variables
