@@ -13,29 +13,29 @@ The current drivers implement the depth and breadth of the `csi` specifications,
 have access to resizing, snapshots, clones, etc functionality.
 
 
-**What can Democratic-CSI offer?**
-  **Several implementations of `csi` drivers**
-    - `freenas-nfs` (manages zfs datasets to share over nfs)
-    - `freenas-iscsi` (manages zfs zvols to share over iscsi)
-    - `freenas-smb` (manages zfs datasets to share over smb)
-    - `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)
-    - `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)
-    - `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)
-    - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
-    - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
-    - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
-    - `synology-iscsi` experimental (manages volumes to share over iscsi)
-    - `lustre-client` (crudely provisions storage using a shared lustre
-      share/directory for all volumes)
-    - `nfs-client` (crudely provisions storage using a shared nfs share/directory
-      for all volumes)
-    - `smb-client` (crudely provisions storage using a shared smb share/directory
-      for all volumes)
-    - `node-manual` (allows connecting to manually created smb, nfs, lustre, and
-      iscsi volumes, see sample PVs in the `examples` directory)
+**What can Democratic-CSI offer?**  
+**Several implementations of `CSI` drivers**  
+    » `freenas-nfs` (manages zfs datasets to share over nfs)  
+    »  `freenas-iscsi` (manages zfs zvols to share over iscsi)  
+    » `freenas-smb` (manages zfs datasets to share over smb)  
+    » `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)  
+    » `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)  
+    » `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)  
+    » `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)  
+    » `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)  
+    » `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)  
+    » `synology-iscsi` experimental (manages volumes to share over iscsi)  
+    » `lustre-client` (crudely provisions storage using a shared lustre
+      share/directory for all volumes)  
+    » `nfs-client` (crudely provisions storage using a shared nfs share/directory
+      for all volumes)  
+    » `smb-client` (crudely provisions storage using a shared smb share/directory
+      for all volumes) 
+    » `node-manual` (allows connecting to manually created smb, nfs, lustre, and
+      iscsi volumes, see sample PVs in the `examples` directory)  
 
   **Development**
-  - Framework for developing `CSI` drivers
+  » Framework for developing `CSI` drivers
 
 If you have any interest in providing a `CSI` driver, simply open an issue to
 discuss. The project provides an extensive framework to build from making it
