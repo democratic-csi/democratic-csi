@@ -167,38 +167,40 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 <br/>
 
 ### **Service configuration**  
-Ensure the following services are configurged and running:  
+Ensure the following services are *configured*, *running* and starting automatically:  
 
-&nbsp;&nbsp;» &nbsp; SSH  
+#### **SSH configuration** 
 * When creating a custom user: 
-  * Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting  
+  * Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting (also applicable when using `root`)  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
   * (Optional) Enable passwordless authentication  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147369769-5d46cf14-ae00-444a-8ba2-b3e428ef4a8d.png)
   * Has a homefolder, this is used to store its SSH Public Key  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147370105-6030b22e-ceb3-4768-b4a0-8e55fafe7f0f.png)
+  * Add the user to `wheel` or create/use a group that will be used for permissions later on
 
+<br/>
 
-### **NFS configuration** 
-&nbsp;&nbsp;» &nbsp; NFS
+#### **NFS configuration** 
+NFS
+* Bind the interface to the NFS service
+* It is recommended to use NFS 3
+<br/>
 
-### **iSCSI configuration** 
-&nbsp;&nbsp;» &nbsp; iSCSI  
-*NOTE:* (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
-    `/etc/ctl.conf` file on the server can become invalid, some sample scripts
-    are provided in the `contrib` directory to clean things up ie: copy the
-    script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`
-    please read the scripts and set the variables as appropriate for your server.
-  - ensure you have pre-emptively created portals, initatior groups, auths
-    - make note of the respective IDs (the true ID may not reflect what is
-      visible in the UI)
-    - IDs can be visible by clicking the the `Edit` link and finding the ID in the
-      browser address bar
-    - Optionally you may use the following to retrieve appropiate IDs:
-      - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/portal'`
-      - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
-      - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
-- SMB
+#### **iSCSI configuration** 
+*NOTE:* (fixed in 12.0-U2+) when using the FreeNAS API concurrently the `/etc/ctl.conf` file on the server can become invalid, some sample scripts are provided in the `contrib` directory to clean things up ie: copy the script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &` please read the scripts and set the variables as appropriate for your server.
+- ensure you have pre-emptively created portals, initatior groups, auths
+  - make note of the respective IDs (the true ID may not reflect what is
+    visible in the UI)
+  - IDs can be visible by clicking the the `Edit` link and finding the ID in the
+    browser address bar
+  - Optionally you may use the following to retrieve appropiate IDs:
+    - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/portal'`
+    - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
+    - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
+<br/>
+
+### **SMB configuration**  
 
 If you would prefer you can configure `Democratic-CSI` to use a
 non-`root` user when connecting to the FreeNAS server:
