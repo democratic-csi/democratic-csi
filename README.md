@@ -53,12 +53,12 @@ You can choose to use either **NFS** or **iSCSI** or **both**.
 
 ### **NFS configuration** 
 ___ 
-<span style="color: #eb2121"> **RHEL / CentOS** </span>  
+**RHEL / CentOS**   
 ```
 sudo yum install -y nfs-utils
 ```
 
-<span style="color: #eb7b21">**Ubuntu / Debian** </span>  
+**Ubuntu / Debian**  
 ```
 sudo apt-get install -y nfs-common
 ```
@@ -66,7 +66,7 @@ sudo apt-get install -y nfs-common
 
 ### **iSCSI configuration**  
 ___ 
-<span style="color: #eb2121"> **RHEL / CentOS** </span>  
+**RHEL / CentOS** 
 Install the following system packages:
 ```
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
@@ -85,10 +85,8 @@ sudo systemctl enable iscsi && sudo systemctl start iscsi
 ```
 <br/>
 
-diff
-! Ubuntu / Debian !
 
-
+**Ubuntu / Debian**  
 Install the following system packages:
 ```
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
@@ -156,20 +154,29 @@ The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be u
 
 * [Additional middleware changes to support Democratic CSI use of native API](https://jira.ixsystems.com/browse/NAS-111870)
 * [TrueNAS Scale 21.08 - Could not log into all portals](https://github.com/democratic-csi/democratic-csi/issues/112)
-* [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)
-
+* [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)<br><br/>
+[Continue configuration](#NFS-configuration)
 <br/>
+
 
 **API with SSH**  
 ___
-Configuration templates can be found [HERE](https://github.com/D1StrX/democratic-csi/blob/667354978e497fb4624d52e909609ca278e4bd25/examples/api-with-ssh)  
-Ensure the following services are configurged and running:
+Configuration templates can be found [HERE](https://github.com/D1StrX/democratic-csi/blob/667354978e497fb4624d52e909609ca278e4bd25/examples/api-with-ssh)
+<br><br/>
+[Continue configuration](#Storage-onfiguration)
+<br/>
+
+### **Storage Configuration**  
+Ensure the following services are configurged and running: 
 
 &nbsp;&nbsp;» &nbsp; **SSH**  
-* if you use a password for authentication make sure it is allowed
-* Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting
+* Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting  
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
+* (Optional) Enable passwordless authentication  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![image](https://user-images.githubusercontent.com/40062371/147369769-5d46cf14-ae00-444a-8ba2-b3e428ef4a8d.png)
   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
+
+
 
 ### **NFS configuration** 
 &nbsp;&nbsp;» NFS
