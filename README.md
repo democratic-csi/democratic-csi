@@ -48,7 +48,7 @@ relatively easy to implement new drivers.
 - https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
   (migrating between storage classes using `velero`)
 
-# Installation
+## Installation
 
 Predominantly 3 prerequisites are needed:  
 - Nodes preperation (ie: Kubernetes cluster nodes)
@@ -59,10 +59,9 @@ Predominantly 3 prerequisites are needed:
 
 ## Node preperation
 
-You can choose use either NFS or iSCSI or both.
+You can choose to use either NFS or iSCSI or both.
 
-### NFS configuration
-
+### **NFS configuration** 
 **RHEL / CentOS**
 ```
 sudo yum install -y nfs-utils
@@ -72,68 +71,75 @@ sudo yum install -y nfs-utils
 ```
 sudo apt-get install -y nfs-common
 ```
+<br/>
 
-### iSCSI configuration
-#### Multipathing
-Note that `multipath` is supported for the `iSCSI`-based drivers. Simply setup
-multipath to your liking and set multiple portals in the config as appropriate.
-
-*NOTE:* If you are running Kubernetes with rancher/rke please see the following:  
-https://github.com/rancher/rke/issues/1846
-
-
-**RHEL / CentOS**
-
-# Install the following system packages
+### **iSCSI configuration**  
+**RHEL / CentOS**  
+Install the following system packages
 ```
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
-
-# Enable multipathing
+```
+Enable multipathing
+```
 sudo mpathconf --enable --with_multipathd y
-
-# Ensure that iscsid and multipathd are running
-sudo systemctl enable iscsid multipathd
-sudo systemctl start iscsid multipathd
-
-# Start and enable iscsi
-sudo systemctl enable iscsi
-sudo systemctl start iscsi
 ```
-
-**Ubuntu / Debian**
+Ensure that iscsid and multipathd are running
 ```
-# Install the following system packages
+sudo systemctl enable iscsid multipathd && sudo systemctl start iscsid multipathd
+```
+Start and enable iscsi
+```
+sudo systemctl enable iscsi && sudo systemctl start iscsi
+```
+<br/>
+
+**Ubuntu / Debian**  
+Install the following system packages
+```
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
+```
+&nbsp;&nbsp;**Multipathing**  
+&nbsp;&nbsp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup
+&nbsp;&nbsp;multipath to your liking and set multiple portals in the config as appropriate.
 
-# Enable multipathing
+&nbsp;&nbsp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
+&nbsp;&nbsp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
+
+<br/>
+
+&nbsp;&nbsp;Add the mutlipath configuration
+```
 sudo tee /etc/multipath.conf <<-'EOF'
 defaults {
     user_friendly_names yes
     find_multipaths yes
 }
 EOF
-
-sudo systemctl enable multipath-tools.service
-sudo service multipath-tools restart
-
-# Ensure that open-iscsi and multipath-tools are enabled and running
+```
+&nbsp;&nbsp;Enable the `multipath-tools` service and restart to load the configuration
+```
+sudo systemctl enable multipath-tools && sudo service multipath-tools restart
+```
+&nbsp;&nbsp;Ensure that `open-iscsi` and `multipath-tools` are enabled and running
+```
 sudo systemctl status multipath-tools
 sudo systemctl enable open-iscsi.service
 sudo service open-iscsi start
 sudo systemctl status open-iscsi
 ```
+<br/>
 
-### freenas-smb
+### **FreeNAS-SMB**
 
 If using with Windows based machines you may need to enable guest access (even
 if you are connecting with credentials)
 
 ```
-Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters AllowInsecureGuestAuth -Value 1
-Restart-Service LanmanWorkstation -Force
+Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters AllowInsecureGuestAuth -Value 1 ; Restart-Service LanmanWorkstation -Force
 ```
+<br/>
 
-### zfs-local-ephemeral-inline
+### **ZFS-local-ephemeral-inline**
 
 This `driver` provisions node-local ephemeral storage on a per-pod basis. Each
 node should have an identically named zfs pool created and avaialble to the
@@ -141,10 +147,11 @@ node should have an identically named zfs pool created and avaialble to the
 driver (although the same pool could be used). No other requirements are
 necessary.
 
-- https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/20190122-csi-inline-volumes.md
-- https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html
+- [Pod Inline Volume Support](https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html)
+  
+<br/>
 
-## Server Prep
+## **Server preperation**
 
 Server preparation depends slightly on which `driver` you are using.
 
@@ -159,9 +166,9 @@ connections and do all operations entirely with the TrueNAS api. With that in
 mind, any ssh/shell/etc requirements below can be safely ignored. Also note the
 following known issues:
 
-- https://jira.ixsystems.com/browse/NAS-111870
-- https://github.com/democratic-csi/democratic-csi/issues/112
-- https://github.com/democratic-csi/democratic-csi/issues/101
+- [Additional middleware changes to support Democratic CSI use of native API](https://jira.ixsystems.com/browse/NAS-111870)
+- [TrueNAS Scale 21.08 - Could not log into all portals](https://github.com/democratic-csi/democratic-csi/issues/112)
+- [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)
 
 Ensure the following services are configurged and running:
 
