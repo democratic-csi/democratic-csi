@@ -248,9 +248,7 @@ ___
 
 ### **YAML Values configuration**
 ___
-
-- Instruct `Democratic-CSI` to use `sudo` by adding the following to
-  your driver configuration:
+Instruct `Democratic-CSI` to use `sudo` by uncommenting the following in your configuration template:
 
   ```
   zfs:
