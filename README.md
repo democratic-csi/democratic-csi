@@ -3,14 +3,10 @@
 
 # Introduction
 ## What is Democratic-CSI?  
-`Democratic-CSI` implements the `csi` (Container Storage Interface) specifications  
-providing storage for various container orchestration systems (*ie: Kubernetes, Nomad, OpenShift*).
+`Democratic-CSI` implements the `csi` (Container Storage Interface) specifications providing storage for various container orchestration systems (*ie: Kubernetes, Nomad, OpenShift*).
 
-The current focus is providing storage via iSCSI or NFS from ZFS-based storage
-systems, predominantly `TrueNAS / FreeNAS` and `ZoL on Ubuntu`.
-
-The current drivers implement the depth and breadth of the `csi` specifications, so you  
-have access to resizing, snapshots, clones, etc functionality.
+The current *focus* is providing storage via iSCSI or NFS from ZFS-based storage systems, predominantly `TrueNAS / FreeNAS` and `ZoL on Ubuntu`.  
+The current *drivers* implement the depth and breadth of the `csi` specifications, so you have access to resizing, snapshots, clones, etc functionality.
 
 ## What can Democratic-CSI offer? 
 **Several implementations of `CSI` drivers**  
@@ -137,9 +133,7 @@ Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Param
 
 ### **ZFS-local-ephemeral-inline**
 
-This `driver` provisions node-local ephemeral storage on a per-pod basis. Each
-node should have an identically named ZFS pool created and avaialble to the
-`driver`.  
+This `driver` provisions node-local ephemeral storage on a per-pod basis. Each node should have an identically named ZFS pool created and avaialble to the `driver`.  
 *NOTE:* This is *NOT* the same thing as using the docker ZFS storage
 driver (although the same pool could be used). No other requirements are
 necessary. More regarding to this can be found here: [Pod Inline Volume Support](https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html)
