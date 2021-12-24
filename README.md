@@ -30,7 +30,7 @@ have access to resizing, snapshots, clones, etc functionality.
       for all volumes)  
     » `smb-client` (crudely provisions storage using a shared smb share/directory
       for all volumes)  
-    » `node-manual` (allows connecting to manually created smb, nfs, lustre, and
+    » `node-manual` (allows connecting to manually created smb, nfs, lustre, and  
       iscsi volumes, see sample PVs in the `examples` directory)  
 
   **Development**  
@@ -50,8 +50,7 @@ relatively easy to implement new drivers.
 
 # Installation
 
-Predominantly 3 prerequisites are needed:
-
+Predominantly 3 prerequisites are needed:  
 - Nodes preperation (ie: Kubernetes cluster nodes)
 - Storage server preperation
 - Deployment of the driver into the cluster (`helm` chart provided with sample
@@ -86,8 +85,8 @@ https://github.com/rancher/rke/issues/1846
 **RHEL / CentOS**
 
 # Install the following system packages
-
-`sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath`
+```
+sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
 
 # Enable multipathing
 sudo mpathconf --enable --with_multipathd y
@@ -99,7 +98,7 @@ sudo systemctl start iscsid multipathd
 # Start and enable iscsi
 sudo systemctl enable iscsi
 sudo systemctl start iscsi
-
+```
 
 **Ubuntu / Debian**
 ```
