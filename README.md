@@ -14,7 +14,7 @@ have access to resizing, snapshots, clones, etc functionality.
 
 ## What can Democratic-CSI offer? 
 **Several implementations of `CSI` drivers**  
-&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-nfs` (manages zfs datasets to share over nfs)  
+:arrow_forward: `freenas-nfs` (manages zfs datasets to share over nfs)  
 &nbsp;&nbsp;&nbsp;&nbsp;» `freenas-iscsi` (manages zfs zvols to share over iscsi)  
 &nbsp;&nbsp;&nbsp;&nbsp;» `freenas-smb` (manages zfs datasets to share over smb)  
 &nbsp;&nbsp;&nbsp;&nbsp;» `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)  
