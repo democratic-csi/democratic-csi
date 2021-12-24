@@ -33,7 +33,7 @@ have access to resizing, snapshots, clones, etc functionality.
 :arrow_forward: `node-manual` (allows connecting to manually created smb, nfs, lustre, and iscsi volumes, see sample PVs in the `examples` directory)  
 
   **Development**  
-&nbsp;&nbsp;&nbsp;&nbsp;» Framework for developing `CSI` drivers
+:arrow_forward: Framework for developing `CSI` drivers
 
 If you have any interest in providing a `CSI` driver, simply open an issue to
 discuss. The project provides an extensive framework to build and making it
