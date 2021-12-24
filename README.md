@@ -59,18 +59,20 @@ Alright, you have chosen your driver. Let's start by configuring the prerequisit
 You can choose to use either NFS or iSCSI or both.
 
 ### **NFS configuration** 
-**RHEL / CentOS**
+___ 
+&ensp;**RHEL / CentOS**
 ```
 sudo yum install -y nfs-utils
 ```
-
-**Ubuntu / Debian**
+___ 
+&ensp;**Ubuntu / Debian**
 ```
 sudo apt-get install -y nfs-common
 ```
 <br/>
 
 ### **iSCSI configuration**  
+___ 
 &ensp;**RHEL / CentOS**  
 &ensp;Install the following system packages:
 ```
