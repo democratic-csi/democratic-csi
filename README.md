@@ -20,12 +20,9 @@ The current *drivers* implement the depth and breadth of the `csi` specification
 :arrow_forward: `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)  
 :arrow_forward: `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)  
 :arrow_forward: `synology-iscsi` experimental (manages volumes to share over iscsi)  
-:arrow_forward: `lustre-client` (crudely provisions storage using a shared lustre
-      share/directory for all volumes)  
-:arrow_forward: `nfs-client` (crudely provisions storage using a shared nfs share/directory
-      for all volumes)  
-:arrow_forward: `smb-client` (crudely provisions storage using a shared smb share/directory
-      for all volumes)  
+:arrow_forward: `lustre-client` (crudely provisions storage using a shared lustre share/directory for all volumes)  
+:arrow_forward: `nfs-client` (crudely provisions storage using a shared nfs share/directory for all volumes)  
+:arrow_forward: `smb-client` (crudely provisions storage using a shared smb share/directory for all volumes)  
 :arrow_forward: `node-manual` (allows connecting to manually created smb, nfs, lustre, and iscsi volumes, see sample PVs in the `examples` directory)  
 
 **Development**  
