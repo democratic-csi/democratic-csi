@@ -412,7 +412,7 @@ to your needs to start migrating!
 
 # **Sponsors**
 
-A special shout out to the wonderful sponsors of the project!
+A special shout out to the wonderful sponsors of this project!
 
 [![ixSystems](https://www.ixsystems.com/wp-content/uploads/2021/06/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
 
