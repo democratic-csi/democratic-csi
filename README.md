@@ -29,7 +29,7 @@ have access to resizing, snapshots, clones, etc functionality.
     » `nfs-client` (crudely provisions storage using a shared nfs share/directory
       for all volumes)  
     » `smb-client` (crudely provisions storage using a shared smb share/directory
-      for all volumes) 
+      for all volumes)  
     » `node-manual` (allows connecting to manually created smb, nfs, lustre, and
       iscsi volumes, see sample PVs in the `examples` directory)  
 
@@ -40,6 +40,14 @@ If you have any interest in providing a `CSI` driver, simply open an issue to
 discuss. The project provides an extensive framework to build from making it
 relatively easy to implement new drivers.
 
+## Community Guides
+
+- https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
+- https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
+  from `nfs-client-provisioner` to `democratic-CSI`)
+- https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
+  (migrating between storage classes using `velero`)
+
 # Installation
 
 Predominantly 3 prerequisites are needed:
@@ -49,42 +57,37 @@ Predominantly 3 prerequisites are needed:
 - Deployment of the driver into the cluster (`helm` chart provided with sample
   `values.yaml`)
 
-## Community Guides
 
-- https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
-- https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
-  from `nfs-client-provisioner` to `democratic-CSI`)
-- https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
-  (migrating between storage classes using `velero`)
+## Node preperation
 
-## Node Prep
+You can choose use either NFS or iSCSI or both.
 
-You should install/configure the requirements for both nfs and iscsi.
+### NFS configuration
 
-### nfs
-
+**RHEL / CentOS**
 ```
-RHEL / CentOS
 sudo yum install -y nfs-utils
+```
 
-Ubuntu / Debian
+**Ubuntu / Debian**
+```
 sudo apt-get install -y nfs-common
 ```
 
-### iscsi
-
-Note that `multipath` is supported for the `iscsi`-based drivers. Simply setup
+### iSCSI configuration
+#### Multipathing
+Note that `multipath` is supported for the `iSCSI`-based drivers. Simply setup
 multipath to your liking and set multiple portals in the config as appropriate.
 
-If you are running Kubernetes with rancher/rke please see the following:
+*NOTE:* If you are running Kubernetes with rancher/rke please see the following:  
+https://github.com/rancher/rke/issues/1846
 
-- https://github.com/rancher/rke/issues/1846
 
-```
-RHEL / CentOS
+**RHEL / CentOS**
 
 # Install the following system packages
-sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
+
+`sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath`
 
 # Enable multipathing
 sudo mpathconf --enable --with_multipathd y
@@ -98,8 +101,8 @@ sudo systemctl enable iscsi
 sudo systemctl start iscsi
 
 
-Ubuntu / Debian
-
+**Ubuntu / Debian**
+```
 # Install the following system packages
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 
