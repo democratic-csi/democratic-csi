@@ -42,7 +42,7 @@ relatively easy to implement new drivers.
 ## Community Guides
 
 [Using TrueNAS to provide persistent storage for Kubernetes](https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/)  
-[Migrating from `nfs-client-provisioner` to `democratic-CSI`](https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117)  
+[Migrating from `NFS-client-provisioner` to `democratic-CSI`](https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117)  
 [Migrating between storage classes using `Velero`](https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc)
 
 # Installation
@@ -71,41 +71,42 @@ sudo apt-get install -y nfs-common
 <br/>
 
 ### **iSCSI configuration**  
-**RHEL / CentOS**  
-Install the following system packages
+&ensp;**RHEL / CentOS**  
+&ensp;Install the following system packages:
 ```
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
 ```
-Enable multipathing
+&ensp;Enable multipathing:
 ```
 sudo mpathconf --enable --with_multipathd y
 ```
-Ensure that iscsid and multipathd are running
+&ensp;Ensure that `iscsid` and `multipathd` are running:
 ```
 sudo systemctl enable iscsid multipathd && sudo systemctl start iscsid multipathd
 ```
-Start and enable iscsi
+&ensp;Start and enable iSCSI:
 ```
 sudo systemctl enable iscsi && sudo systemctl start iscsi
 ```
+___ 
 <br/>
 
-**Ubuntu / Debian**  
-Install the following system packages
+&ensp;**Ubuntu / Debian**  
+&ensp;Install the following system packages:
 ```
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 ```
-&nbsp;&nbsp;**Multipathing**  
-&nbsp;&nbsp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup
-&nbsp;&nbsp;multipath to your liking and set multiple  
-&nbsp;&nbsp;portals in the config as appropriate.
+&emsp;&emsp;**Multipathing**  
+&emsp;&emsp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup
+&emsp;&emsp;multipath to your liking and set multiple  
+&emsp;&emsp;portals in the config as appropriate.
 
-&nbsp;&nbsp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
-&nbsp;&nbsp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
+&emsp;&emsp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
+&emsp;&emsp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
 
 <br/>
 
-&nbsp;&nbsp;Add the mutlipath configuration
+&emsp;&emsp;Add the mutlipath configuration:
 ```
 sudo tee /etc/multipath.conf <<-'EOF'
 defaults {
@@ -114,11 +115,11 @@ defaults {
 }
 EOF
 ```
-&nbsp;&nbsp;Enable the `multipath-tools` service and restart to load the configuration
+&emsp;&emsp;Enable the `multipath-tools` service and restart to load the configuration:
 ```
 sudo systemctl enable multipath-tools && sudo service multipath-tools restart
 ```
-&nbsp;&nbsp;Ensure that `open-iscsi` and `multipath-tools` are enabled and running
+&emsp;&emsp;Ensure that `open-iscsi` and `multipath-tools` are enabled and running:
 ```
 sudo systemctl status multipath-tools
 sudo systemctl enable open-iscsi.service
