@@ -170,6 +170,7 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 Ensure the following services are *configured*, *running* and starting automatically:  
 
 #### **SSH configuration** 
+___
 * When creating a custom user (e.g., `CSI`): 
   * Ensure `ZSH`, `BASH`, or `SH` is set as `shell`, `CSH` gives false errors due to quoting (also applicable when using `root`)  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
@@ -216,12 +217,14 @@ Ensure the following services are *configured*, *running* and starting automatic
 <br/>
 
 #### **NFS configuration**  
+___
 * Bind the interface to the NFS service
 * It is recommended to use NFS 3
 
 <br/>
 
 #### **iSCSI configuration**  
+___
 *NOTE:* (Fixed in 12.0-U2+) when using the FreeNAS API concurrently, the `/etc/ctl.conf` file on the server can become invalid, some sample scripts are provided in the `contrib` directory to clean things up ie:  
 Copy the script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`  
 Please read the scripts and set the variables correctly for your server.
@@ -238,10 +241,13 @@ Please read the scripts and set the variables correctly for your server.
 <br/>
 
 ### **SMB configuration**  
+___
 * Bind the interface to the SMB service
 
+<br/>
 
-### 
+### **YAML Values configuration**
+___
 
 - Instruct `Democratic-CSI` to use `sudo` by adding the following to
   your driver configuration:
