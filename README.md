@@ -56,7 +56,7 @@ Predominantly 3 prerequisites are needed:
 
 ## **Node preperation**
 Alright, you have chosen your driver. Let's start by configuring the prerequisites for your Node.  
-You can choose to use either NFS or iSCSI or both.
+You can choose to use either **NFS** or **iSCSI** or **both**.
 
 ### **NFS configuration** 
 ___ 
@@ -64,7 +64,7 @@ ___
 ```
 sudo yum install -y nfs-utils
 ```
-___ 
+
 &ensp;**Ubuntu / Debian**
 ```
 sudo apt-get install -y nfs-common
@@ -73,7 +73,7 @@ sudo apt-get install -y nfs-common
 
 ### **iSCSI configuration**  
 ___ 
-&ensp;**RHEL / CentOS**  
+**RHEL / CentOS**  
 &ensp;Install the following system packages:
 ```
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
@@ -92,21 +92,18 @@ sudo systemctl enable iscsi && sudo systemctl start iscsi
 ```
 <br/>
 
-&ensp;**Ubuntu / Debian**  
+**Ubuntu / Debian**  
 &ensp;Install the following system packages:
 ```
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 ```
 **Multipathing**  
-`Multipath` is supported for the `iSCSI`-based drivers. Simply setup multipath to your liking and set multiple  
-portals in the config as appropriate.
-
-*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
-[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
-
+&ensp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup multipath to your liking and set multiple portals in the config as appropriate.  
+&ensp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
+&ensp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
 <br/>
 
-Add the mutlipath configuration:
+&ensp;Add the mutlipath configuration:
 ```
 sudo tee /etc/multipath.conf <<-'EOF'
 defaults {
@@ -141,14 +138,11 @@ Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Param
 ### **ZFS-local-ephemeral-inline**
 
 This `driver` provisions node-local ephemeral storage on a per-pod basis. Each
-node should have an identically named zfs pool created and avaialble to the
+node should have an identically named ZFS pool created and avaialble to the
 `driver`.  
-*NOTE:* this is *NOT* the same thing as using the docker zfs storage
+*NOTE:* This is *NOT* the same thing as using the docker ZFS storage
 driver (although the same pool could be used). No other requirements are
-necessary.
-
-- [Pod Inline Volume Support](https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html)
-  
+necessary. More regarding to this can be found here: [Pod Inline Volume Support](https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html)
 
 <br/>
 
@@ -174,7 +168,7 @@ following known issues:
 **API with the usage of SSH**  
 Ensure the following services are configurged and running:
 
-&nbsp;&nbsp;» **SSH**  
+&nbsp;&nbsp;» &nbsp; **SSH**  
 * if you use a password for authentication make sure it is allowed
 * Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting
   
