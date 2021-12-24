@@ -171,11 +171,11 @@ Ensure the following services are configurged and running:
 
 &nbsp;&nbsp;» &nbsp; SSH  
 * When creating a custom user: 
-  * Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting
+  * Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
-  * (Optional) Enable passwordless authentication
+  * (Optional) Enable passwordless authentication  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147369769-5d46cf14-ae00-444a-8ba2-b3e428ef4a8d.png)
-  * Has a homefolder, this is used to store its SSH Public Key
+  * Has a homefolder, this is used to store its SSH Public Key  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147370105-6030b22e-ceb3-4768-b4a0-8e55fafe7f0f.png)
 
 
