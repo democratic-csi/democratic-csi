@@ -32,7 +32,7 @@ have access to resizing, snapshots, clones, etc functionality.
       for all volumes)  
 :arrow_forward: `node-manual` (allows connecting to manually created smb, nfs, lustre, and iscsi volumes, see sample PVs in the `examples` directory)  
 
-  **Development**  
+**Development**  
 :arrow_forward: Framework for developing `CSI` drivers
 
 If you have any interest in providing a `CSI` driver, simply open an issue to
@@ -41,11 +41,9 @@ relatively easy to implement new drivers.
 
 ## Community Guides
 
-- https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
-- https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
-  from `nfs-client-provisioner` to `democratic-CSI`)
-- https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
-  (migrating between storage classes using `velero`)
+[Using TrueNAS to provide persistent storage for Kubernetes](https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/)  
+[Migrating from `nfs-client-provisioner` to `democratic-CSI`](https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117)  
+[Migrating between storage classes using `Velero`](https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc)
 
 # Installation
 
