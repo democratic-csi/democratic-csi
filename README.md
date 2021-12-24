@@ -181,13 +181,12 @@ Ensure the following services are *configured*, *running* and starting automatic
 
 <br/>
 
-#### **NFS configuration** 
-NFS
+#### **NFS configuration**  
 * Bind the interface to the NFS service
 * It is recommended to use NFS 3
 <br/>
 
-#### **iSCSI configuration** 
+#### **iSCSI configuration**  
 *NOTE:* (fixed in 12.0-U2+) when using the FreeNAS API concurrently the `/etc/ctl.conf` file on the server can become invalid, some sample scripts are provided in the `contrib` directory to clean things up ie: copy the script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &` please read the scripts and set the variables as appropriate for your server.
 - ensure you have pre-emptively created portals, initatior groups, auths
   - make note of the respective IDs (the true ID may not reflect what is
@@ -201,6 +200,8 @@ NFS
 <br/>
 
 ### **SMB configuration**  
+* Bind the interface to the SMB service
+
 
 If you would prefer you can configure `Democratic-CSI` to use a
 non-`root` user when connecting to the FreeNAS server:
