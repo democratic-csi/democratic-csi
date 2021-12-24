@@ -85,7 +85,9 @@ sudo systemctl enable iscsi && sudo systemctl start iscsi
 ```
 <br/>
 
-<span style="color: #eb7b21">**Ubuntu / Debian** </span>  
+
+! **Ubuntu / Debian** !
+
 Install the following system packages:
 ```
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
