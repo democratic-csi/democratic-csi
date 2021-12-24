@@ -166,7 +166,7 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 [Continue configuration](#Storage-configuration)
 <br/>
 
-### **Storage Configuration**  
+### **Storage configuration**  
 Ensure the following services are configurged and running: 
 
 &nbsp;&nbsp;» &nbsp; **SSH**  
