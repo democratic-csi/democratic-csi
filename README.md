@@ -87,7 +87,7 @@ sudo systemctl enable iscsi && sudo systemctl start iscsi
 
 ```diff
 ! **Ubuntu / Debian** !
-...
+
 
 Install the following system packages:
 ```
