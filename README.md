@@ -15,24 +15,24 @@ have access to resizing, snapshots, clones, etc functionality.
 ## What can Democratic-CSI offer? 
 **Several implementations of `CSI` drivers**  
 :arrow_forward: `freenas-nfs` (manages zfs datasets to share over nfs)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-iscsi` (manages zfs zvols to share over iscsi)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-smb` (manages zfs datasets to share over smb)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `synology-iscsi` experimental (manages volumes to share over iscsi)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `lustre-client` (crudely provisions storage using a shared lustre
+:arrow_forward: `freenas-iscsi` (manages zfs zvols to share over iscsi)  
+:arrow_forward: `freenas-smb` (manages zfs datasets to share over smb)  
+:arrow_forward: `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)  
+:arrow_forward: `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)  
+:arrow_forward: `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)  
+:arrow_forward: `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)  
+:arrow_forward: `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)  
+:arrow_forward: `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)  
+:arrow_forward: `synology-iscsi` experimental (manages volumes to share over iscsi)  
+:arrow_forward: `lustre-client` (crudely provisions storage using a shared lustre
       share/directory for all volumes)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `nfs-client` (crudely provisions storage using a shared nfs share/directory
+:arrow_forward: `nfs-client` (crudely provisions storage using a shared nfs share/directory
       for all volumes)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `smb-client` (crudely provisions storage using a shared smb share/directory
+:arrow_forward: `smb-client` (crudely provisions storage using a shared smb share/directory
       for all volumes)  
-&nbsp;&nbsp;&nbsp;&nbsp;» `node-manual` (allows connecting to manually created smb, nfs, lustre, and
+:arrow_forward: `node-manual` (allows connecting to manually created smb, nfs, lustre, and
       iscsi volumes, see sample PVs in the  
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`examples` directory)  
+`examples` directory)  
 
   **Development**  
 &nbsp;&nbsp;&nbsp;&nbsp;» Framework for developing `CSI` drivers
