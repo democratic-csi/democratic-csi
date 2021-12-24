@@ -30,9 +30,7 @@ have access to resizing, snapshots, clones, etc functionality.
       for all volumes)  
 :arrow_forward: `smb-client` (crudely provisions storage using a shared smb share/directory
       for all volumes)  
-:arrow_forward: `node-manual` (allows connecting to manually created smb, nfs, lustre, and
-      iscsi volumes, see sample PVs in the  
-`examples` directory)  
+:arrow_forward: `node-manual` (allows connecting to manually created smb, nfs, lustre, and iscsi volumes, see sample PVs in the `examples` directory)  
 
   **Development**  
 &nbsp;&nbsp;&nbsp;&nbsp;» Framework for developing `CSI` drivers
