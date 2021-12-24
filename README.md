@@ -155,6 +155,7 @@ with much older versions as well.
 ### **TrueNAS / FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb, freenas-api-nfs, freenas-api-iscsi, freenas-api-smb)**  
 
 **API usage without SSH**  
+[Valuefiles](https://github.com/D1StrX/democratic-csi/blob/86cff4541b29c559200731ed55a332e6aa931b35/examples/API without SSH)
 The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be
 used with SCALE 21.08+. Fundamentally these drivers remove the need for `ssh`
 connections and do all operations entirely with the TrueNAS api. With that in
