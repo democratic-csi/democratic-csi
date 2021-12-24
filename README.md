@@ -360,11 +360,11 @@ need to be set with helm (support added in chart version `0.6.1`):
 --set controller.rbac.openshift.privileged=true
 ```
 
-### Nomad
+### **Nomad**
 
-`democratic-csi` works with Nomad in a functioning but limted capacity. See the [Nomad docs](docs/nomad.md) for details.
+`Democratic-CSI` works with Nomad in a functioning but limted capacity. See the [Nomad docs](docs/nomad.md) for details.
 
-## Multiple Deployments
+## **Multiple Deployments**
 
 You may install multiple deployments of each/any driver. It requires the following:
 
@@ -373,8 +373,7 @@ You may install multiple deployments of each/any driver. It requires the followi
 - Use unqiue names for your storage classes (per cluster)
 - Use a unique parent dataset (ie: don't try to use the same parent across deployments or clusters)
 
-# Snapshot Support
-
+## **Snapshot Support**  
 Install beta (v1.17+) CRDs (one per cluster):
 
 - https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
@@ -401,8 +400,7 @@ Install `Democratic-CSI` as usual with `volumeSnapshotClasses` defined as approp
 - https://github.com/kubernetes-csi/external-snapshotter#usage
 - https://github.com/democratic-csi/democratic-csi/issues/129#issuecomment-961489810
 
-# Migrating from freenas-provisioner and freenas-iscsi-provisioner
-
+## **Migrating from freenas-provisioner and freenas-iscsi-provisioner**  
 It is possible to migrate all volumes from the non-csi freenas provisioners
 to `Democratic-CSI`.
 
@@ -410,13 +408,17 @@ Copy the `contrib/freenas-provisioner-to-democratic-csi.sh` script from the
 project to your workstation, read the script in detail, and edit the variables
 to your needs to start migrating!
 
-# Sponsors
+<br/>
+
+# **Sponsors**
 
 A special shout out to the wonderful sponsors of the project!
 
 [![ixSystems](https://www.ixsystems.com/wp-content/uploads/2021/06/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
 
-# Related
+<br/>
+
+## **Related**
 
 - https://github.com/nmaupu/freenas-provisioner
 - https://github.com/travisghansen/freenas-iscsi-provisioner
