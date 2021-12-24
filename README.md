@@ -170,11 +170,45 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 Ensure the following services are *configured*, *running* and starting automatically:  
 
 #### **SSH configuration** 
-* When creating a custom user: 
-  * Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting (also applicable when using `root`)  
+* When creating a custom user (e.g., `CSI`): 
+  * Ensure `ZSH`, `BASH`, or `SH` is set as `shell`, `CSH` gives false errors due to quoting (also applicable when using `root`)  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
-  * (Optional) Enable passwordless authentication  
-  &emsp;![image](https://user-images.githubusercontent.com/40062371/147369769-5d46cf14-ae00-444a-8ba2-b3e428ef4a8d.png)
+  * Ensure that user has passwordless `sudo` privileges:  
+    *NOTE:* This could get reset by FreeNAS if you alter the user via the GUI later
+    * On TrueNAS CORE 12.0-u3 or higher, open the Shell:  
+      ```
+      cli
+      ```
+      After you enter the truenas cli and are at that prompt:
+      ```
+      account user query select=id,username,uid,sudo_nopasswd
+      ```
+      find the `id` of the user you want to update (note, this is distinct from the `uid`)
+
+      ```
+      account user update id=<id> sudo=true
+      ```
+      ```
+      account user update id=<id> sudo_nopasswd=true
+      ```
+      (Optional) If you want to enable passwordless authentication via CLI:
+      ```
+      account user update id=<id> password_disabled=true
+      ```
+      Exit the CLI by pressing `ctrl-d`
+
+    * On other versions add the user to the sudoers file:  
+      ```
+      visudo
+      ```
+      ```
+      <username> ALL=(ALL) NOPASSWD:ALL
+      ```
+      Confirm sudoers file is appropriate:
+      ```
+      cat /usr/local/etc/sudoers
+      ```
+      
   * Has a homefolder, this is used to store its SSH Public Key  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147370105-6030b22e-ceb3-4768-b4a0-8e55fafe7f0f.png)
   * Add the user to `wheel` or create/use a group that will be used for permissions later on
@@ -184,57 +218,30 @@ Ensure the following services are *configured*, *running* and starting automatic
 #### **NFS configuration**  
 * Bind the interface to the NFS service
 * It is recommended to use NFS 3
+
 <br/>
 
 #### **iSCSI configuration**  
-*NOTE:* (fixed in 12.0-U2+) when using the FreeNAS API concurrently the `/etc/ctl.conf` file on the server can become invalid, some sample scripts are provided in the `contrib` directory to clean things up ie: copy the script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &` please read the scripts and set the variables as appropriate for your server.
-- ensure you have pre-emptively created portals, initatior groups, auths
-  - make note of the respective IDs (the true ID may not reflect what is
+*NOTE:* (Fixed in 12.0-U2+) when using the FreeNAS API concurrently, the `/etc/ctl.conf` file on the server can become invalid, some sample scripts are provided in the `contrib` directory to clean things up ie:  
+Copy the script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`  
+Please read the scripts and set the variables correctly for your server.
+* Ensure you have pre*emptively created portals, initatior groups, auths
+  * Make note of the respective IDs (the true ID may not reflect what is
     visible in the UI)
-  - IDs can be visible by clicking the the `Edit` link and finding the ID in the
+  * IDs can be visible by clicking the the `Edit` link and finding the ID in the
     browser address bar
-  - Optionally you may use the following to retrieve appropiate IDs:
-    - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/portal'`
-    - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
-    - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
+  * Optionally you may use the following to retrieve appropiate IDs:
+    * `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/portal'`
+    * `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
+    * `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
+
 <br/>
 
 ### **SMB configuration**  
 * Bind the interface to the SMB service
 
 
-If you would prefer you can configure `Democratic-CSI` to use a
-non-`root` user when connecting to the FreeNAS server:
-
-- Create a non-`root` user (e.g., `CSI`)
-
-- Ensure that user has passwordless `sudo` privileges:
-
-  ```
-  csi-username ALL=(ALL) NOPASSWD:ALL
-
-  # if on CORE 12.0-u3+ you should be able to do the following
-  # which will ensure it does not get reset during reboots etc
-  # at the command prompt
-  cli
-
-  # after you enter the truenas cli and are at that prompt
-  account user query select=id,username,uid,sudo_nopasswd
-
-  # find the `id` of the user you want to update (note, this is distinct from the `uid`)
-  account user update id=<id> sudo=true
-  account user update id=<id> sudo_nopasswd=true
-  # optional if you want to disable password
-  #account user update id=<id> password_disabled=true
-
-  # exit cli by hitting ctrl-d
-
-  # confirm sudoers file is appropriate
-  cat /usr/local/etc/sudoers
-  ```
-
-  (note this can get reset by FreeNAS if you alter the user via the
-  GUI later)
+### 
 
 - Instruct `Democratic-CSI` to use `sudo` by adding the following to
   your driver configuration:
