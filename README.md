@@ -295,39 +295,35 @@ Ensure iSCSI Manager has been installed and is generally setup/configured.
 
 ## **Helm Installation**
 ___
-```
-helm repo add democratic-csi https://democratic-csi.github.io/charts/
-```
-```
-helm repo update
-```
-### **helm v2**
-___
-```
-helm search democratic-csi/
-```
+Copy proper example Values file from the examples:  
+[API without SSH](https://github.com/D1StrX/democratic-csi/blob/667354978e497fb4624d52e909609ca278e4bd25/examples/api-without-ssh)  
+[API with SSH](https://github.com/D1StrX/democratic-csi/blob/667354978e497fb4624d52e909609ca278e4bd25/examples/api-with-ssh)  
 
-### **helm v3**
-___
+Add the `Democratic-CSI` Helm repository:
 ```
 helm search repo democratic-csi/
 ```
-Copy proper values file from the examples:  
-[API without SSH](#API-without-SSH)  
-[API with SSH](#API-with-SSH)  
-
+Update your Helm repository to get latest charts:
 ```
-# 
-# edit as appropriate
-# examples are from helm v2, alter as appropriate for v3
+helm repo update
+```
 
-# add --create-namespace for helm v3
-helm upgrade \
---install \
---values freenas-iscsi.yaml \
---namespace democratic-csi \
-zfs-iscsi democratic-csi/democratic-csi
+### **Helm V3**
+___
 
+Install `Democratic-CSI` with your configured values. Helm V3 requires that you `--create-namespace`
+```
+helm install zfs-nfs democratic-csi/democratic-csi --values truenas-isci.yaml --create-namespace democratic-csi
+```
+Update/Upgrade Values:
+```
+helm upgrade <name> democratic-csi/democratic-csi --values <freenas-*>.yaml --namespace <namespace>
+```
+
+### **Helm V2**
+___
+Install `Democratic-CSI` with your configured values.
+```
 helm upgrade \
 --install \
 --values freenas-nfs.yaml \
@@ -335,12 +331,9 @@ helm upgrade \
 zfs-nfs democratic-csi/democratic-csi
 ```
 
-### A note on non standard kubelet paths
+### **On non standard Kubelet paths**
 
-Some distrobutions, such as `minikube` and `microk8s` use a non-standard
-kubelet path. In such cases it is necessary to provide a new kubelet host path,
-microk8s example below:
-
+Some distrobutions, such as `minikube` and `microk8s` use a non-standard kubelet path. In such cases it is  ecessary to provide a new kubelet host path, microk8s example below:
 ```bash
 microk8s helm upgrade \
   --install \
@@ -350,10 +343,10 @@ microk8s helm upgrade \
   zfs-nfs democratic-csi/democratic-csi
 ```
 
-- microk8s - `/var/snap/microk8s/common/var/lib/kubelet`
-- pivotal - `/var/vcap/data/kubelet`
+* microk8s - `/var/snap/microk8s/common/var/lib/kubelet`
+* pivotal - `/var/vcap/data/kubelet`
 
-### openshift
+### **OpenShift**
 
 `Democratic-CSI` generally works fine with openshift. Some special parameters
 need to be set with helm (support added in chart version `0.6.1`):
