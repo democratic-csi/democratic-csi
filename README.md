@@ -53,12 +53,12 @@ You can choose to use either **NFS** or **iSCSI** or **both**.
 
 ### **NFS configuration** 
 ___ 
-&ensp;**RHEL / CentOS**
+<span style="color: #eb2121"> **RHEL / CentOS** </span>  
 ```
 sudo yum install -y nfs-utils
 ```
 
-&ensp;**Ubuntu / Debian**
+<span style="color: #eb7b21">**Ubuntu / Debian** </span>  
 ```
 sudo apt-get install -y nfs-common
 ```
@@ -66,37 +66,37 @@ sudo apt-get install -y nfs-common
 
 ### **iSCSI configuration**  
 ___ 
-**RHEL / CentOS**  
-&ensp;Install the following system packages:
+<span style="color: #eb2121"> **RHEL / CentOS** </span>  
+Install the following system packages:
 ```
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
 ```
-&ensp;Enable multipathing:
+Enable multipathing:
 ```
 sudo mpathconf --enable --with_multipathd y
 ```
-&ensp;Ensure that `iscsid` and `multipathd` are running:
+Ensure that `iscsid` and `multipathd` are running:
 ```
 sudo systemctl enable iscsid multipathd && sudo systemctl start iscsid multipathd
 ```
-&ensp;Start and enable iSCSI:
+Start and enable iSCSI:
 ```
 sudo systemctl enable iscsi && sudo systemctl start iscsi
 ```
 <br/>
 
-**Ubuntu / Debian**  
-&ensp;Install the following system packages:
+<span style="color: #eb7b21">**Ubuntu / Debian** </span>  
+Install the following system packages:
 ```
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 ```
 **Multipathing**  
-&ensp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup multipath to your liking and set multiple portals in the config as appropriate.  
-&ensp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
-&ensp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
+`Multipath` is supported for the `iSCSI`-based drivers. Simply setup multipath to your liking and set multiple portals in the config as appropriate.  
+*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
+[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
 <br/>
 
-&ensp;Add the mutlipath configuration:
+Add the mutlipath configuration:
 ```
 sudo tee /etc/multipath.conf <<-'EOF'
 defaults {
@@ -118,8 +118,8 @@ sudo systemctl status open-iscsi
 ```
 <br/>
 
-### **FreeNAS-SMB**
-
+### **FreeNAS-SMB** </span>  
+___
 If using with Windows based machines you may need to enable guest access (even
 if you are connecting with credentials)
 
@@ -129,7 +129,7 @@ Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Param
 <br/>
 
 ### **ZFS-local-ephemeral-inline**
-
+___
 This `driver` provisions node-local ephemeral storage on a per-pod basis. Each node should have an identically named ZFS pool created and avaialble to the `driver`.  
 *NOTE:* This is *NOT* the same thing as using the docker ZFS storage
 driver (although the same pool could be used). No other requirements are
@@ -137,27 +137,28 @@ necessary. More regarding to this can be found here: [Pod Inline Volume Support]
 
 <br/>
 
-## **Server preperation**
+## **Storage server preperation**
 
-Server preparation depends slightly on which `driver` you are using.
-The recommended version of FreeNAS is 12.0-U2 or higher, however the driver should work
+Storage server preperation depends slightly on which `driver` you are using.
+The recommended version of FreeNAS / TrueNAS is 12.0-U2 or higher, however the driver should work
 with much older versions as well.
 
 ### **TrueNAS / FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb, freenas-api-nfs, freenas-api-iscsi, freenas-api-smb)**  
+<br/>
 
-**API usage without SSH**  
+**API without SSH**  
+___
 Configuration templates can be found [HERE](https://github.com/D1StrX/democratic-csi/blob/667354978e497fb4624d52e909609ca278e4bd25/examples/api-with-ssh)  
-The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be
-used with SCALE 21.08+. Fundamentally these drivers remove the need for `ssh`
-connections and do all operations entirely with the TrueNAS api. With that in
-mind, any ssh/shell/etc requirements below can be safely ignored. Also note the
-following known issues:
+The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be used with SCALE 21.08+. Fundamentally these drivers remove the need for `ssh` connections and do all operations entirely with the TrueNAS api. With that in mind, any `ssh/shell/etc` requirements below can be safely ignored. Also note the following known issues:
 
 * [Additional middleware changes to support Democratic CSI use of native API](https://jira.ixsystems.com/browse/NAS-111870)
 * [TrueNAS Scale 21.08 - Could not log into all portals](https://github.com/democratic-csi/democratic-csi/issues/112)
 * [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)
 
-**API with the usage of SSH**  
+<br/>
+
+**API with SSH**  
+___
 Configuration templates can be found [HERE](https://github.com/D1StrX/democratic-csi/blob/667354978e497fb4624d52e909609ca278e4bd25/examples/api-with-ssh)  
 Ensure the following services are configurged and running:
 
