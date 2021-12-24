@@ -90,7 +90,6 @@ sudo systemctl enable iscsid multipathd && sudo systemctl start iscsid multipath
 ```
 sudo systemctl enable iscsi && sudo systemctl start iscsi
 ```
-___ 
 <br/>
 
 &ensp;**Ubuntu / Debian**  
@@ -98,17 +97,16 @@ ___
 ```
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 ```
-&emsp;&emsp;**Multipathing**  
-&emsp;&emsp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup
-&emsp;&emsp;multipath to your liking and set multiple  
-&emsp;&emsp;portals in the config as appropriate.
+**Multipathing**  
+`Multipath` is supported for the `iSCSI`-based drivers. Simply setup multipath to your liking and set multiple  
+portals in the config as appropriate.
 
-&emsp;&emsp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
-&emsp;&emsp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
+*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
+[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
 
 <br/>
 
-&emsp;&emsp;Add the mutlipath configuration:
+Add the mutlipath configuration:
 ```
 sudo tee /etc/multipath.conf <<-'EOF'
 defaults {
@@ -117,11 +115,11 @@ defaults {
 }
 EOF
 ```
-&emsp;&emsp;Enable the `multipath-tools` service and restart to load the configuration:
+Enable the `multipath-tools` service and restart to load the configuration:
 ```
 sudo systemctl enable multipath-tools && sudo service multipath-tools restart
 ```
-&emsp;&emsp;Ensure that `open-iscsi` and `multipath-tools` are enabled and running:
+Ensure that `open-iscsi` and `multipath-tools` are enabled and running:
 ```
 sudo systemctl status multipath-tools
 sudo systemctl enable open-iscsi.service
