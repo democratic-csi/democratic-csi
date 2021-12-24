@@ -163,7 +163,7 @@ The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be u
 ___
 Configuration templates can be found [HERE](https://github.com/D1StrX/democratic-csi/blob/667354978e497fb4624d52e909609ca278e4bd25/examples/api-with-ssh)
 <br><br/>
-[Continue configuration](#Storage-onfiguration)
+[Continue configuration](#Storage-configuration)
 <br/>
 
 ### **Storage Configuration**  
