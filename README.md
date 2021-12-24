@@ -101,8 +101,8 @@ sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 ```
 &nbsp;&nbsp;**Multipathing**  
 &nbsp;&nbsp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup
-&nbsp;&nbsp;multipath to your liking and set multiple portals  
-&nbsp;&nbsp;in the config as appropriate.
+&nbsp;&nbsp;multipath to your liking and set multiple  
+&nbsp;&nbsp;portals in the config as appropriate.
 
 &nbsp;&nbsp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
 &nbsp;&nbsp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
