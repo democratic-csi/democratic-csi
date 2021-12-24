@@ -167,22 +167,23 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 <br/>
 
 ### **Service configuration**  
-Ensure the following services are configurged and running: 
+Ensure the following services are configurged and running:  
 
-&nbsp;&nbsp;» &nbsp; **SSH**  
-* Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting  
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
-* (Optional) Enable passwordless authentication  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![image](https://user-images.githubusercontent.com/40062371/147369769-5d46cf14-ae00-444a-8ba2-b3e428ef4a8d.png)
-  
-
+&nbsp;&nbsp;» &nbsp; SSH  
+* When creating a custom user: 
+  * Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting
+  &emsp;![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
+  * (Optional) Enable passwordless authentication
+  &emsp;![image](https://user-images.githubusercontent.com/40062371/147369769-5d46cf14-ae00-444a-8ba2-b3e428ef4a8d.png)
+  * Has a homefolder, this is used to store its SSH Public Key
+  &emsp;![image](https://user-images.githubusercontent.com/40062371/147370105-6030b22e-ceb3-4768-b4a0-8e55fafe7f0f.png)
 
 
 ### **NFS configuration** 
-&nbsp;&nbsp;» NFS
+&nbsp;&nbsp;» &nbsp; NFS
 
 ### **iSCSI configuration** 
-&nbsp;&nbsp;» iSCSI
+&nbsp;&nbsp;» &nbsp; iSCSI  
 *NOTE:* (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
     `/etc/ctl.conf` file on the server can become invalid, some sample scripts
     are provided in the `contrib` directory to clean things up ie: copy the
