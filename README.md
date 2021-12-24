@@ -31,7 +31,8 @@ have access to resizing, snapshots, clones, etc functionality.
 &nbsp;&nbsp;&nbsp;&nbsp;» `smb-client` (crudely provisions storage using a shared smb share/directory
       for all volumes)  
 &nbsp;&nbsp;&nbsp;&nbsp;» `node-manual` (allows connecting to manually created smb, nfs, lustre, and
-      iscsi volumes, see sample PVs in the `examples` directory)  
+      iscsi volumes, see sample PVs in the  
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`examples` directory)  
 
   **Development**  
 &nbsp;&nbsp;&nbsp;&nbsp;» Framework for developing `CSI` drivers
@@ -100,7 +101,8 @@ sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 ```
 &nbsp;&nbsp;**Multipathing**  
 &nbsp;&nbsp;`Multipath` is supported for the `iSCSI`-based drivers. Simply setup
-&nbsp;&nbsp;multipath to your liking and set multiple portals in the config as appropriate.
+&nbsp;&nbsp;multipath to your liking and set multiple portals  
+&nbsp;&nbsp;in the config as appropriate.
 
 &nbsp;&nbsp;*NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
 &nbsp;&nbsp;[Support host iscsi simultaneously with kubelet iscsi (pvc)](https://github.com/rancher/rke/issues/1846>)
