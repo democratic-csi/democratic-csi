@@ -154,10 +154,10 @@ The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be u
 
 * [Additional middleware changes to support Democratic CSI use of native API](https://jira.ixsystems.com/browse/NAS-111870)
 * [TrueNAS Scale 21.08 - Could not log into all portals](https://github.com/democratic-csi/democratic-csi/issues/112)
-* [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)<br><br/>
+* [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)
+
 [Continue configuration](#Service-configuration)
 <br/>
-
 
 **API with SSH**  
 ___
