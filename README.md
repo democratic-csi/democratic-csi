@@ -210,7 +210,7 @@ ___
       cat /usr/local/etc/sudoers
       ```
       
-  * Has a homefolder, this is used to store its SSH Public Key  
+  * `CSI` has a homefolder, this is used to store its SSH Public Key  
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147370105-6030b22e-ceb3-4768-b4a0-8e55fafe7f0f.png)
   * Add the user to `wheel` or create/use a group that will be used for permissions later on
 
