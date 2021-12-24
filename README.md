@@ -158,29 +158,35 @@ necessary.
 ## **Server preperation**
 
 Server preparation depends slightly on which `driver` you are using.
-
-### FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb, freenas-api-nfs, freenas-api-iscsi, freenas-api-smb)
-
-The recommended version of FreeNAS is 12.0-U2+, however the driver should work
+The recommended version of FreeNAS is 12.0-U2 or higher, however the driver should work
 with much older versions as well.
 
+### **TrueNAS / FreeNAS (freenas-nfs, freenas-iscsi, freenas-smb, freenas-api-nfs, freenas-api-iscsi, freenas-api-smb)**  
+
+**API usage without SSH**  
 The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be
 used with SCALE 21.08+. Fundamentally these drivers remove the need for `ssh`
 connections and do all operations entirely with the TrueNAS api. With that in
 mind, any ssh/shell/etc requirements below can be safely ignored. Also note the
 following known issues:
 
-- [Additional middleware changes to support Democratic CSI use of native API](https://jira.ixsystems.com/browse/NAS-111870)
-- [TrueNAS Scale 21.08 - Could not log into all portals](https://github.com/democratic-csi/democratic-csi/issues/112)
-- [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)
+* [Additional middleware changes to support Democratic CSI use of native API](https://jira.ixsystems.com/browse/NAS-111870)
+* [TrueNAS Scale 21.08 - Could not log into all portals](https://github.com/democratic-csi/democratic-csi/issues/112)
+* [Pure api based truenas driver (ssh dependency removed)](https://github.com/democratic-csi/democratic-csi/issues/101)
 
+**API with the usage of SSH**  
 Ensure the following services are configurged and running:
 
-- SSH (if you use a password for authentication make sure it is allowed)
-- Ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
-- NFS
-- iSCSI
-  - (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
+&nbsp;&nbsp;» **SSH**  
+* if you use a password for authentication make sure it is allowed
+* Ensure `ZSH`, `BASH`, or `SH` is set as the root shell, `CSH` gives false errors due to quoting
+![image](https://user-images.githubusercontent.com/40062371/147365044-007b2657-30f9-428b-ae12-7622a572866d.png)
+### **NFS configuration** 
+&nbsp;&nbsp;» NFS
+
+### **iSCSI configuration** 
+&nbsp;&nbsp;» iSCSI
+*NOTE:* (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
     `/etc/ctl.conf` file on the server can become invalid, some sample scripts
     are provided in the `contrib` directory to clean things up ie: copy the
     script to the server and directly and run - `./ctld-config-watchdog-db.sh | logger -t ctld-config-watchdog-db.sh &`
