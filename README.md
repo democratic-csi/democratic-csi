@@ -12,32 +12,32 @@ systems, predominantly `TrueNAS / FreeNAS` and `ZoL on Ubuntu`.
 The current drivers implement the depth and breadth of the `csi` specifications, so you  
 have access to resizing, snapshots, clones, etc functionality.
 
-## What can Democratic-CSI offer?  
+## What can Democratic-CSI offer? 
 **Several implementations of `CSI` drivers**  
-    » `freenas-nfs` (manages zfs datasets to share over nfs)  
-    » `freenas-iscsi` (manages zfs zvols to share over iscsi)  
-    » `freenas-smb` (manages zfs datasets to share over smb)  
-    » `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)  
-    » `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)  
-    » `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)  
-    » `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)  
-    » `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)  
-    » `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)  
-    » `synology-iscsi` experimental (manages volumes to share over iscsi)  
-    » `lustre-client` (crudely provisions storage using a shared lustre
+&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-nfs` (manages zfs datasets to share over nfs)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-iscsi` (manages zfs zvols to share over iscsi)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-smb` (manages zfs datasets to share over smb)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-api-nfs` experimental use with SCALE only (manages zfs datasets to share over nfs)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-api-iscsi` experimental use with SCALE only (manages zfs zvols to share over iscsi)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `synology-iscsi` experimental (manages volumes to share over iscsi)  
+&nbsp;&nbsp;&nbsp;&nbsp;» `lustre-client` (crudely provisions storage using a shared lustre
       share/directory for all volumes)  
-    » `nfs-client` (crudely provisions storage using a shared nfs share/directory
+&nbsp;&nbsp;&nbsp;&nbsp;» `nfs-client` (crudely provisions storage using a shared nfs share/directory
       for all volumes)  
-    » `smb-client` (crudely provisions storage using a shared smb share/directory
+&nbsp;&nbsp;&nbsp;&nbsp;» `smb-client` (crudely provisions storage using a shared smb share/directory
       for all volumes)  
-    » `node-manual` (allows connecting to manually created smb, nfs, lustre, and  
+&nbsp;&nbsp;&nbsp;&nbsp;» `node-manual` (allows connecting to manually created smb, nfs, lustre, and
       iscsi volumes, see sample PVs in the `examples` directory)  
 
   **Development**  
-    » Framework for developing `CSI` drivers
+&nbsp;&nbsp;&nbsp;&nbsp;» Framework for developing `CSI` drivers
 
 If you have any interest in providing a `CSI` driver, simply open an issue to
-discuss. The project provides an extensive framework to build from making it
+discuss. The project provides an extensive framework to build and making it
 relatively easy to implement new drivers.
 
 ## Community Guides
@@ -48,7 +48,7 @@ relatively easy to implement new drivers.
 - https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
   (migrating between storage classes using `velero`)
 
-## Installation
+# Installation
 
 Predominantly 3 prerequisites are needed:  
 - Nodes preperation (ie: Kubernetes cluster nodes)
@@ -57,8 +57,8 @@ Predominantly 3 prerequisites are needed:
   `values.yaml`)
 
 
-## Node preperation
-
+## **Node preperation**
+Alright, you have chosen your driver. Let's start by configuring the prerequisites for your Node.  
 You can choose to use either NFS or iSCSI or both.
 
 ### **NFS configuration** 
@@ -143,12 +143,14 @@ Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Param
 
 This `driver` provisions node-local ephemeral storage on a per-pod basis. Each
 node should have an identically named zfs pool created and avaialble to the
-`driver`. Note, this is _NOT_ the same thing as using the docker zfs storage
+`driver`.  
+*NOTE:* this is *NOT* the same thing as using the docker zfs storage
 driver (although the same pool could be used). No other requirements are
 necessary.
 
 - [Pod Inline Volume Support](https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html)
   
+
 <br/>
 
 ## **Server preperation**
