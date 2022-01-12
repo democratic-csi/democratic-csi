@@ -2,13 +2,16 @@
 ![Image](https://img.shields.io/github/workflow/status/democratic-csi/democratic-csi/CI?style=flat-square)
 
 # Introduction
+
 ## What is Democratic-CSI?  
-`Democratic-CSI` implements the `csi` (Container Storage Interface) specifications providing storage for various container orchestration systems (*ie: Kubernetes, Nomad, OpenShift*).
+
+`Democratic-CSI` implements the `CSI` (Container Storage Interface) specifications providing storage for various container orchestration systems (*ie: Kubernetes, Nomad, OpenShift*).
 
 The current *focus* is providing storage via iSCSI or NFS from ZFS-based storage systems, predominantly `TrueNAS / FreeNAS` and `ZoL on Ubuntu`.  
 The current *drivers* implement the depth and breadth of the `csi` specifications, so you have access to resizing, snapshots, clones, etc functionality.
 
 ## What can Democratic-CSI offer? 
+
 **Several implementations of `CSI` drivers**  
 :arrow_forward: `freenas-nfs` (manages zfs datasets to share over nfs)  
 :arrow_forward: `freenas-iscsi` (manages zfs zvols to share over iscsi)  
@@ -46,51 +49,63 @@ Predominantly 3 prerequisites are needed:
 - Deployment of the driver into the cluster (`helm` chart provided with sample
   `values.yaml`)
 
+## Node preperation
 
-## **Node preperation**
 Alright, you have chosen your driver. Let's start by configuring the prerequisites for your Node.  
 You can choose to use either **NFS** or **iSCSI** or **both**.
 
-### **NFS configuration** 
-___ 
-**RHEL / CentOS**   
-```
+### **NFS configuration**
+
+___
+
+#### RHEL / CentOS
+
+```bash
 sudo yum install -y nfs-utils
 ```
 
-**Ubuntu / Debian**  
-```
+#### Ubuntu / Debian
+
+```bash
 sudo apt-get install -y nfs-common
 ```
-<br/>
 
-### **iSCSI configuration**  
-___ 
-**RHEL / CentOS** 
+### iSCSI configuration
+
+___
+
+#### RHEL / CentOS  
 Install the following system packages:
-```
+
+```bash
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
 ```
+
 Enable multipathing:
-```
+
+```bash
 sudo mpathconf --enable --with_multipathd y
 ```
+
 Ensure that `iscsid` and `multipathd` are running:
-```
+
+```bash
 sudo systemctl enable iscsid multipathd && sudo systemctl start iscsid multipathd
 ```
+
 Start and enable iSCSI:
-```
+
+```bash
 sudo systemctl enable iscsi && sudo systemctl start iscsi
 ```
-<br/>
-
 
 **Ubuntu / Debian**  
 Install the following system packages:
-```
+
+```bash
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 ```
+
 **Multipathing**  
 `Multipath` is supported for the `iSCSI`-based drivers. Simply setup multipath to your liking and set multiple portals in the config as appropriate.  
 *NOTE:* If you are running Kubernetes with Rancher/RKE please see the following:  
