@@ -184,7 +184,7 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 
 [Continue configuration](#Service-configuration)
 
-### Service configuration  
+### Service configuration
 
 Ensure the following services are *configured*, *running* and starting automatically:  
 
@@ -247,14 +247,14 @@ ___
   &emsp;![image](https://user-images.githubusercontent.com/40062371/147370105-6030b22e-ceb3-4768-b4a0-8e55fafe7f0f.png)
   - Add the user to `wheel` or create/use a group that will be used for permissions later on
 
-#### **NFS configuration**  
+#### **NFS configuration**
 
 ___
 
 - Bind the interface to the NFS service
 - It is recommended to use NFS 3
 
-#### **iSCSI configuration**  
+#### iSCSI configuration
 
 ___
 *NOTE:* (Fixed in 12.0-U2+) when using the FreeNAS API concurrently, the `/etc/ctl.conf` file on the server can become invalid, some sample scripts are provided in the `contrib` directory to clean things up ie:  
@@ -271,13 +271,13 @@ Please read the scripts and set the variables appropriate for your server.
     - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
     - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
 
-### **SMB configuration**  
+### SMB configuration
 
 ___
 
 - Bind the interface to the SMB service
 
-### **YAML Values configuration**
+### YAML Values configuration
 
 ___
 Instruct `Democratic-CSI` to use `sudo` by uncommenting the following in your configuration template:
@@ -300,7 +300,7 @@ Issues to review:
 [ixsystems NAS-108522](https://jira.ixsystems.com/browse/NAS-108522)  
 [ixsystems NAS-107219](https://jira.ixsystems.com/browse/NAS-107219)  
 
-### **ZoL (zfs-generic-nfs, zfs-generic-iscsi)**
+### ZoL (zfs-generic-nfs, zfs-generic-iscsi)
 
 ___
 
@@ -315,12 +315,12 @@ Ensure ssh and zfs is installed on the nfs/iscsi server and that you have instal
  sudo apt-get -y install targetcli-fb
  ```
 
-### **Synology (synology-iscsi)**
+### Synology (synology-iscsi)
 
 ___
 Ensure iSCSI Manager has been installed and is generally setup/configured.
 
-## **Helm Installation**
+## Helm Installation
 
 ___
 Copy proper example Values file from the examples:  
@@ -339,7 +339,7 @@ Update your Helm repository to get latest charts:
 helm repo update
 ```
 
-### **Helm V3**
+### Helm V3
 
 ___
 
@@ -355,7 +355,7 @@ Update/Upgrade Values:
 helm upgrade <name> democratic-csi/democratic-csi --values <freenas-*>.yaml --namespace <namespace>
 ```
 
-### **Helm V2**
+### Helm V2
 
 ___
 Install `Democratic-CSI` with your configured values.
@@ -368,7 +368,7 @@ helm upgrade \
 zfs-nfs democratic-csi/democratic-csi
 ```
 
-### **On non standard Kubelet paths**
+### On non standard Kubelet paths
 
 Some distrobutions, such as `minikube` and `microk8s` use a non-standard kubelet path. In such cases it is  ecessary to provide a new kubelet host path, microk8s example below:
 
@@ -384,17 +384,24 @@ microk8s helm upgrade \
 - microk8s - `/var/snap/microk8s/common/var/lib/kubelet`
 - pivotal - `/var/vcap/data/kubelet`
 
-### **OpenShift**
+### OpenShift
 
 `Democratic-CSI` generally works fine with openshift. Some special parameters
 need to be set with helm (support added in chart version `0.6.1`):
 
-```bash
-# for sure required
---set node.rbac.openshift.privileged=true
---set node.driver.localtimeHostPath=false
+*NOTE:* for sure required
 
-# unlikely, but in special circumstances may be required
+```bash
+--set node.rbac.openshift.privileged=true
+```
+
+```bash
+--set node.driver.localtimeHostPath=false
+```
+
+*NOTE:* Unlikely, but in special circumstances may be required
+
+```bash
 --set controller.rbac.openshift.privileged=true
 ```
 
