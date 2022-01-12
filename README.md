@@ -184,7 +184,7 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 
 [Continue configuration](#Service-configuration)
 
-### Service configuration  
+### **Service configuration**  
 
 Ensure the following services are *configured*, *running* and starting automatically:  
 
