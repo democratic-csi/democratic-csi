@@ -184,7 +184,7 @@ Configuration templates can be found [HERE](https://github.com/D1StrX/democratic
 
 [Continue configuration](#Service-configuration)
 
-### **Service configuration**  
+### Service configuration  
 
 Ensure the following services are *configured*, *running* and starting automatically:  
 
@@ -282,7 +282,7 @@ ___
 ___
 Instruct `Democratic-CSI` to use `sudo` by uncommenting the following in your configuration template:
 
-  ```bash
+  ```yaml
   zfs:
     cli:
       sudoEnabled: true
@@ -413,39 +413,45 @@ You may install multiple deployments of each/any driver. It requires the followi
 
 ## **Snapshot Support**  
 
+[**External-snapshotter CRD**](https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd)  
 Install beta (v1.17+) CRDs (one per cluster):
-
-- <https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd>
 
 ```bash
 kubectl apply -f snapshot.storage.k8s.io_volumesnapshotclasses.yaml
+```
+
+```bash
 kubectl apply -f snapshot.storage.k8s.io_volumesnapshotcontents.yaml
+```
+
+```bash
 kubectl apply -f snapshot.storage.k8s.io_volumesnapshots.yaml
 ```
 
-Install snapshot controller (once per cluster):
-
-- <https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/snapshot-controller>
+[**External-snapshotter Controller**](https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/snapshot-controller)  
+Install snapshot controller (once per cluster):  
+Add `--namespace` references to your need.
 
 ```bash
-# replace namespace references to your liking
 kubectl apply -f rbac-snapshot-controller.yaml
+```
+
+```bash
 kubectl apply -f setup-snapshot-controller.yaml
 ```
 
-Install `Democratic-CSI` as usual with `volumeSnapshotClasses` defined as appropriate.
+Install `Democratic-CSI` with `volumeSnapshotClasses` appropriatly defined.
 
-- <https://kubernetes.io/docs/concepts/storage/volume-snapshots/>
-- <https://github.com/kubernetes-csi/external-snapshotter#usage>
-- <https://github.com/democratic-csi/democratic-csi/issues/129#issuecomment-961489810>
+[Volume-snapshots](https://kubernetes.io/docs/concepts/storage/volume-snapshots/)  
+[External-snapshotter Usage](https://github.com/kubernetes-csi/external-snapshotter#usage)  
+[Democratic-CSI Issue](https://github.com/democratic-csi/democratic-csi/issues/129#issuecomment-961489810)
 
-## **Migrating from freenas-provisioner and freenas-iscsi-provisioner**  
+## Migrating from freenas-provisioner and freenas-iscsi-provisioner
 
 It is possible to migrate all volumes from the non-csi freenas provisioners
 to `Democratic-CSI`.
 
-Copy the `contrib/freenas-provisioner-to-democratic-csi.sh` script from the
-project to your workstation, read the script in detail, and edit the variables
+Copy the `contrib/freenas-provisioner-to-democratic-csi.sh` script from the project to your workstation. Read the script in detail, and edit the variables
 to your needs to start migrating!
 
 # **Sponsors**
@@ -456,8 +462,8 @@ A special shout out to the wonderful sponsors of this project!
 
 ## **Related**
 
-- <https://github.com/nmaupu/freenas-provisioner>
-- <https://github.com/travisghansen/freenas-iscsi-provisioner>
-- <https://datamattsson.tumblr.com/post/624751011659202560/welcome-truenas-core-container-storage-provider>
-- <https://github.com/dravanet/truenas-csi>
-- <https://github.com/SynologyOpenSource/synology-csi>
+[Freenas provisioner](https://github.com/nmaupu/freenas-provisioner)  
+[Freenas iSCSI provisioner](https://github.com/travisghansen/freenas-iscsi-provisioner)  
+[Welcome TrueNAS Core container storageprovider](https://datamattsson.tumblr.com/post/624751011659202560/welcome-truenas-core-container-storage-provider)
+[Truenas CSI](https://github.com/dravanet/truenas-csi)  
+[Synology CSI](https://github.com/SynologyOpenSource/synology-csi)
