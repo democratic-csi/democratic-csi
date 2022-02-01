@@ -1,8 +1,4 @@
 driver: zfs-local-ephemeral-inline
-service:
-  identity: {}
-  controller: {}
-  node: {}
 zfs:
   #chroot: "/host"
   datasetParentName: tank/k8s/inline

@@ -9,10 +9,7 @@ sshConnection:
     -----BEGIN RSA PRIVATE KEY-----
     ...
     -----END RSA PRIVATE KEY-----
-service:
-  identity: {}
-  controller: {}
-  node: {}
+
 zfs:
   # can be used to override defaults if necessary
   # the example below is useful for TrueNAS 12
