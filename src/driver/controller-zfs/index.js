@@ -1,10 +1,7 @@
 const { CsiBaseDriver } = require("../index");
-const SshClient = require("../../utils/ssh").SshClient;
 const { GrpcError, grpc } = require("../../utils/grpc");
 const sleep = require("../../utils/general").sleep;
 const getLargestNumber = require("../../utils/general").getLargestNumber;
-
-const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
@@ -34,12 +31,15 @@ const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
 /**
  * Base driver to provisin zfs assets over ssh.
  * Derived drivers only need to implement:
+ *  - getExecClient()
+ *  - async getZetabyte()
+ *  - async setZetabyteCustomOptions(options) // optional
  *  - getDriverZfsResourceType() // return "filesystem" or "volume"
  *  - async createShare(call, datasetName) // return appropriate volume_context for Node operations
  *  - async deleteShare(call, datasetName) // no return expected
  *  - async expandVolume(call, datasetName) // no return expected, used for restarting services etc if needed
  */
-class ControllerZfsSshBaseDriver extends CsiBaseDriver {
+class ControllerZfsBaseDriver extends CsiBaseDriver {
   constructor(ctx, options) {
     super(...arguments);
 
@@ -144,42 +144,6 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         //options.service.node.capabilities.rpc.push("VOLUME_MOUNT_GROUP"); // in k8s is sent in as the security context fsgroup
       }
     }
-  }
-
-  getSshClient() {
-    return new SshClient({
-      logger: this.ctx.logger,
-      connection: this.options.sshConnection,
-    });
-  }
-
-  async getZetabyte() {
-    const sshClient = this.getSshClient();
-    const options = {};
-    options.executor = new ZfsSshProcessManager(sshClient);
-    options.idempotent = true;
-
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("paths")
-    ) {
-      options.paths = this.options.zfs.cli.paths;
-    }
-
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("sudoEnabled")
-    ) {
-      options.sudo = this.getSudoEnabled();
-    }
-
-    if (typeof this.setZetabyteCustomOptions === "function") {
-      await this.setZetabyteCustomOptions(options);
-    }
-
-    return new Zetabyte(options);
   }
 
   getSudoEnabled() {
@@ -402,7 +366,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
    */
   async getMaxZvolNameLength() {
     const driver = this;
-    const sshClient = driver.getSshClient();
+    const execClient = driver.getExecClient();
 
     let response;
     let command;
@@ -412,7 +376,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
     // get kernel
     command = "uname -s";
     driver.ctx.logger.verbose("uname command: %s", command);
-    response = await sshClient.exec(command);
+    response = await execClient.exec(command);
     if (response.code !== 0) {
       throw new Error("failed to run uname to determine max zvol name length");
     } else {
@@ -429,7 +393,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         // get kernel_release
         command = "uname -r";
         driver.ctx.logger.verbose("uname command: %s", command);
-        response = await sshClient.exec(command);
+        response = await execClient.exec(command);
         if (response.code !== 0) {
           throw new Error(
             "failed to run uname to determine max zvol name length"
@@ -485,9 +449,9 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
        * - ensure csh is not the operative shell
        */
       if (!driver.currentSSHShell || timerEnabled === false) {
-        const sshClient = this.getSshClient();
+        const execClient = this.getExecClient();
         driver.ctx.logger.debug("performing ssh sanity check..");
-        const response = await sshClient.exec("echo $0");
+        const response = await execClient.exec("echo $0");
         driver.currentSSHShell = response.stdout.split("\n")[0];
       }
 
@@ -497,8 +461,8 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         driver.currentSSHShellInterval = setInterval(async () => {
           try {
             driver.ctx.logger.debug("performing ssh sanity check..");
-            const sshClient = this.getSshClient();
-            const response = await sshClient.exec("echo $0");
+            const execClient = this.getExecClient();
+            const response = await execClient.exec("echo $0");
             driver.currentSSHShell = response.stdout.split("\n")[0];
           } catch (e) {
             delete driver.currentSSHShell;
@@ -533,7 +497,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   async CreateVolume(call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
-    const sshClient = this.getSshClient();
+    const execClient = this.getExecClient();
     const zb = await this.getZetabyte();
 
     let datasetParentName = this.getVolumeParentDatasetName();
@@ -1028,7 +992,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
         // set mode
         if (this.options.zfs.datasetPermissionsMode) {
-          command = sshClient.buildCommand("chmod", [
+          command = execClient.buildCommand("chmod", [
             this.options.zfs.datasetPermissionsMode,
             properties.mountpoint.value,
           ]);
@@ -1037,7 +1001,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           }
 
           driver.ctx.logger.verbose("set permission command: %s", command);
-          response = await sshClient.exec(command);
+          response = await execClient.exec(command);
           if (response.code != 0) {
             throw new GrpcError(
               grpc.status.UNKNOWN,
@@ -1053,7 +1017,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           this.options.zfs.datasetPermissionsUser ||
           this.options.zfs.datasetPermissionsGroup
         ) {
-          command = sshClient.buildCommand("chown", [
+          command = execClient.buildCommand("chown", [
             (this.options.zfs.datasetPermissionsUser
               ? this.options.zfs.datasetPermissionsUser
               : "") +
@@ -1068,7 +1032,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
           }
 
           driver.ctx.logger.verbose("set ownership command: %s", command);
-          response = await sshClient.exec(command);
+          response = await execClient.exec(command);
           if (response.code != 0) {
             throw new GrpcError(
               grpc.status.UNKNOWN,
@@ -1082,7 +1046,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
         // probably could see if ^-.*\s and split and then shell escape
         if (this.options.zfs.datasetPermissionsAcls) {
           for (const acl of this.options.zfs.datasetPermissionsAcls) {
-            command = sshClient.buildCommand("setfacl", [
+            command = execClient.buildCommand("setfacl", [
               acl,
               properties.mountpoint.value,
             ]);
@@ -1091,7 +1055,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
             }
 
             driver.ctx.logger.verbose("set acl command: %s", command);
-            response = await sshClient.exec(command);
+            response = await execClient.exec(command);
             if (response.code != 0) {
               throw new GrpcError(
                 grpc.status.UNKNOWN,
@@ -1562,7 +1526,6 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
       }
       entries = this.ctx.cache.get(`ListVolumes:result:${uuid}`);
       if (entries) {
-        entries = JSON.parse(JSON.stringify(entries));
         entries_length = entries.length;
         entries = entries.slice(start_position, end_position);
         if (max_entries > 0 && end_position > entries_length) {
@@ -1659,10 +1622,7 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
 
     if (max_entries && entries.length > max_entries) {
       uuid = uuidv4();
-      this.ctx.cache.set(
-        `ListVolumes:result:${uuid}`,
-        JSON.parse(JSON.stringify(entries))
-      );
+      this.ctx.cache.set(`ListVolumes:result:${uuid}`, entries);
       next_token = `${uuid}:${max_entries}`;
       entries = entries.slice(0, max_entries);
     }
@@ -2366,4 +2326,4 @@ class ControllerZfsSshBaseDriver extends CsiBaseDriver {
   }
 }
 
-module.exports.ControllerZfsSshBaseDriver = ControllerZfsSshBaseDriver;
+module.exports.ControllerZfsBaseDriver = ControllerZfsBaseDriver;
