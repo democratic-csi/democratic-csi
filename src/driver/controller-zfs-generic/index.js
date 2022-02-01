@@ -1,12 +1,50 @@
-const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
+const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const SshClient = require("../../utils/ssh").SshClient;
 const sleep = require("../../utils/general").sleep;
+const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 const Handlebars = require("handlebars");
 
 const ISCSI_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:iscsi_assets_name";
 
-class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
+class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
+  getExecClient() {
+    return new SshClient({
+      logger: this.ctx.logger,
+      connection: this.options.sshConnection,
+    });
+  }
+
+  async getZetabyte() {
+    const execClient = this.getExecClient();
+    const options = {};
+    options.executor = new ZfsSshProcessManager(execClient);
+    options.idempotent = true;
+
+    if (
+      this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli &&
+      this.options.zfs.cli.hasOwnProperty("paths")
+    ) {
+      options.paths = this.options.zfs.cli.paths;
+    }
+
+    if (
+      this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli &&
+      this.options.zfs.cli.hasOwnProperty("sudoEnabled")
+    ) {
+      options.sudo = this.getSudoEnabled();
+    }
+
+    if (typeof this.setZetabyteCustomOptions === "function") {
+      await this.setZetabyteCustomOptions(options);
+    }
+
+    return new Zetabyte(options);
+  }
+
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
    * into various calls such as GetControllerCapabilities etc
@@ -30,7 +68,7 @@ class ControllerZfsGenericDriver extends ControllerZfsSshBaseDriver {
    */
   async createShare(call, datasetName) {
     const zb = await this.getZetabyte();
-    const sshClient = this.getSshClient();
+    const execClient = this.getExecClient();
 
     let properties;
     let response;
@@ -194,7 +232,7 @@ create /backstores/block/${iscsiName}
 
   async deleteShare(call, datasetName) {
     const zb = await this.getZetabyte();
-    const sshClient = this.getSshClient();
+    const execClient = this.getExecClient();
 
     let response;
     let properties;
@@ -317,7 +355,7 @@ delete ${iscsiName}
   }
 
   async targetCliCommand(data) {
-    const sshClient = this.getSshClient();
+    const execClient = this.getExecClient();
     const driver = this;
 
     data = data.trim();
@@ -361,8 +399,8 @@ delete ${iscsiName}
     let options = {
       pty: true,
     };
-    let response = await sshClient.exec(
-      sshClient.buildCommand(command, args),
+    let response = await execClient.exec(
+      execClient.buildCommand(command, args),
       options
     );
     if (response.code != 0) {

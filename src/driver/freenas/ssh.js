@@ -1,6 +1,8 @@
-const { ControllerZfsSshBaseDriver } = require("../controller-zfs-ssh");
+const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const SshClient = require("../../utils/ssh").SshClient;
 const HttpClient = require("./http").Client;
+const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 const Handlebars = require("handlebars");
 
@@ -18,7 +20,43 @@ const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
 
 // used for in-memory cache of the version info
 const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
-class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
+class FreeNASSshDriver extends ControllerZfsBaseDriver {
+  getExecClient() {
+    return new SshClient({
+      logger: this.ctx.logger,
+      connection: this.options.sshConnection,
+    });
+  }
+
+  async getZetabyte() {
+    const sshClient = this.getExecClient();
+    const options = {};
+    options.executor = new ZfsSshProcessManager(sshClient);
+    options.idempotent = true;
+
+    if (
+      this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli &&
+      this.options.zfs.cli.hasOwnProperty("paths")
+    ) {
+      options.paths = this.options.zfs.cli.paths;
+    }
+
+    if (
+      this.options.zfs.hasOwnProperty("cli") &&
+      this.options.zfs.cli &&
+      this.options.zfs.cli.hasOwnProperty("sudoEnabled")
+    ) {
+      options.sudo = this.getSudoEnabled();
+    }
+
+    if (typeof this.setZetabyteCustomOptions === "function") {
+      await this.setZetabyteCustomOptions(options);
+    }
+
+    return new Zetabyte(options);
+  }
+
   /**
    * cannot make this a storage class parameter as storage class/etc context is *not* sent
    * into various calls such as GetControllerCapabilities etc
@@ -169,7 +207,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
   async createShare(call, datasetName) {
     const driver = this;
     const driverShareType = this.getDriverShareType();
-    const sshClient = this.getSshClient();
+    const execClient = this.getExecClient();
     const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
@@ -1626,7 +1664,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
 
   async expandVolume(call, datasetName) {
     const driverShareType = this.getDriverShareType();
-    const sshClient = this.getSshClient();
+    const execClient = this.getExecClient();
     const zb = await this.getZetabyte();
 
     switch (driverShareType) {
@@ -1645,7 +1683,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
             properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
 
           /**
-           * command = sshClient.buildCommand("systemctl", ["reload", "scst"]);
+           * command = execClient.buildCommand("systemctl", ["reload", "scst"]);
            * does not help ^
            *
            * echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size
@@ -1657,13 +1695,13 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
            * midclt resync_lun_size_for_zvol tank/foo/bar
            * works on SCALE only ^
            */
-          command = sshClient.buildCommand("sh", [
+          command = execClient.buildCommand("sh", [
             "-c",
             `echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size`,
           ]);
           reload = true;
         } else {
-          command = sshClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
+          command = execClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
           reload = true;
         }
 
@@ -1677,7 +1715,7 @@ class FreeNASSshDriver extends ControllerZfsSshBaseDriver {
             command
           );
 
-          let response = await sshClient.exec(command);
+          let response = await execClient.exec(command);
           if (response.code != 0) {
             throw new GrpcError(
               grpc.status.UNKNOWN,

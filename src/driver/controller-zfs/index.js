@@ -35,6 +35,9 @@ const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
  *  - async getZetabyte()
  *  - async setZetabyteCustomOptions(options) // optional
  *  - getDriverZfsResourceType() // return "filesystem" or "volume"
+ *  - getFSTypes() // optional
+ *  - getAccessModes() // optional
+ *  - async getAccessibleTopology() // optional
  *  - async createShare(call, datasetName) // return appropriate volume_context for Node operations
  *  - async deleteShare(call, datasetName) // no return expected
  *  - async expandVolume(call, datasetName) // no return expected, used for restarting services etc if needed
@@ -182,6 +185,43 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     await zb.zfs.destroy(datasetName + "@%", options);
   }
 
+  getFSTypes() {
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    switch (driverZfsResourceType) {
+      case "filesystem":
+        return ["nfs", "cifs"];
+      case "volume":
+        return ["ext3", "ext4", "ext4dev", "xfs"];
+    }
+  }
+
+  getAccessModes() {
+    const driverZfsResourceType = this.getDriverZfsResourceType();
+    switch (driverZfsResourceType) {
+      case "filesystem":
+        return [
+          "UNKNOWN",
+          "SINGLE_NODE_WRITER",
+          "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+          "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
+          "SINGLE_NODE_READER_ONLY",
+          "MULTI_NODE_READER_ONLY",
+          "MULTI_NODE_SINGLE_WRITER",
+          "MULTI_NODE_MULTI_WRITER",
+        ];
+      case "volume":
+        return [
+          "UNKNOWN",
+          "SINGLE_NODE_WRITER",
+          "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+          "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
+          "SINGLE_NODE_READER_ONLY",
+          "MULTI_NODE_READER_ONLY",
+          "MULTI_NODE_SINGLE_WRITER",
+        ];
+    }
+  }
+
   assertCapabilities(capabilities) {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
@@ -198,24 +238,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
           if (
             capability.mount.fs_type &&
-            !["nfs", "cifs"].includes(capability.mount.fs_type)
+            !this.getFSTypes().includes(capability.mount.fs_type)
           ) {
             message = `invalid fs_type ${capability.mount.fs_type}`;
             return false;
           }
 
-          if (
-            ![
-              "UNKNOWN",
-              "SINGLE_NODE_WRITER",
-              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
-              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
-              "SINGLE_NODE_READER_ONLY",
-              "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER",
-              "MULTI_NODE_MULTI_WRITER",
-            ].includes(capability.access_mode.mode)
-          ) {
+          if (!this.getAccessModes().includes(capability.access_mode.mode)) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
             return false;
           }
@@ -225,26 +254,14 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&
-              !["ext3", "ext4", "ext4dev", "xfs"].includes(
-                capability.mount.fs_type
-              )
+              !this.getFSTypes().includes(capability.mount.fs_type)
             ) {
               message = `invalid fs_type ${capability.mount.fs_type}`;
               return false;
             }
           }
 
-          if (
-            ![
-              "UNKNOWN",
-              "SINGLE_NODE_WRITER",
-              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
-              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
-              "SINGLE_NODE_READER_ONLY",
-              "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER",
-            ].includes(capability.access_mode.mode)
-          ) {
+          if (!this.getAccessModes().includes(capability.access_mode.mode)) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
             return false;
           }
@@ -344,6 +361,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
     }
 
+    let accessible_topology;
+    if (typeof this.getAccessibleTopology === "function") {
+      accessible_topology = await this.getAccessibleTopology();
+    }
+
     let volume = {
       // remove parent dataset info
       volume_id: row["name"].replace(new RegExp("^" + datasetName + "/"), ""),
@@ -353,6 +375,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           : row["volsize"],
       content_source: volume_content_source,
       volume_context,
+      accessible_topology,
     };
 
     return volume;
@@ -1101,6 +1124,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // this should give us a relatively sane way to clean up artifacts over time
     await zb.zfs.set(datasetName, { [SUCCESS_PROPERTY_NAME]: "true" });
 
+    let accessible_topology;
+    if (typeof this.getAccessibleTopology === "function") {
+      accessible_topology = await this.getAccessibleTopology();
+    }
+
     const res = {
       volume: {
         volume_id: name,
@@ -1112,6 +1140,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             : 0,
         content_source: volume_content_source,
         volume_context,
+        accessible_topology,
       },
     };
 
