@@ -1,4 +1,5 @@
 const _ = require("lodash");
+const cp = require("child_process");
 const os = require("os");
 const fs = require("fs");
 const { GrpcError, grpc } = require("../utils/grpc");
@@ -7,6 +8,7 @@ const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
 const semver = require("semver");
 const sleep = require("../utils/general").sleep;
+const { Zetabyte } = require("../utils/zfs");
 
 /**
  * common code shared between all drivers
@@ -565,6 +567,54 @@ class CsiBaseDriver {
           }
         }
         break;
+      case "zfs-local":
+        // TODO: make this a geneic zb instance (to ensure works with node-manual driver)
+        const zb = new Zetabyte({
+          idempotent: true,
+          paths: {
+            zfs: "zfs",
+            zpool: "zpool",
+            sudo: "sudo",
+            chroot: "chroot",
+          },
+          //logger: driver.ctx.logger,
+          executor: {
+            spawn: function () {
+              const command = `${arguments[0]} ${arguments[1].join(" ")}`;
+              return cp.exec(command);
+            },
+          },
+          log_commands: true,
+        });
+        result = await zb.zfs.get(`${volume_context.zfs_asset_name}`, [
+          "type",
+          "mountpoint",
+        ]);
+        result = result[`${volume_context.zfs_asset_name}`];
+        switch (result.type.value) {
+          case "filesystem":
+            if (result.mountpoint.value != "legacy") {
+              // zfs set mountpoint=legacy <dataset>
+              // zfs inherit mountpoint <dataset>
+              await zb.zfs.set(`${volume_context.zfs_asset_name}`, {
+                mountpoint: "legacy",
+              });
+            }
+            device = `${volume_context.zfs_asset_name}`;
+            if (!fs_type) {
+              fs_type = "zfs";
+            }
+            break;
+          case "volume":
+            device = `/dev/zvol/${volume_context.zfs_asset_name}`;
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `unknown zfs asset type: ${result.type.value}`
+            );
+        }
+        break;
       default:
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,
@@ -574,53 +624,59 @@ class CsiBaseDriver {
 
     switch (access_type) {
       case "mount":
+        let is_block = false;
         switch (node_attach_driver) {
-          // block specific logic
           case "iscsi":
-            if (!fs_type) {
-              fs_type = "ext4";
-            }
+            is_block = true;
+            break;
+          case "zfs-local":
+            is_block = device.startsWith("/dev/zvol/");
+            break;
+        }
 
-            if (await filesystem.isBlockDevice(device)) {
-              // format
-              result = await filesystem.deviceIsFormatted(device);
-              if (!result) {
-                let formatOptions = _.get(
-                  driver.options.node.format,
-                  [fs_type, "customOptions"],
-                  []
-                );
-                if (!Array.isArray(formatOptions)) {
-                  formatOptions = [];
-                }
-                await filesystem.formatDevice(device, fs_type, formatOptions);
-              }
+        if (is_block) {
+          // block specific logic
+          if (!fs_type) {
+            fs_type = "ext4";
+          }
 
-              let fs_info = await filesystem.getDeviceFilesystemInfo(device);
-              fs_type = fs_info.type;
-
-              // fsck
-              result = await mount.deviceIsMountedAtPath(
-                device,
-                staging_target_path
+          if (await filesystem.isBlockDevice(device)) {
+            // format
+            result = await filesystem.deviceIsFormatted(device);
+            if (!result) {
+              let formatOptions = _.get(
+                driver.options.node.format,
+                [fs_type, "customOptions"],
+                []
               );
-              if (!result) {
-                // https://github.com/democratic-csi/democratic-csi/issues/52#issuecomment-768463401
-                let checkFilesystem =
-                  driver.options.node.mount.checkFilesystem[fs_type] || {};
-                if (checkFilesystem.enabled) {
-                  await filesystem.checkFilesystem(
-                    device,
-                    fs_type,
-                    checkFilesystem.customOptions || [],
-                    checkFilesystem.customFilesystemOptions || []
-                  );
-                }
+              if (!Array.isArray(formatOptions)) {
+                formatOptions = [];
+              }
+              await filesystem.formatDevice(device, fs_type, formatOptions);
+            }
+
+            let fs_info = await filesystem.getDeviceFilesystemInfo(device);
+            fs_type = fs_info.type;
+
+            // fsck
+            result = await mount.deviceIsMountedAtPath(
+              device,
+              staging_target_path
+            );
+            if (!result) {
+              // https://github.com/democratic-csi/democratic-csi/issues/52#issuecomment-768463401
+              let checkFilesystem =
+                driver.options.node.mount.checkFilesystem[fs_type] || {};
+              if (checkFilesystem.enabled) {
+                await filesystem.checkFilesystem(
+                  device,
+                  fs_type,
+                  checkFilesystem.customOptions || [],
+                  checkFilesystem.customFilesystemOptions || []
+                );
               }
             }
-            break;
-          default:
-            break;
+          }
         }
 
         result = await mount.deviceIsMountedAtPath(device, staging_target_path);
@@ -1012,6 +1068,7 @@ class CsiBaseDriver {
       case "smb":
       case "lustre":
       case "iscsi":
+      case "zfs-local":
         // ensure appropriate directories/files
         switch (access_type) {
           case "mount":
@@ -1348,12 +1405,17 @@ class CsiBaseDriver {
       rescan_devices.push(device);
 
       for (let sdevice of rescan_devices) {
+        // TODO: technically rescan is only relevant/available for remote drives
+        // such as iscsi etc, should probably limit this call as appropriate
+        // for now crudely checking the scenario inside the method itself
         await filesystem.rescanDevice(sdevice);
       }
 
       // let things settle
       // it appears the dm devices can take a second to figure things out
-      await sleep(2000);
+      if (is_device_mapper || true) {
+        await sleep(2000);
+      }
 
       if (is_formatted && access_type == "mount") {
         fs_info = await filesystem.getDeviceFilesystemInfo(device);

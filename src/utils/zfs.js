@@ -38,6 +38,14 @@ class Zetabyte {
       };
     }
 
+    if (!options.logger) {
+      options.logger = console;
+    }
+
+    if (!options.hasOwnProperty("log_commands")) {
+      options.log_commands = false;
+    }
+
     zb.DEFAULT_ZPOOL_LIST_PROPERTIES = [
       "name",
       "size",
@@ -1546,6 +1554,15 @@ class Zetabyte {
       args = args || [];
       args.unshift(command);
       command = zb.options.paths.sudo;
+    }
+
+    if (zb.options.log_commands) {
+      if (typeof zb.options.logger.verbose != "function") {
+        zb.options.logger.verbose = function() {
+          console.debug(...arguments);
+        }  
+      }
+      zb.options.logger.verbose(`executing zfs command: ${command} ${args.join(" ")}`);
     }
 
     const child = zb.options.executor.spawn(command, args, options);

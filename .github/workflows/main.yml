@@ -114,12 +114,33 @@ jobs:
           SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
           SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
 
+  # zfs-local drivers
+  csi-sanity-zfs-local:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - zfs-local/zvol.yaml
+          - zfs-local/dataset.yaml
+    runs-on:
+      - self-hosted
+      - csi-sanity-zfs-local
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+
   build:
     needs:
       - csi-sanity-synology
       - csi-sanity-truenas-scale
       - csi-sanity-truenas-core
       - csi-sanity-zfs-generic
+      - csi-sanity-zfs-local
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

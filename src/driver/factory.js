@@ -1,6 +1,7 @@
 const { FreeNASSshDriver } = require("./freenas/ssh");
 const { FreeNASApiDriver } = require("./freenas/api");
 const { ControllerZfsGenericDriver } = require("./controller-zfs-generic");
+const { ControllerZfsLocalDriver } = require("./controller-zfs-local");
 const {
   ZfsLocalEphemeralInlineDriver,
 } = require("./zfs-local-ephemeral-inline");
@@ -31,6 +32,9 @@ function factory(ctx, options) {
     case "zfs-generic-nfs":
     case "zfs-generic-iscsi":
       return new ControllerZfsGenericDriver(ctx, options);
+    case "zfs-local-dataset":
+    case "zfs-local-zvol":
+      return new ControllerZfsLocalDriver(ctx, options);
     case "zfs-local-ephemeral-inline":
       return new ZfsLocalEphemeralInlineDriver(ctx, options);
     case "smb-client":

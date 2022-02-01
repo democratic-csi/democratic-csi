@@ -1,0 +1,13 @@
+driver: zfs-local-zvol
+
+zfs:
+  datasetParentName: tank/k8s/local/v
+  detachedSnapshotsDatasetParentName: tank/k8s/local/s
+
+  datasetProperties:
+    # key: value
+
+  zvolCompression:
+  zvolDedup:
+  zvolEnableReservation: false
+  zvolBlocksize:

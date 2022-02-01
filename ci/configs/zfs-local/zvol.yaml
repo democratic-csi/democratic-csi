@@ -1,0 +1,10 @@
+driver: zfs-local-zvol
+
+zfs:
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  zvolCompression:
+  zvolDedup:
+  zvolEnableReservation: false
+  zvolBlocksize:

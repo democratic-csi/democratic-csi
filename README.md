@@ -24,6 +24,8 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
+  - `zfs-local-dataset` (provision node-local volume as dataset)
+  - `zfs-local-zvol` (provision node-local volume as zvol)
   - `synology-iscsi` experimental (manages volumes to share over iscsi)
   - `lustre-client` (crudely provisions storage using a shared lustre
     share/directory for all volumes)
@@ -140,6 +142,13 @@ necessary.
 
 - https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/20190122-csi-inline-volumes.md
 - https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html
+
+### zfs-local-{dataset,zvol}
+
+This `driver` provisions node-local storage. Each node should have an
+identically named zfs pool created and avaialble to the `driver`. Note, this is
+_NOT_ the same thing as using the docker zfs storage driver (although the same
+pool could be used). No other requirements are necessary.
 
 ## Server Prep
 
@@ -371,3 +380,4 @@ A special shout out to the wonderful sponsors of the project!
 - https://datamattsson.tumblr.com/post/624751011659202560/welcome-truenas-core-container-storage-provider
 - https://github.com/dravanet/truenas-csi
 - https://github.com/SynologyOpenSource/synology-csi
+
