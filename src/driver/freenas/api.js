@@ -3123,7 +3123,6 @@ class FreeNASApiDriver extends CsiBaseDriver {
       }
       entries = this.ctx.cache.get(`ListVolumes:result:${uuid}`);
       if (entries) {
-        entries = JSON.parse(JSON.stringify(entries));
         entries_length = entries.length;
         entries = entries.slice(start_position, end_position);
         if (max_entries > 0 && end_position > entries_length) {
@@ -3219,10 +3218,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     if (max_entries && entries.length > max_entries) {
       uuid = uuidv4();
-      this.ctx.cache.set(
-        `ListVolumes:result:${uuid}`,
-        JSON.parse(JSON.stringify(entries))
-      );
+      this.ctx.cache.set(`ListVolumes:result:${uuid}`, entries);
       next_token = `${uuid}:${max_entries}`;
       entries = entries.slice(0, max_entries);
     }

@@ -106,6 +106,7 @@ class NodeManualDriver extends CsiBaseDriver {
     let message = null;
     let driverResourceType;
     let fs_types = [];
+    let access_modes = [];
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
     switch (node_attach_driver) {
       case "nfs":
@@ -124,6 +125,16 @@ class NodeManualDriver extends CsiBaseDriver {
         driverResourceType = "volume";
         fs_types = ["ext3", "ext4", "ext4dev", "xfs"];
         break;
+      case "zfs-local":
+        driverResourceType = "volume";
+        fs_types = ["ext3", "ext4", "ext4dev", "xfs", "zfs"];
+        access_modes = [
+          "UNKNOWN",
+          "SINGLE_NODE_WRITER",
+          "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+          "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
+          "SINGLE_NODE_READER_ONLY",
+        ];
       default:
         return {
           valid: false,
@@ -134,6 +145,18 @@ class NodeManualDriver extends CsiBaseDriver {
     const valid = capabilities.every((capability) => {
       switch (driverResourceType) {
         case "filesystem":
+          if (access_modes.length == 0) {
+            access_modes = [
+              "UNKNOWN",
+              "SINGLE_NODE_WRITER",
+              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
+              "SINGLE_NODE_READER_ONLY",
+              "MULTI_NODE_READER_ONLY",
+              "MULTI_NODE_SINGLE_WRITER",
+              "MULTI_NODE_MULTI_WRITER",
+            ];
+          }
           if (capability.access_type != "mount") {
             message = `invalid access_type ${capability.access_type}`;
             return false;
@@ -147,8 +170,15 @@ class NodeManualDriver extends CsiBaseDriver {
             return false;
           }
 
-          if (
-            ![
+          if (!access_modes.includes(capability.access_mode.mode)) {
+            message = `invalid access_mode, ${capability.access_mode.mode}`;
+            return false;
+          }
+
+          return true;
+        case "volume":
+          if (access_modes.length == 0) {
+            access_modes = [
               "UNKNOWN",
               "SINGLE_NODE_WRITER",
               "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
@@ -156,15 +186,8 @@ class NodeManualDriver extends CsiBaseDriver {
               "SINGLE_NODE_READER_ONLY",
               "MULTI_NODE_READER_ONLY",
               "MULTI_NODE_SINGLE_WRITER",
-              "MULTI_NODE_MULTI_WRITER",
-            ].includes(capability.access_mode.mode)
-          ) {
-            message = `invalid access_mode, ${capability.access_mode.mode}`;
-            return false;
+            ];
           }
-
-          return true;
-        case "volume":
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&
@@ -175,17 +198,7 @@ class NodeManualDriver extends CsiBaseDriver {
             }
           }
 
-          if (
-            ![
-              "UNKNOWN",
-              "SINGLE_NODE_WRITER",
-              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
-              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
-              "SINGLE_NODE_READER_ONLY",
-              "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER",
-            ].includes(capability.access_mode.mode)
-          ) {
+          if (!access_modes.includes(capability.access_mode.mode)) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
             return false;
           }

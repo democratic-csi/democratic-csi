@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const LocalCliExecClient = require("./exec").LocalCliClient;
@@ -8,6 +9,26 @@ const ZFS_ASSET_NAME_PROPERTY_NAME = "zfs_asset_name";
 const NODE_TOPOLOGY_KEY_NAME = "org.democratic-csi.topology/node";
 
 class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
+  constructor(ctx, options) {
+    const i_caps = _.get(
+      options,
+      "service.identity.capabilities.service",
+      false
+    );
+    super(...arguments);
+
+    
+    if (!i_caps) {
+      this.ctx.logger.debug("setting zfs-local identity service caps");
+
+      options.service.identity.capabilities.service = [
+        //"UNKNOWN",
+        "CONTROLLER_SERVICE",
+        "VOLUME_ACCESSIBILITY_CONSTRAINTS"
+      ];
+    }    
+  }
+
   getExecClient() {
     return new LocalCliExecClient({
       logger: this.ctx.logger,
