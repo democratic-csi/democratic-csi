@@ -97,6 +97,11 @@ RUN chmod +x /usr/local/bin/mount
 ADD docker/umount /usr/local/bin/umount
 RUN chmod +x /usr/local/bin/umount
 
+ADD docker/zfs /usr/local/bin/zfs
+RUN chmod +x /usr/local/bin/zfs
+ADD docker/zpool /usr/local/bin/zpool
+RUN chmod +x /usr/local/bin/zpool
+
 # Run as a non-root user
 RUN useradd --create-home csi \
         && chown -R csi: /home/csi
