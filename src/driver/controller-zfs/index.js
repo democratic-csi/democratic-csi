@@ -29,7 +29,7 @@ const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_instance_id";
 
 /**
- * Base driver to provisin zfs assets over ssh.
+ * Base driver to provisin zfs assets using zfs cli commands.
  * Derived drivers only need to implement:
  *  - getExecClient()
  *  - async getZetabyte()
@@ -468,35 +468,35 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
        * limit the actual checks semi sanely
        * health checks should kick in an restart the pod
        * this process is 2 checks in 1
-       * - ensure basic ssh connectivity
+       * - ensure basic exec connectivity
        * - ensure csh is not the operative shell
        */
-      if (!driver.currentSSHShell || timerEnabled === false) {
+      if (!driver.currentExecShell || timerEnabled === false) {
         const execClient = this.getExecClient();
-        driver.ctx.logger.debug("performing ssh sanity check..");
+        driver.ctx.logger.debug("performing exec sanity check..");
         const response = await execClient.exec("echo $0");
-        driver.currentSSHShell = response.stdout.split("\n")[0];
+        driver.currentExecShell = response.stdout.split("\n")[0];
       }
 
       // update in the background every X interval to prevent incessant checks
-      if (timerEnabled && !driver.currentSSHShellInterval) {
+      if (timerEnabled && !driver.currentExecShellInterval) {
         const intervalTime = 60000;
-        driver.currentSSHShellInterval = setInterval(async () => {
+        driver.currentExecShellInterval = setInterval(async () => {
           try {
-            driver.ctx.logger.debug("performing ssh sanity check..");
+            driver.ctx.logger.debug("performing exec sanity check..");
             const execClient = this.getExecClient();
             const response = await execClient.exec("echo $0");
-            driver.currentSSHShell = response.stdout.split("\n")[0];
+            driver.currentExecShell = response.stdout.split("\n")[0];
           } catch (e) {
-            delete driver.currentSSHShell;
+            delete driver.currentExecShell;
           }
         }, intervalTime);
       }
 
-      if (driver.currentSSHShell.includes("csh")) {
+      if (driver.currentExecShell.includes("csh")) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
-          `csh is an unsupported shell, please update the default shell of your ssh user`
+          `csh is an unsupported shell, please update the default shell of your exec user`
         );
       }
 
