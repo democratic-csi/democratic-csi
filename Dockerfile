@@ -101,6 +101,8 @@ ADD docker/zfs /usr/local/bin/zfs
 RUN chmod +x /usr/local/bin/zfs
 ADD docker/zpool /usr/local/bin/zpool
 RUN chmod +x /usr/local/bin/zpool
+ADD docker/oneclient /usr/local/bin/oneclient
+RUN chmod +x /usr/local/bin/oneclient
 
 # Run as a non-root user
 RUN useradd --create-home csi \

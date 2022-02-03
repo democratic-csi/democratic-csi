@@ -4,6 +4,7 @@ const os = require("os");
 const fs = require("fs");
 const { GrpcError, grpc } = require("../utils/grpc");
 const { Mount } = require("../utils/mount");
+const { OneClient } = require("../utils/oneclient");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
 const semver = require("semver");
@@ -327,11 +328,19 @@ class CsiBaseDriver {
       if (normalizedSecrets.mount_flags) {
         mount_flags.push(normalizedSecrets.mount_flags);
       }
-      mount_flags.push("defaults");
 
-      // https://github.com/karelzak/util-linux/issues/1429
-      //mount_flags.push("x-democratic-csi.managed");
-      //mount_flags.push("x-democratic-csi.staged");
+      switch (node_attach_driver) {
+        case "oneclient":
+          // move along
+          break;
+        default:
+          mount_flags.push("defaults");
+
+          // https://github.com/karelzak/util-linux/issues/1429
+          //mount_flags.push("x-democratic-csi.managed");
+          //mount_flags.push("x-democratic-csi.staged");
+          break;
+      }
 
       if (
         semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
@@ -566,6 +575,45 @@ class CsiBaseDriver {
             );
           }
         }
+        break;
+      case "oneclient":
+        let oneclient = new OneClient();
+        device = "oneclient";
+        result = await mount.deviceIsMountedAtPath(device, staging_target_path);
+        if (result) {
+          return {};
+        }
+
+        if (volume_context.space_names) {
+          volume_context.space_names.split(",").forEach((space) => {
+            mount_flags.push("--space", space);
+          });
+        }
+
+        if (volume_context.space_ids) {
+          volume_context.space_ids.split(",").forEach((space) => {
+            mount_flags.push("--space-id", space);
+          });
+        }
+
+        if (volume_context.token) {
+          mount_flags.push("-t", volume_context.token);
+        }
+
+        result = await oneclient.mount(
+          staging_target_path,
+          ["-H", volume_context.server].concat(mount_flags)
+        );
+
+        if (result) {
+          return {};
+        }
+
+        throw new GrpcError(
+          grpc.status.UNKNOWN,
+          `failed to mount oneclient: ${volume_context.server}`
+        );
+
         break;
       case "zfs-local":
         // TODO: make this a geneic zb instance (to ensure works with node-manual driver)
