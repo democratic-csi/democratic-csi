@@ -596,8 +596,12 @@ class CsiBaseDriver {
           });
         }
 
-        if (volume_context.token) {
-          mount_flags.push("-t", volume_context.token);
+        if (normalizedSecrets.token) {
+          mount_flags.push("-t", normalizedSecrets.token);
+        } else {
+          if (volume_context.token) {
+            mount_flags.push("-t", volume_context.token);
+          }
         }
 
         result = await oneclient.mount(
