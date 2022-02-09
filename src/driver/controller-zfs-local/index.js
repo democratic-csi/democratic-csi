@@ -17,16 +17,15 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
     );
     super(...arguments);
 
-    
     if (!i_caps) {
       this.ctx.logger.debug("setting zfs-local identity service caps");
 
       options.service.identity.capabilities.service = [
         //"UNKNOWN",
         "CONTROLLER_SERVICE",
-        "VOLUME_ACCESSIBILITY_CONSTRAINTS"
+        "VOLUME_ACCESSIBILITY_CONSTRAINTS",
       ];
-    }    
+    }
   }
 
   getExecClient() {
@@ -102,6 +101,10 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
 
   getAccessModes() {
     const driverZfsResourceType = this.getDriverZfsResourceType();
+    let access_modes = _.get(this.options, "csi.access_modes", null);
+    if (access_modes !== null) {
+      return access_modes;
+    }
     switch (driverZfsResourceType) {
       case "filesystem":
         return [
