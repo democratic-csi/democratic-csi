@@ -99,6 +99,15 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
     }
   }
 
+  /**
+   * Although it is conter-intuitive to advertise node-local volumes as RWX we
+   * do so here to provide an easy out-of-the-box experience as users will by
+   * default want to provision volumes of RWX. The topology contraints
+   * implicity will enforce only a single node can use the volume at a given
+   * time.
+   * 
+   * @returns Array
+   */
   getAccessModes() {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     let access_modes = _.get(this.options, "csi.access_modes", null);
@@ -113,9 +122,9 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
           "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
           "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
           "SINGLE_NODE_READER_ONLY",
-          //"MULTI_NODE_READER_ONLY",
-          //"MULTI_NODE_SINGLE_WRITER",
-          //"MULTI_NODE_MULTI_WRITER",
+          "MULTI_NODE_READER_ONLY",
+          "MULTI_NODE_SINGLE_WRITER",
+          "MULTI_NODE_MULTI_WRITER",
         ];
       case "volume":
         return [
@@ -124,8 +133,9 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
           "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
           "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
           "SINGLE_NODE_READER_ONLY",
-          //"MULTI_NODE_READER_ONLY",
-          //"MULTI_NODE_SINGLE_WRITER",
+          "MULTI_NODE_READER_ONLY",
+          "MULTI_NODE_SINGLE_WRITER",
+          "MULTI_NODE_MULTI_WRITER",
         ];
     }
   }

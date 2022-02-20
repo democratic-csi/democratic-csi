@@ -53,6 +53,7 @@ Predominantly 3 things are needed:
 ## Community Guides
 
 - https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
+- https://www.lisenet.com/2021/moving-to-truenas-and-democratic-csi-for-kubernetes-persistent-storage/
 - https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
   from `nfs-client-provisioner` to `democratic-csi`)
 - https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
@@ -148,7 +149,15 @@ necessary.
 This `driver` provisions node-local storage. Each node should have an
 identically named zfs pool created and avaialble to the `driver`. Note, this is
 _NOT_ the same thing as using the docker zfs storage driver (although the same
-pool could be used). No other requirements are necessary.
+pool could be used). Nodes should have the standard `zfs` utilities installed.
+
+In the name of ease-of-use these drivers by default report `MULTI_NODE` support
+(`ReadWriteMany` in k8s) however the volumes will implicity only work on the
+node where originally provisioned. Topology contraints manage this in an
+automated fashion preventing any undesirable behavior. So while you may
+provision `MULTI_NODE` / `RWX` volumes, any workloads using the volume will
+always land a single node and that node will always be the node where the
+volume is/was provisioned.
 
 ## Server Prep
 
@@ -380,4 +389,4 @@ A special shout out to the wonderful sponsors of the project!
 - https://datamattsson.tumblr.com/post/624751011659202560/welcome-truenas-core-container-storage-provider
 - https://github.com/dravanet/truenas-csi
 - https://github.com/SynologyOpenSource/synology-csi
-
+- https://github.com/openebs/zfs-localpv
