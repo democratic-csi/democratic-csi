@@ -13,7 +13,7 @@ trap _term EXIT
 
 export PATH="/usr/local/lib/nodejs/bin:${PATH}"
 # install deps
-npm i
+#npm i
 
 # generate key for paths etc
 export CI_BUILD_KEY=$(uuidgen | cut -d "-" -f 1)
@@ -28,7 +28,7 @@ SUDO_PID=$!
 : ${CSI_ENDPOINT:=/tmp/csi-${CI_BUILD_KEY}.sock}
 iter=0
 max_iter=60
-while [ ! -f "${CSI_ENDPOINT}" ];do
+while [ ! -S "${CSI_ENDPOINT}" ];do
   ((++iter))
   echo "waiting for ${CSI_ENDPOINT} to appear"
   sleep 1

@@ -17,7 +17,25 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+  build-npm:
+    name: build
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - shell: bash
+        name: npm install
+        run: |
+          ci/bin/build.sh
+      - name: upload build
+        uses: actions/upload-artifact@v2
+        with:
+          name: node-modules
+          path: node_modules/
+
   csi-sanity-synology:
+    needs:
+      - build-npm
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +46,9 @@ jobs:
       - csi-sanity-synology
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules
       - name: csi-sanity
         run: |
           # run tests
@@ -42,6 +63,8 @@ jobs:
 
   # api-based drivers
   csi-sanity-truenas-scale-22_02:
+    needs:
+      - build-npm
     strategy:
       fail-fast: false
       matrix:
@@ -56,6 +79,9 @@ jobs:
       #- csi-sanity-truenas-scale
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules
       - name: csi-sanity
         run: |
           # run tests
@@ -68,6 +94,8 @@ jobs:
 
   # ssh-based drivers
   csi-sanity-truenas-core-12_0:
+    needs:
+      - build-npm
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +111,9 @@ jobs:
       #- csi-sanity-truenas-core
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules
       - name: csi-sanity
         run: |
           # run tests
@@ -95,6 +126,8 @@ jobs:
 
   # ssh-based drivers
   csi-sanity-truenas-core-13_0:
+    needs:
+      - build-npm
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +142,9 @@ jobs:
       #- csi-sanity-truenas-core
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules
       - name: csi-sanity
         run: |
           # run tests
@@ -122,6 +158,8 @@ jobs:
 
   # ssh-based drivers
   csi-sanity-zfs-generic:
+    needs:
+      - build-npm
     strategy:
       fail-fast: false
       matrix:
@@ -133,6 +171,9 @@ jobs:
       - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules
       - name: csi-sanity
         run: |
           # run tests
@@ -145,6 +186,8 @@ jobs:
 
   # zfs-local drivers
   csi-sanity-zfs-local:
+    needs:
+      - build-npm
     strategy:
       fail-fast: false
       matrix:
@@ -156,6 +199,9 @@ jobs:
       - csi-sanity-zfs-local
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules
       - name: csi-sanity
         run: |
           # run tests
@@ -163,7 +209,7 @@ jobs:
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
 
-  build:
+  build-docker:
     needs:
       - csi-sanity-synology
       - csi-sanity-truenas-scale-22_02
