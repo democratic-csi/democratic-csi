@@ -166,8 +166,9 @@ jobs:
   build:
     needs:
       - csi-sanity-synology
-      - csi-sanity-truenas-scale
-      - csi-sanity-truenas-core
+      - csi-sanity-truenas-scale-22_02
+      - csi-sanity-truenas-core-12_0
+      - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-zfs-local
     runs-on: ubuntu-latest
