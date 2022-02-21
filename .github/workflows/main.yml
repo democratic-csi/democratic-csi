@@ -31,7 +31,8 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: node-modules
-          path: node_modules/
+          #path: node_modules/
+          path: node_modules.tar.gz
 
   csi-sanity-synology:
     needs:
