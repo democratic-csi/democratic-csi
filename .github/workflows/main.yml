@@ -41,18 +41,19 @@ jobs:
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
   # api-based drivers
-  csi-sanity-truenas-scale:
+  csi-sanity-truenas-scale-22_02:
     strategy:
       fail-fast: false
       matrix:
         config:
-          - truenas/scale-iscsi.yaml
-          - truenas/scale-nfs.yaml
+          - truenas/scale/22.02/scale-iscsi.yaml
+          - truenas/scale/22.02/scale-nfs.yaml
           # 80 char limit
           #- truenas/scale-smb.yaml
     runs-on:
       - self-hosted
-      - csi-sanity-truenas-scale
+      - csi-sanity-zfs-local
+      #- csi-sanity-truenas-scale
     steps:
       - uses: actions/checkout@v2
       - name: csi-sanity
@@ -61,24 +62,25 @@ jobs:
           ci/bin/run.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_HOST }}
-          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_SCALE_USERNAME }}
-          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_SCALE_PASSWORD }}
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_22_02_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
 
   # ssh-based drivers
-  csi-sanity-truenas-core:
+  csi-sanity-truenas-core-12_0:
     strategy:
       fail-fast: false
       matrix:
         config:
           # 63 char limit
           #- truenas/core-iscsi.yaml
-          - truenas/core-nfs.yaml
+          - truenas/core/12.0/core-nfs.yaml
           # 80 char limit
           #- truenas/core-smb.yaml
     runs-on:
       - self-hosted
-      - csi-sanity-truenas-core
+      - csi-sanity-zfs-local
+      #- csi-sanity-truenas-core
     steps:
       - uses: actions/checkout@v2
       - name: csi-sanity
@@ -87,9 +89,36 @@ jobs:
           ci/bin/run.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_HOST }}
-          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_CORE_USERNAME }}
-          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_CORE_PASSWORD }}
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_12_0_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
+
+  # ssh-based drivers
+  csi-sanity-truenas-core-13_0:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - truenas/core-iscsi.yaml
+          - truenas/core/13.0/core-nfs.yaml
+          # 80 char limit
+          #- truenas/core-smb.yaml
+    runs-on:
+      - self-hosted
+      - csi-sanity-zfs-local
+      #- csi-sanity-truenas-core
+    steps:
+      - uses: actions/checkout@v2
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_13_0_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
+
 
   # ssh-based drivers
   csi-sanity-zfs-generic:
