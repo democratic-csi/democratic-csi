@@ -23,7 +23,20 @@ sudo -E ci/bin/launch-server.sh &
 SUDO_PID=$!
 
 # wait for server to launch
-sleep 10
+#sleep 10
+
+: ${CSI_ENDPOINT:=/tmp/csi-${CI_BUILD_KEY}.sock}
+iter=0
+max_iter=60
+while [ ! -f "${CSI_ENDPOINT}" ];do
+  ((++iter))
+  echo "waiting for ${CSI_ENDPOINT} to appear"
+  sleep 1
+  if [[ $iter -gt $max_iter ]];then
+    echo "${CSI_ENDPOINT} failed to appear"
+    exit 1
+  fi
+done
 
 # launch csi-sanity
 sudo -E ci/bin/launch-csi-sanity.sh

@@ -99,7 +99,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - truenas/core-iscsi.yaml
+          - truenas/core/13.0/core-iscsi.yaml
           - truenas/core/13.0/core-nfs.yaml
           # 80 char limit
           #- truenas/core-smb.yaml
