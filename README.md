@@ -24,6 +24,8 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
+  - `zfs-local-dataset` (provision node-local volume as dataset)
+  - `zfs-local-zvol` (provision node-local volume as zvol)
   - `synology-iscsi` experimental (manages volumes to share over iscsi)
   - `lustre-client` (crudely provisions storage using a shared lustre
     share/directory for all volumes)
@@ -31,8 +33,9 @@ have access to resizing, snapshots, clones, etc functionality.
     for all volumes)
   - `smb-client` (crudely provisions storage using a shared smb share/directory
     for all volumes)
-  - `node-manual` (allows connecting to manually created smb, nfs, lustre, and
-    iscsi volumes, see sample PVs in the `examples` directory)
+  - `local-hostpath` (crudely provisions node-local directories)
+  - `node-manual` (allows connecting to manually created smb, nfs, lustre,
+    oneclient, and iscsi volumes, see sample PVs in the `examples` directory)
 - framework for developing `csi` drivers
 
 If you have any interest in providing a `csi` driver, simply open an issue to
@@ -51,6 +54,7 @@ Predominantly 3 things are needed:
 ## Community Guides
 
 - https://jonathangazeley.com/2021/01/05/using-truenas-to-provide-persistent-storage-for-kubernetes/
+- https://www.lisenet.com/2021/moving-to-truenas-and-democratic-csi-for-kubernetes-persistent-storage/
 - https://gist.github.com/admun/4372899f20421a947b7544e5fc9f9117 (migrating
   from `nfs-client-provisioner` to `democratic-csi`)
 - https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
@@ -140,6 +144,26 @@ necessary.
 
 - https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/20190122-csi-inline-volumes.md
 - https://kubernetes-csi.github.io/docs/ephemeral-local-volumes.html
+
+### zfs-local-{dataset,zvol}
+
+This `driver` provisions node-local storage. Each node should have an
+identically named zfs pool created and avaialble to the `driver`. Note, this is
+_NOT_ the same thing as using the docker zfs storage driver (although the same
+pool could be used). Nodes should have the standard `zfs` utilities installed.
+
+In the name of ease-of-use these drivers by default report `MULTI_NODE` support
+(`ReadWriteMany` in k8s) however the volumes will implicity only work on the
+node where originally provisioned. Topology contraints manage this in an
+automated fashion preventing any undesirable behavior. So while you may
+provision `MULTI_NODE` / `RWX` volumes, any workloads using the volume will
+always land a single node and that node will always be the node where the
+volume is/was provisioned.
+
+### local-hostpath
+
+This `driver` provisions node-local storage. Each node should and an
+identically name folder where volumes will be created.
 
 ## Server Prep
 
@@ -371,3 +395,4 @@ A special shout out to the wonderful sponsors of the project!
 - https://datamattsson.tumblr.com/post/624751011659202560/welcome-truenas-core-container-storage-provider
 - https://github.com/dravanet/truenas-csi
 - https://github.com/SynologyOpenSource/synology-csi
+- https://github.com/openebs/zfs-localpv

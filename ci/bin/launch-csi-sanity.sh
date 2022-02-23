@@ -34,6 +34,8 @@ csi-sanity --csi.endpoint "unix://${CSI_ENDPOINT}" \
 --csi.mountdir "${CSI_SANITY_TEMP_DIR}/mnt" \
 --csi.stagingdir "${CSI_SANITY_TEMP_DIR}/stage" \
 --csi.testvolumeexpandsize 2147483648 \
---csi.testvolumesize 1073741824
+--csi.testvolumesize 1073741824 \
+-ginkgo.skip "${CSI_SANITY_SKIP}" \
+-ginkgo.focus "${CSI_SANITY_FOCUS}"
 
 rm -rf "${CSI_SANITY_TEMP_DIR}"

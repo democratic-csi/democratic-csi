@@ -1,0 +1,8 @@
+driver: local-hostpath
+instance_id:
+local-hostpath:
+  shareBasePath:      "/tmp/local-hostpath/${CI_BUILD_KEY}/controller"
+  controllerBasePath: "/tmp/local-hostpath/${CI_BUILD_KEY}/controller"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: root
+  dirPermissionsGroup: root

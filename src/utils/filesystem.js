@@ -431,8 +431,12 @@ class Filesystem {
 
       // echo 1 > /sys/block/sdb/device/rescan
       const sys_file = `/sys/block/${device_name}/device/rescan`;
-      console.log(`executing filesystem command: echo 1 > ${sys_file}`);
-      fs.writeFileSync(sys_file, "1");
+
+      // node-local devices cannot be rescanned, so ignore
+      if (await filesystem.pathExists(sys_file)) {
+        console.log(`executing filesystem command: echo 1 > ${sys_file}`);
+        fs.writeFileSync(sys_file, "1");
+      }
     }
   }
 

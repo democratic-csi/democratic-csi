@@ -1,5 +1,32 @@
 #!/bin/bash
 
+container_supported_filesystems=(
+  "ext2"
+  "ext3"
+  "ext4"
+  "ext4dev"
+  "xfs"
+  "vfat"
+  "nfs"
+  "nfs3"
+  "nfs4"
+  "cifs"
+  "smb"
+  "smb3"
+  "bind"
+)
+
+while getopts "t:" opt; do
+  case "$opt" in
+    t)
+      [[ "${OPTARG,,}" == "zfs" ]]     && USE_HOST_MOUNT_TOOLS=1
+      [[ "${OPTARG,,}" == "lustre" ]]  && USE_HOST_MOUNT_TOOLS=1
+      [[ "${OPTARG,,}" == "onedata" ]] && USE_HOST_MOUNT_TOOLS=1
+      #(printf '%s\0' "${container_supported_filesystems[@]}" | grep -Fqxz -- "${OPTARG}") || USE_HOST_MOUNT_TOOLS=1
+      ;;
+  esac
+done
+
 if [[ ${USE_HOST_MOUNT_TOOLS} -eq 1 ]];then
   chroot /host /usr/bin/env -i PATH="/sbin:/bin:/usr/bin:/usr/sbin" mount "${@:1}"
 else

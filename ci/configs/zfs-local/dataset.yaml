@@ -1,0 +1,10 @@
+driver: zfs-local-dataset
+
+zfs:
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  datasetEnableQuotas: true
+  datasetPermissionsMode: "0777"
+  datasetPermissionsUser: 0
+  datasetPermissionsGroup: 0

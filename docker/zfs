@@ -1,0 +1,3 @@
+#!/bin/bash
+
+chroot /host /usr/bin/env -i PATH="/sbin:/bin:/usr/bin:/usr/sbin" zfs "${@:1}"

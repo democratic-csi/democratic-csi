@@ -10,7 +10,7 @@ FINDMNT_COMMON_OPTIONS = [
   "--nofsroot", // prevents unwanted behavior with cifs volumes
 ];
 
-DEFAUT_TIMEOUT = process.env.MOUNT_DEFAULT_TIMEOUT || 30000;
+DEFAULT_TIMEOUT = process.env.MOUNT_DEFAULT_TIMEOUT || 30000;
 
 class Mount {
   constructor(options = {}) {
@@ -32,6 +32,10 @@ class Mount {
 
     if (!options.paths.sudo) {
       options.paths.sudo = "/usr/bin/sudo";
+    }
+
+    if (!options.paths.chroot) {
+      options.paths.chroot = "/usr/sbin/chroot";
     }
 
     if (!options.timeout) {
@@ -379,7 +383,7 @@ class Mount {
 
   exec(command, args, options = {}) {
     if (!options.hasOwnProperty("timeout")) {
-      options.timeout = DEFAUT_TIMEOUT;
+      options.timeout = DEFAULT_TIMEOUT;
     }
 
     const mount = this;

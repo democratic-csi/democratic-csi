@@ -1,0 +1,11 @@
+driver: zfs-local-dataset
+
+zfs:
+  datasetParentName: tank/k8s/local/v
+  detachedSnapshotsDatasetParentName: tank/k8s/local/s
+
+  datasetProperties:
+    # key: value
+
+  datasetEnableQuotas: true
+  datasetEnableReservation: false
