@@ -5,4 +5,4 @@ local-hostpath:
   controllerBasePath: "/tmp/local-hostpath/${CI_BUILD_KEY}/controller"
   dirPermissionsMode: "0777"
   dirPermissionsUser: root
-  dirPermissionsGroup: wheel
+  dirPermissionsGroup: root

@@ -16,7 +16,7 @@ export PATH="/usr/local/lib/nodejs/bin:${PATH}"
 #npm i
 # install from artifacts
 if [[ -f "node_modules.tar.gz" ]];then
-  tar -zxvf node_modules.tar.gz
+  tar -zxf node_modules.tar.gz
 fi
 
 # generate key for paths etc
