@@ -1,5 +1,8 @@
 const { FreeNASSshDriver } = require("./freenas/ssh");
 const { FreeNASApiDriver } = require("./freenas/api");
+const {
+  ControllerLocalHostpathDriver,
+} = require("./controller-local-hostpath");
 const { ControllerZfsGenericDriver } = require("./controller-zfs-generic");
 const { ControllerZfsLocalDriver } = require("./controller-zfs-local");
 const {
@@ -41,6 +44,8 @@ function factory(ctx, options) {
       return new ControllerSmbClientDriver(ctx, options);
     case "nfs-client":
       return new ControllerNfsClientDriver(ctx, options);
+    case "local-hostpath":
+      return new ControllerLocalHostpathDriver(ctx, options);
     case "lustre-client":
       return new ControllerLustreClientDriver(ctx, options);
     case "node-manual":

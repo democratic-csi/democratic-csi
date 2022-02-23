@@ -576,6 +576,17 @@ class CsiBaseDriver {
           }
         }
         break;
+      case "hostpath":
+        result = await mount.pathIsMounted(staging_target_path);
+        // if not mounted, mount
+        if (!result) {
+          await mount.bindMount(volume_context.path, staging_target_path);
+          return {};
+        } else {
+          return {};
+        }
+
+        break;
       case "oneclient":
         let oneclient = new OneClient();
         device = "oneclient";
@@ -1119,6 +1130,8 @@ class CsiBaseDriver {
       case "nfs":
       case "smb":
       case "lustre":
+      case "oneclient":
+      case "hostpath":
       case "iscsi":
       case "zfs-local":
         // ensure appropriate directories/files

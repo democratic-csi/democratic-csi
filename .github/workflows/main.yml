@@ -18,7 +18,7 @@ jobs:
           access_token: ${{ github.token }}
 
   build-npm:
-    name: build
+    name: build-npm
     runs-on:
       - self-hosted
     steps:
@@ -33,6 +33,7 @@ jobs:
           name: node-modules
           #path: node_modules/
           path: node_modules.tar.gz
+          retention-days: 7
 
   csi-sanity-synology:
     needs:
@@ -156,7 +157,6 @@ jobs:
           TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
           TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
 
-
   # ssh-based drivers
   csi-sanity-zfs-generic:
     needs:
@@ -209,6 +209,30 @@ jobs:
           ci/bin/run.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+
+  # zfs-local drivers
+  csi-sanity-local-hostpath:
+    needs:
+      - build-npm
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - local-hostpath/basic.yaml
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
 
   build-docker:
     needs:

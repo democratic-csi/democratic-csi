@@ -41,7 +41,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
 
       options.service.identity.capabilities.volume_expansion = [
         //"UNKNOWN",
-        "ONLINE",
+        //"ONLINE",
         //"OFFLINE"
       ];
     }
