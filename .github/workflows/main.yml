@@ -210,7 +210,7 @@ jobs:
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
 
-  # zfs-local drivers
+  # local-hostpath driver
   csi-sanity-local-hostpath:
     needs:
       - build-npm
@@ -242,6 +242,7 @@ jobs:
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-zfs-local
+      - csi-sanity-local-hostpath
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
