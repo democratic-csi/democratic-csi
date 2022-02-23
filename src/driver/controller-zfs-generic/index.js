@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const SshClient = require("../../utils/ssh").SshClient;
@@ -30,13 +31,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       options.paths = this.options.zfs.cli.paths;
     }
 
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("sudoEnabled")
-    ) {
-      options.sudo = this.getSudoEnabled();
-    }
+    options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
 
     if (typeof this.setZetabyteCustomOptions === "function") {
       await this.setZetabyteCustomOptions(options);
@@ -367,7 +362,7 @@ delete ${iscsiName}
     taregetCliCommand.push("|");
     taregetCliCommand.push("targetcli");
 
-    if (this.options.iscsi.shareStrategyTargetCli.sudoEnabled) {
+    if (_.get(this.options, "iscsi.shareStrategyTargetCli.sudoEnabled", false)) {
       command = "sudo";
       args.unshift("sh");
     }

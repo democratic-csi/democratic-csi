@@ -1,3 +1,11 @@
+# v1.5.1
+
+Released 2022-02-23
+
+- fix ci flakes
+- better support running `zfs` commands as non-root with `delegated`
+  permissions
+
 # v1.5.0
 
 Released 2022-02-23
