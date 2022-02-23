@@ -59,13 +59,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
       chroot: "chroot",
     };
 
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("sudoEnabled")
-    ) {
-      options.sudo = this.getSudoEnabled();
-    }
+    options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
 
     if (typeof this.setZetabyteCustomOptions === "function") {
       await this.setZetabyteCustomOptions(options);
@@ -105,7 +99,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
    * default want to provision volumes of RWX. The topology contraints
    * implicity will enforce only a single node can use the volume at a given
    * time.
-   * 
+   *
    * @returns Array
    */
   getAccessModes() {

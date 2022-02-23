@@ -320,6 +320,10 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     return response.stdout.split("\n")[1].trim();
   }
 
+  async createDir(path) {
+    await this.exec("mkdir", ["-p", path]);
+  }
+
   async deleteDir(path) {
     await this.exec("rm", ["-rf", path]);
 
@@ -598,6 +602,10 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       if (result.valid !== true) {
         return { available_capacity: 0 };
       }
+    }
+
+    if (!(await driver.directoryExists(driver.getControllerBasePath()))) {
+      await driver.createDir(driver.getControllerBasePath());
     }
 
     const available_capacity = await driver.getAvailableSpaceAtPath(

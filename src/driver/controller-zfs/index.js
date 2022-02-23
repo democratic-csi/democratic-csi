@@ -149,8 +149,17 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
   }
 
-  getSudoEnabled() {
-    return this.options.zfs.cli && this.options.zfs.cli.sudoEnabled === true;
+  async getWhoAmI() {
+    const driver = this;
+    const execClient = driver.getExecClient();
+    const command = "whoami";
+    driver.ctx.logger.verbose("whoami command: %s", command);
+    const response = await execClient.exec(command);
+    if (response.code !== 0) {
+      throw new Error("failed to run uname to determine max zvol name length");
+    } else {
+      return response.stdout.trim();
+    }
   }
 
   async getSudoPath() {
@@ -318,6 +327,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // ignore rows were csi_name is empty
     if (row[MANAGED_PROPERTY_NAME] != "true") {
+      return;
+    }
+
+    if (
+      !zb.helpers.isPropertyValueSet(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME])
+    ) {
+      driver.ctx.logger.warn(`${row.name} is missing share context`);
       return;
     }
 
@@ -1019,7 +1035,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             this.options.zfs.datasetPermissionsMode,
             properties.mountpoint.value,
           ]);
-          if (this.getSudoEnabled()) {
+          if ((await this.getWhoAmI()) != "root") {
             command = (await this.getSudoPath()) + " " + command;
           }
 
@@ -1050,7 +1066,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
                 : ""),
             properties.mountpoint.value,
           ]);
-          if (this.getSudoEnabled()) {
+          if ((await this.getWhoAmI()) != "root") {
             command = (await this.getSudoPath()) + " " + command;
           }
 
@@ -1073,7 +1089,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
               acl,
               properties.mountpoint.value,
             ]);
-            if (this.getSudoEnabled()) {
+            if ((await this.getWhoAmI()) != "root") {
               command = (await this.getSudoPath()) + " " + command;
             }
 
@@ -1641,12 +1657,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
 
       let volume = await driver.populateCsiVolumeFromData(row);
-      let status = await driver.getVolumeStatus(datasetName);
-
-      entries.push({
-        volume,
-        status,
-      });
+      if (volume) {
+        let status = await driver.getVolumeStatus(datasetName);
+        entries.push({
+          volume,
+          status,
+        });
+      }
     }
 
     if (max_entries && entries.length > max_entries) {

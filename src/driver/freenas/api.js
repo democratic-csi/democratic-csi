@@ -1657,7 +1657,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         }
 
         if (reload) {
-          if (this.getSudoEnabled()) {
+          if ((await this.getWhoAmI()) != "root") {
             command = (await this.getSudoPath()) + " " + command;
           }
 
@@ -1723,6 +1723,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     // ignore rows were csi_name is empty
     if (row[MANAGED_PROPERTY_NAME] != "true") {
+      return;
+    }
+
+    if (
+      !zb.helpers.isPropertyValueSet(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME])
+    ) {
+      driver.ctx.logger.warn(`${row.name} is missing share context`);
       return;
     }
 
@@ -3208,12 +3215,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
       );
 
       let volume = await driver.populateCsiVolumeFromData(row);
-      let status = await driver.getVolumeStatus(volume_id);
-
-      entries.push({
-        volume,
-        status,
-      });
+      if (volume) {
+        let status = await driver.getVolumeStatus(volume_id);
+        entries.push({
+          volume,
+          status,
+        });
+      }
     }
 
     if (max_entries && entries.length > max_entries) {

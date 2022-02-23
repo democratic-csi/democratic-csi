@@ -162,7 +162,7 @@ volume is/was provisioned.
 
 ### local-hostpath
 
-This `driver` provisions node-local storage. Each node should and an
+This `driver` provisions node-local storage. Each node should have an
 identically name folder where volumes will be created.
 
 ## Server Prep

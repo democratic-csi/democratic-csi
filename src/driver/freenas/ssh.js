@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const SshClient = require("../../utils/ssh").SshClient;
@@ -42,13 +43,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       options.paths = this.options.zfs.cli.paths;
     }
 
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("sudoEnabled")
-    ) {
-      options.sudo = this.getSudoEnabled();
-    }
+    options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
 
     if (typeof this.setZetabyteCustomOptions === "function") {
       await this.setZetabyteCustomOptions(options);
@@ -1706,7 +1701,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         }
 
         if (reload) {
-          if (this.getSudoEnabled()) {
+          if ((await this.getWhoAmI()) != "root") {
             command = (await this.getSudoPath()) + " " + command;
           }
 
