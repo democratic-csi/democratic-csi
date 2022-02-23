@@ -515,6 +515,11 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
         driver.options.instance_id;
     }
 
+    let accessible_topology;
+    if (typeof this.getAccessibleTopology === "function") {
+      accessible_topology = await this.getAccessibleTopology();
+    }
+
     const res = {
       volume: {
         volume_id: name,
@@ -522,6 +527,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
         capacity_bytes: 0,
         content_source: volume_content_source,
         volume_context,
+        accessible_topology,
       },
     };
 

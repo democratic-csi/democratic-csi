@@ -58,6 +58,22 @@ class ControllerLocalHostpathDriver extends ControllerClientCommonDriver {
   }
 
   /**
+   * List of topologies associated with the *volume*
+   *
+   * @returns array
+   */
+   async getAccessibleTopology() {
+    const response = await super.NodeGetInfo(...arguments);
+    return [
+      {
+        segments: {
+          [NODE_TOPOLOGY_KEY_NAME]: response.node_id,
+        },
+      },
+    ];
+  }
+
+  /**
    * Add node topologies
    *
    * @param {*} call
