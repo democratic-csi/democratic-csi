@@ -1,6 +1,16 @@
+# v1.5.0
+
+Released 2022-02-
+
+- massive ci overhaul
+- introduce `zfs-local-dataset` driver
+- introduce `zfs-local-zvol` driver
+- introduce `local-hostpath` driver
+- support manually provisioned `oneclient` volumes
+
 # v1.4.4
 
-Release 2021-12-11
+Released 2021-12-11
 
 - better adherence to expected csi behavior when volume request for less than
   minimum volume size is requested (see #137)

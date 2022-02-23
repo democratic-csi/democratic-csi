@@ -15,6 +15,8 @@ class ControllerLocalHostpathDriver extends ControllerClientCommonDriver {
       "service.identity.capabilities.service",
       false
     );
+
+    const c_caps = _.get(options, "service.controller.capabilities", false);
     super(...arguments);
 
     if (!i_caps) {
@@ -25,6 +27,16 @@ class ControllerLocalHostpathDriver extends ControllerClientCommonDriver {
         "CONTROLLER_SERVICE",
         "VOLUME_ACCESSIBILITY_CONSTRAINTS",
       ];
+    }
+
+    if (!c_caps) {
+      this.ctx.logger.debug("setting local-hostpath controller service caps");
+
+      if (
+        !options.service.controller.capabilities.rpc.includes("GET_CAPACITY")
+      ) {
+        options.service.controller.capabilities.rpc.push("GET_CAPACITY");
+      }
     }
   }
 

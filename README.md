@@ -33,8 +33,9 @@ have access to resizing, snapshots, clones, etc functionality.
     for all volumes)
   - `smb-client` (crudely provisions storage using a shared smb share/directory
     for all volumes)
-  - `node-manual` (allows connecting to manually created smb, nfs, lustre, and
-    iscsi volumes, see sample PVs in the `examples` directory)
+  - `local-hostpath` (crudely provisions node-local directories)
+  - `node-manual` (allows connecting to manually created smb, nfs, lustre,
+    oneclient, and iscsi volumes, see sample PVs in the `examples` directory)
 - framework for developing `csi` drivers
 
 If you have any interest in providing a `csi` driver, simply open an issue to
@@ -158,6 +159,11 @@ automated fashion preventing any undesirable behavior. So while you may
 provision `MULTI_NODE` / `RWX` volumes, any workloads using the volume will
 always land a single node and that node will always be the node where the
 volume is/was provisioned.
+
+### local-hostpath
+
+This `driver` provisions node-local storage. Each node should and an
+identically name folder where volumes will be created.
 
 ## Server Prep
 

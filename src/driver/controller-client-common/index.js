@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const cp = require("child_process");
@@ -570,14 +571,20 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    * @param {*} call
    */
   async GetCapacity(call) {
-    // really capacity is not used at all with nfs in this fashion, so no reason to enable
-    // here even though it is technically feasible.
-    throw new GrpcError(
-      grpc.status.UNIMPLEMENTED,
-      `operation not supported by driver`
-    );
-
     const driver = this;
+
+    if (
+      !driver.options.service.controller.capabilities.rpc.includes(
+        "GET_CAPACITY"
+      )
+    ) {
+      // really capacity is not used at all with nfs in this fashion, so no reason to enable
+      // here even though it is technically feasible.
+      throw new GrpcError(
+        grpc.status.UNIMPLEMENTED,
+        `operation not supported by driver`
+      );
+    }
 
     if (call.request.volume_capabilities) {
       const result = this.assertCapabilities(call.request.volume_capabilities);

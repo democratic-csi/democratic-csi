@@ -1,0 +1,10 @@
+driver: local-hostpath
+instance_id:
+local-hostpath:
+  # generally shareBasePath and controllerBasePath should be the same for this
+  # driver, this path should be mounted into the csi-driver container
+  shareBasePath:      "/var/lib/csi-local-hostpath"
+  controllerBasePath: "/var/lib/csi-local-hostpath"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: root
+  dirPermissionsGroup: root
