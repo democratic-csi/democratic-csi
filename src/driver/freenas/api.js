@@ -1521,7 +1521,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
                 if (deleteAsset) {
                   response = await httpClient.delete(endpoint);
-                  if (![200, 204].includes(response.statusCode)) {
+                  if (![200, 204, 404].includes(response.statusCode)) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `received error deleting iscsi target - target: ${targetId} code: ${
@@ -1583,7 +1583,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
                 if (deleteAsset) {
                   response = await httpClient.delete(endpoint);
-                  if (![200, 204].includes(response.statusCode)) {
+                  if (![200, 204, 404].includes(response.statusCode)) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `received error deleting iscsi extent - extent: ${extentId} code: ${
