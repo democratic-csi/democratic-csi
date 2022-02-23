@@ -1,12 +1,17 @@
 # v1.5.0
 
-Released 2022-02-
+Released 2022-02-23
 
 - massive ci overhaul
+  - add additional drivers
+  - add additional TrueNAS server versions
+  - only build `node_modules` once by using artifacts
+  - support allow/block listing specific tests
+  - better logic waiting for driver socket to appear
 - introduce `zfs-local-dataset` driver
 - introduce `zfs-local-zvol` driver
 - introduce `local-hostpath` driver
-- support manually provisioned `oneclient` volumes
+- support manually provisioned (`node-manual`) `oneclient` volumes
 
 # v1.4.4
 
