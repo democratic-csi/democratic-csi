@@ -1,3 +1,9 @@
+# v1.5.2
+
+Released 2022-02-24
+
+- proper capacity reporting for `controller-client-common`
+
 # v1.5.1
 
 Released 2022-02-23

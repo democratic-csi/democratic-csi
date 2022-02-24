@@ -311,11 +311,15 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   }
 
   async getAvailableSpaceAtPath(path) {
-    //df --output=avail /mnt/storage/
+    //df --block-size=1 --output=avail /mnt/storage/
     //     Avail
     //1481334328
 
-    const response = await this.exec("df", ["--output=avail", path]);
+    const response = await this.exec("df", [
+      "--block-size=1",
+      "--output=avail",
+      path,
+    ]);
 
     return response.stdout.split("\n")[1].trim();
   }
