@@ -1,6 +1,6 @@
 {
   "name": "democratic-csi",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "kubernetes csi driver framework",
   "main": "bin/democratic-csi",
   "scripts": {
@@ -18,7 +18,7 @@
     "url": "https://github.com/democratic-csi/democratic-csi.git"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.5.5",
+    "@grpc/grpc-js": "^1.5.6",
     "@grpc/proto-loader": "^0.6.0",
     "@kubernetes/client-node": "^0.16.3",
     "async-mutex": "^0.3.1",
