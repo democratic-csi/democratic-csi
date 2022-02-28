@@ -1657,9 +1657,143 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     }
   }
 
+  async setFilesystemMode(path, mode) {
+    const httpClient = await this.getHttpClient();
+    const apiVersion = httpClient.getApiVersion();
+
+    switch (apiVersion) {
+      case 1:
+        return super.setFilesystemMode(...arguments);
+      case 2:
+        let perms = {
+          path,
+          mode: String(mode),
+        };
+
+        /*
+        {
+          "path": "string",
+          "mode": "string",
+          "uid": 0,
+          "gid": 0,
+          "options": {
+            "stripacl": false,
+            "recursive": false,
+            "traverse": false
+          }
+        }
+        */
+
+        let response;
+        let endpoint;
+
+        endpoint = `/filesystem/setperm`;
+        response = await httpClient.post(endpoint, perms);
+
+        if (response.statusCode == 200) {
+          return;
+        }
+
+        throw new Error(JSON.stringify(response.body));
+
+        break;
+      default:
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `invalid configuration: unknown apiVersion ${apiVersion}`
+        );
+    }
+  }
+
+  async setFilesystemOwnership(path, user = false, group = false) {
+    const httpClient = await this.getHttpClient();
+    const apiVersion = httpClient.getApiVersion();
+
+    if (user === false || typeof user == "undefined" || user === null) {
+      user = "";
+    }
+
+    if (group === false || typeof group == "undefined" || group === null) {
+      group = "";
+    }
+
+    user = String(user);
+    group = String(group);
+
+    if (user.length < 1 && group.length < 1) {
+      return;
+    }
+
+    switch (apiVersion) {
+      case 1:
+        return super.setFilesystemOwnership(...arguments);
+      case 2:
+        let perms = {
+          path,
+        };
+        // set ownership
+
+        // user
+        if (user.length > 0) {
+          if (String(user).match(/^[0-9]+$/) == null) {
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `datasetPermissionsUser must be numeric: ${user}`
+            );
+          }
+          perms.uid = Number(user);
+        }
+
+        // group
+        if (group.length > 0) {
+          if (String(group).match(/^[0-9]+$/) == null) {
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `datasetPermissionsGroup must be numeric: ${group}`
+            );
+          }
+          perms.gid = Number(group);
+        }
+
+        /*
+        {
+          "path": "string",
+          "mode": "string",
+          "uid": 0,
+          "gid": 0,
+          "options": {
+            "stripacl": false,
+            "recursive": false,
+            "traverse": false
+          }
+        }
+        */
+
+        let response;
+        let endpoint;
+
+        endpoint = `/filesystem/setperm`;
+        response = await httpClient.post(endpoint, perms);
+
+        if (response.statusCode == 200) {
+          return;
+        }
+
+        throw new Error(JSON.stringify(response.body));
+        break;
+      default:
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `invalid configuration: unknown apiVersion ${apiVersion}`
+        );
+    }
+  }
+
   async expandVolume(call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const execClient = this.getExecClient();
+    const httpClient = await this.getHttpClient();
+    const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
 
     switch (driverShareType) {
@@ -1696,8 +1830,39 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           ]);
           reload = true;
         } else {
-          command = execClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
-          reload = true;
+          switch (apiVersion) {
+            case 1:
+              // use cli for now
+              command = execClient.buildCommand("/etc/rc.d/ctld", ["reload"]);
+              reload = true;
+              break;
+            case 2:
+              this.ctx.logger.verbose(
+                "FreeNAS reloading iscsi daemon using api"
+              );
+              // POST /service/reload
+              let payload = {
+                service: "iscsitarget", // api version of ctld, same name in SCALE as well
+                "service-control": {
+                  ha_propagate: true,
+                },
+              };
+              let response = await httpClient.post("/service/reload", payload);
+              if (![200, 204].includes(response.statusCode)) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `error reloading iscsi daemon - code: ${
+                    response.statusCode
+                  } body: ${JSON.stringify(response.body)}`
+                );
+              }
+              return;
+            default:
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `invalid configuration: unknown apiVersion ${apiVersion}`
+              );
+          }
         }
 
         if (reload) {

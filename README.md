@@ -157,13 +157,24 @@ In the name of ease-of-use these drivers by default report `MULTI_NODE` support
 node where originally provisioned. Topology contraints manage this in an
 automated fashion preventing any undesirable behavior. So while you may
 provision `MULTI_NODE` / `RWX` volumes, any workloads using the volume will
-always land a single node and that node will always be the node where the
+always land on a single node and that node will always be the node where the
 volume is/was provisioned.
 
 ### local-hostpath
 
 This `driver` provisions node-local storage. Each node should have an
 identically name folder where volumes will be created.
+
+In the name of ease-of-use these drivers by default report `MULTI_NODE` support
+(`ReadWriteMany` in k8s) however the volumes will implicity only work on the
+node where originally provisioned. Topology contraints manage this in an
+automated fashion preventing any undesirable behavior. So while you may
+provision `MULTI_NODE` / `RWX` volumes, any workloads using the volume will
+always land on a single node and that node will always be the node where the
+volume is/was provisioned.
+
+The nature of this `driver` also prevents the enforcement of quotas. In short
+the requested volume size is generally ignored.
 
 ## Server Prep
 
