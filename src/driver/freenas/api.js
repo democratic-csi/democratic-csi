@@ -640,6 +640,25 @@ class FreeNASApiDriver extends CsiBaseDriver {
           "FreeNAS creating iscsi assets with name: " + iscsiName
         );
 
+        let extentComment;
+        if (this.options.iscsi.extentCommentTemplate) {
+          extentComment = Handlebars.compile(
+            this.options.iscsi.extentCommentTemplate
+          )({
+            name: call.request.name,
+            parameters: call.request.parameters,
+            csi: {
+              name: this.ctx.args.csiName,
+              version: this.ctx.args.csiVersion,
+            },
+            zfs: {
+              datasetName: datasetName,
+            },
+          });
+        } else {
+          extentComment = "";
+        }
+
         const extentInsecureTpc = this.options.iscsi.hasOwnProperty(
           "extentInsecureTpc"
         )
@@ -863,7 +882,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               }
 
               let extent = {
-                iscsi_target_extent_comment: "", // TODO: allow template for this value
+                iscsi_target_extent_comment: extentComment,
                 iscsi_target_extent_type: "Disk", // Disk/File, after save Disk becomes "ZVOL"
                 iscsi_target_extent_name: iscsiName,
                 iscsi_target_extent_insecure_tpc: extentInsecureTpc,
@@ -1114,7 +1133,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               });
 
               let extent = {
-                comment: "", // TODO: allow this to be templated
+                comment: extentComment,
                 type: "DISK", // Disk/File, after save Disk becomes "ZVOL"
                 name: iscsiName,
                 //iscsi_target_extent_naa: "0x3822690834aae6c5",
