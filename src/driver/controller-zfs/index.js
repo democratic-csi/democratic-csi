@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const sleep = require("../../utils/general").sleep;
@@ -450,6 +451,64 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         }
       default:
         throw new Error(`unknown kernel: ${kernel}`);
+    }
+  }
+
+  async setFilesystemMode(path, mode) {
+    const driver = this;
+    const execClient = this.getExecClient();
+
+    let command = execClient.buildCommand("chmod", [mode, path]);
+    if ((await driver.getWhoAmI()) != "root") {
+      command = (await driver.getSudoPath()) + " " + command;
+    }
+
+    driver.ctx.logger.verbose("set permission command: %s", command);
+
+    let response = await execClient.exec(command);
+    if (response.code != 0) {
+      throw new GrpcError(
+        grpc.status.UNKNOWN,
+        `error setting permissions on dataset: ${JSON.stringify(response)}`
+      );
+    }
+  }
+
+  async setFilesystemOwnership(path, user = false, group = false) {
+    const driver = this;
+    const execClient = this.getExecClient();
+
+    if (user === false || typeof user == "undefined" || user === null) {
+      user = "";
+    }
+
+    if (group === false || typeof group == "undefined" || group === null) {
+      group = "";
+    }
+
+    user = String(user);
+    group = String(group);
+
+    if (user.length < 1 && group.length < 1) {
+      return;
+    }
+
+    let command = execClient.buildCommand("chown", [
+      (user.length > 0 ? user : "") + ":" + (group.length > 0 ? group : ""),
+      path,
+    ]);
+    if ((await driver.getWhoAmI()) != "root") {
+      command = (await driver.getSudoPath()) + " " + command;
+    }
+
+    driver.ctx.logger.verbose("set ownership command: %s", command);
+
+    let response = await execClient.exec(command);
+    if (response.code != 0) {
+      throw new GrpcError(
+        grpc.status.UNKNOWN,
+        `error setting ownership on dataset: ${JSON.stringify(response)}`
+      );
     }
   }
 
@@ -1013,10 +1072,6 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           await zb.zfs.set(datasetName, properties);
         }
 
-        //datasetPermissionsMode: 0777,
-        //datasetPermissionsUser: "root",
-        //datasetPermissionsGroup: "wheel",
-
         // get properties needed for remaining calls
         properties = await zb.zfs.get(datasetName, [
           "mountpoint",
@@ -1031,53 +1086,24 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
         // set mode
         if (this.options.zfs.datasetPermissionsMode) {
-          command = execClient.buildCommand("chmod", [
-            this.options.zfs.datasetPermissionsMode,
+          await driver.setFilesystemMode(
             properties.mountpoint.value,
-          ]);
-          if ((await this.getWhoAmI()) != "root") {
-            command = (await this.getSudoPath()) + " " + command;
-          }
-
-          driver.ctx.logger.verbose("set permission command: %s", command);
-          response = await execClient.exec(command);
-          if (response.code != 0) {
-            throw new GrpcError(
-              grpc.status.UNKNOWN,
-              `error setting permissions on dataset: ${JSON.stringify(
-                response
-              )}`
-            );
-          }
+            this.options.zfs.datasetPermissionsMode
+          );
         }
 
         // set ownership
         if (
-          this.options.zfs.datasetPermissionsUser ||
-          this.options.zfs.datasetPermissionsGroup
+          String(_.get(this.options, "zfs.datasetPermissionsUser", "")).length >
+            0 ||
+          String(_.get(this.options, "zfs.datasetPermissionsGroup", ""))
+            .length > 0
         ) {
-          command = execClient.buildCommand("chown", [
-            (this.options.zfs.datasetPermissionsUser
-              ? this.options.zfs.datasetPermissionsUser
-              : "") +
-              ":" +
-              (this.options.zfs.datasetPermissionsGroup
-                ? this.options.zfs.datasetPermissionsGroup
-                : ""),
+          await driver.setFilesystemOwnership(
             properties.mountpoint.value,
-          ]);
-          if ((await this.getWhoAmI()) != "root") {
-            command = (await this.getSudoPath()) + " " + command;
-          }
-
-          driver.ctx.logger.verbose("set ownership command: %s", command);
-          response = await execClient.exec(command);
-          if (response.code != 0) {
-            throw new GrpcError(
-              grpc.status.UNKNOWN,
-              `error setting ownership on dataset: ${JSON.stringify(response)}`
-            );
-          }
+            this.options.zfs.datasetPermissionsUser,
+            this.options.zfs.datasetPermissionsGroup
+          );
         }
 
         // set acls

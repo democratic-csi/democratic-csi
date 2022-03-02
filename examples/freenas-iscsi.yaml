@@ -72,6 +72,7 @@ iscsi:
   #nameTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   namePrefix: csi-
   nameSuffix: "-clustera"
+
   # add as many as needed
   targetGroups:
     # get the correct ID from the "portal" section in the UI
@@ -84,6 +85,7 @@ iscsi:
       # only required if using Chap
       targetGroupAuthGroup:
 
+  #extentCommentTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   extentInsecureTpc: true
   extentXenCompat: false
   extentDisablePhysicalBlocksize: true
