@@ -1,3 +1,12 @@
+# v1.5.3
+
+Released 2022-03-02
+
+- support for running `freenas-iscsi` and `freenas-nfs` sudo-less (see #151)
+- more robust chown / chmod logic for all zfs drivers
+- all for setting extent comment/description in `freenas-iscsi` and
+  `freenas-api-iscsi` (see #158)
+
 # v1.5.2
 
 Released 2022-02-24
@@ -22,8 +31,8 @@ Released 2022-02-23
   - only build `node_modules` once by using artifacts
   - support allow/block listing specific tests
   - better logic waiting for driver socket to appear
-- introduce `zfs-local-dataset` driver
-- introduce `zfs-local-zvol` driver
+- introduce `zfs-local-dataset` driver (see #148)
+- introduce `zfs-local-zvol` driver (see #148)
 - introduce `local-hostpath` driver
 - support manually provisioned (`node-manual`) `oneclient` volumes
 
