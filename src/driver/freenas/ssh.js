@@ -1757,7 +1757,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           if (String(user).match(/^[0-9]+$/) == null) {
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `datasetPermissionsUser must be numeric: ${user}`
+              `BREAKING CHANGE since v1.5.3! datasetPermissionsUser must be numeric: ${user} is invalid`
             );
           }
           perms.uid = Number(user);
@@ -1768,7 +1768,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           if (String(group).match(/^[0-9]+$/) == null) {
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `datasetPermissionsGroup must be numeric: ${group}`
+              `BREAKING CHANGE since v1.5.3! datasetPermissionsGroup must be numeric: ${group} is invalid`
             );
           }
           perms.gid = Number(group);

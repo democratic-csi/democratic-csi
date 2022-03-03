@@ -1,10 +1,19 @@
+# v1.5.4
+
+Released 2022-03-03
+
+- more descriptive error message for breaking changes introduced in `v1.5.3`
+
 # v1.5.3
 
 Released 2022-03-02
 
-- support for running `freenas-iscsi` and `freenas-nfs` sudo-less (see #151)
-- more robust chown / chmod logic for all zfs drivers
-- all for setting extent comment/description in `freenas-iscsi` and
+- support for running `freenas-iscsi` and `freenas-nfs` `sudo`-less (see #151)
+  - BREAKING CHANGE for `freenas-nfs`, if set `datasetPermissionsUser` and
+    `datasetPermissionsGroup` must be numeric user/group IDs, alpha values such
+    as `root` and `wheel` will no longer work
+- more robust `chown` / `chmod` logic for all zfs drivers
+- allow for setting extent comment/description in `freenas-iscsi` and
   `freenas-api-iscsi` (see #158)
 
 # v1.5.2
