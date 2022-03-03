@@ -51,8 +51,8 @@ zfs:
   datasetEnableQuotas: true
   datasetEnableReservation: false
   datasetPermissionsMode: "0777"
-  datasetPermissionsUser: root
-  datasetPermissionsGroup: wheel
+  datasetPermissionsUser: 0
+  datasetPermissionsGroup: 0
   #datasetPermissionsAcls:
   #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"
