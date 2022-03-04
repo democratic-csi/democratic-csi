@@ -2,6 +2,7 @@
 
 const yaml = require("js-yaml");
 const fs = require("fs");
+const { grpc } = require("../src/utils/grpc");
 
 let options;
 const args = require("yargs")
@@ -78,8 +79,6 @@ if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
 const package = require("../package.json");
 args.version = package.version;
 
-//const grpc = require("grpc");
-const grpc = require("grpc-uds");
 const protoLoader = require("@grpc/proto-loader");
 const LRU = require("lru-cache");
 const cache = new LRU({ max: 500 });
@@ -335,16 +334,6 @@ logger.info(
   bindSocket
 );
 
-if (bindAddress) {
-  csiServer.bind(bindAddress, grpc.ServerCredentials.createInsecure());
-}
-
-if (bindSocket) {
-  csiServer.bind(bindSocket, grpc.ServerCredentials.createInsecure());
-}
-
-csiServer.start();
-
 [`SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`].forEach(
   (eventType) => {
     process.on(eventType, (code) => {
@@ -359,3 +348,37 @@ csiServer.start();
     });
   }
 );
+
+if (require.main === module) {
+  (async function () {
+    try {
+      if (bindAddress) {
+        await new Promise((resolve, reject) => {
+          csiServer.bindAsync(
+            bindAddress,
+            grpc.ServerCredentials.createInsecure(),
+            () => {
+              resolve();
+            }
+          );
+        });
+      }
+
+      if (bindSocket) {
+        await new Promise((resolve, reject) => {
+          csiServer.bindAsync(
+            bindSocket,
+            grpc.ServerCredentials.createInsecure(),
+            () => {
+              resolve();
+            }
+          );
+        });
+      }
+      csiServer.start();
+    } catch (e) {
+      console.log(e);
+      process.exit(1);
+    }
+  })();
+}

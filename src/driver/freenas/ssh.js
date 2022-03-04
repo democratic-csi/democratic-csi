@@ -2011,11 +2011,9 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   async setVersionInfoCache(versionInfo) {
     const driver = this;
 
-    await driver.ctx.cache.set(
-      FREENAS_SYSTEM_VERSION_CACHE_KEY,
-      versionInfo,
-      60 * 1000
-    );
+    await driver.ctx.cache.set(FREENAS_SYSTEM_VERSION_CACHE_KEY, versionInfo, {
+      ttl: 60 * 1000,
+    });
   }
 
   async getSystemVersion() {
