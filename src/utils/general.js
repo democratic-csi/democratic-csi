@@ -51,6 +51,24 @@ function getLargestNumber() {
   return number;
 }
 
+function stringify(value) {
+  const getCircularReplacer = () => {
+    const seen = new WeakSet();
+    return (key, value) => {
+      if (typeof value === "object" && value !== null) {
+        if (seen.has(value)) {
+          return;
+        }
+        seen.add(value);
+      }
+      return value;
+    };
+  };
+  
+  return JSON.stringify(value, getCircularReplacer());
+}
+
 module.exports.sleep = sleep;
 module.exports.lockKeysFromRequest = lockKeysFromRequest;
 module.exports.getLargestNumber = getLargestNumber;
+module.exports.stringify = stringify;

@@ -3,6 +3,7 @@
 const yaml = require("js-yaml");
 const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
+const { stringify } = require("../src/utils/general");
 
 let options;
 const args = require("yargs")
@@ -127,7 +128,7 @@ try {
 let operationLock = new Set();
 
 async function requestHandlerProxy(call, callback, serviceMethodName) {
-  const cleansedCall = JSON.parse(JSON.stringify(call));
+  const cleansedCall = JSON.parse(stringify(call));
   for (const key in cleansedCall.request) {
     if (key.includes("secret")) {
       cleansedCall.request[key] = "redacted";
