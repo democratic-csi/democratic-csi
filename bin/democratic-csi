@@ -339,7 +339,7 @@ logger.info(
   (eventType) => {
     process.on(eventType, (code) => {
       console.log(`running server shutdown, exit code: ${code}`);
-      let socketPath = args.serverSocket || "";
+      let socketPath = bindSocket;
       socketPath = socketPath.replace(/^unix:\/\//g, "");
       if (socketPath && fs.existsSync(socketPath)) {
         fs.unlinkSync(socketPath);
@@ -358,7 +358,11 @@ if (require.main === module) {
           csiServer.bindAsync(
             bindAddress,
             grpc.ServerCredentials.createInsecure(),
-            () => {
+            (err) => {
+              if (err) {
+                reject(err);
+                return;
+              }
               resolve();
             }
           );
@@ -366,11 +370,21 @@ if (require.main === module) {
       }
 
       if (bindSocket) {
+        let socketPath = bindSocket;
+        socketPath = socketPath.replace(/^unix:\/\//g, "");
+        if (socketPath && fs.existsSync(socketPath)) {
+          fs.unlinkSync(socketPath);
+        }
+
         await new Promise((resolve, reject) => {
           csiServer.bindAsync(
             bindSocket,
             grpc.ServerCredentials.createInsecure(),
-            () => {
+            (err) => {
+              if (err) {
+                reject(err);
+                return;
+              }
               resolve();
             }
           );
