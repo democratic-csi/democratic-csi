@@ -35,7 +35,7 @@ const package = require("../package.json");
 args.version = package.version;
 
 const protoLoader = require("@grpc/proto-loader");
-const csiVersion = process.env.CSI_VERSION || args.csiVersion || "1.2.0";
+const csiVersion = process.env.CSI_VERSION || args.csiVersion || "1.5.0";
 const PROTO_PATH = __dirname + "/../csi_proto/csi-v" + csiVersion + ".proto";
 
 // Suggested options for similarity to existing grpc.load behavior

@@ -342,7 +342,10 @@ logger.info(
       let socketPath = bindSocket;
       socketPath = socketPath.replace(/^unix:\/\//g, "");
       if (socketPath && fs.existsSync(socketPath)) {
-        fs.unlinkSync(socketPath);
+        let fsStat = fs.statSync(socketPath);
+        if (fsStat.isSocket()) {
+          fs.unlinkSync(socketPath);
+        }
       }
 
       process.exit(code);
@@ -373,7 +376,10 @@ if (require.main === module) {
         let socketPath = bindSocket;
         socketPath = socketPath.replace(/^unix:\/\//g, "");
         if (socketPath && fs.existsSync(socketPath)) {
-          fs.unlinkSync(socketPath);
+          let fsStat = fs.statSync(socketPath);
+          if (fsStat.isSocket()) {
+            fs.unlinkSync(socketPath);
+          }
         }
 
         await new Promise((resolve, reject) => {
