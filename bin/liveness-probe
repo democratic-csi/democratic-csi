@@ -1,10 +1,7 @@
 #!/usr/bin/env -S node --nouse-idle-notification --expose-gc
 
-const yaml = require("js-yaml");
-const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
 
-let options;
 const args = require("yargs")
   .env("DEMOCRATIC_CSI_LIVENESS_PROBE")
   .scriptName("liveness-probe")
