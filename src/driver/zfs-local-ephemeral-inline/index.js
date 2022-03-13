@@ -209,7 +209,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&
-              !["ext3", "ext4", "ext4dev", "xfs"].includes(
+              !["btrfs", "ext3", "ext4", "ext4dev", "xfs"].includes(
                 capability.mount.fs_type
               )
             ) {

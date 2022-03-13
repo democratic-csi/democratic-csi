@@ -203,7 +203,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       case "filesystem":
         return ["nfs", "cifs"];
       case "volume":
-        return ["ext3", "ext4", "ext4dev", "xfs"];
+        return ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
     }
   }
 

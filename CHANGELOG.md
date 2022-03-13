@@ -1,3 +1,17 @@
+# v1.6.0
+
+Released 2022-03-
+
+- update `nodejs` version to `v16`
+  - remove dependency on `grpc-uds` package (replaced entirely by
+    `@grpc/grpc-js`)
+  - remove dependency on `request` package (replaced by `axios`)
+  - use native `timeout` functionality for `spawn` operations
+- update http clients to use `keep-alive` logic
+- add a default 30s `timeout` to `iscsi` commands
+- base docker image on `bullseye`
+- support for `btrfs` as a `fs_type`
+
 # v1.5.4
 
 Released 2022-03-03

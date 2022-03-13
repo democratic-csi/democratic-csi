@@ -461,6 +461,9 @@ class CsiBaseDriver {
                 normalizedSecrets[key];
             }
           }
+
+          // create 'DB' entry
+          // TODO: fix flake - Could not execute operation on all records: encountered iSCSI database failure
           await iscsi.iscsiadm.createNodeDBEntry(
             iscsiConnection.iqn,
             iscsiConnection.portal,
@@ -804,6 +807,7 @@ class CsiBaseDriver {
                 }
               }
               break;
+            case "btrfs":
             case "xfs":
               //await filesystem.checkFilesystem(device, fs_info.type);
               await filesystem.expandFilesystem(staging_target_path, fs_type);
@@ -1493,9 +1497,10 @@ class CsiBaseDriver {
               //await filesystem.checkFilesystem(device, fs_info.type);
               await filesystem.expandFilesystem(device, fs_type);
               break;
+            case "btrfs":
             case "xfs":
               let mount_info = await mount.getMountDetails(device_path);
-              if (mount_info.fstype == "xfs") {
+              if (["btrfs", "xfs"].includes(mount_info.fstype)) {
                 //await filesystem.checkFilesystem(device, fs_info.type);
                 await filesystem.expandFilesystem(device_path, fs_type);
               }

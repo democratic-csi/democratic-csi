@@ -89,7 +89,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
       case "filesystem":
         return ["zfs"];
       case "volume":
-        return ["ext3", "ext4", "ext4dev", "xfs"];
+        return ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
     }
   }
 

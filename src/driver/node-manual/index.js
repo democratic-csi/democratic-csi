@@ -130,11 +130,11 @@ class NodeManualDriver extends CsiBaseDriver {
         break;
       case "iscsi":
         driverResourceType = "volume";
-        fs_types = ["ext3", "ext4", "ext4dev", "xfs"];
+        fs_types = ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
         break;
       case "zfs-local":
         driverResourceType = "volume";
-        fs_types = ["ext3", "ext4", "ext4dev", "xfs", "zfs"];
+        fs_types = ["btrfs", "ext3", "ext4", "ext4dev", "xfs", "zfs"];
         access_modes = [
           "UNKNOWN",
           "SINGLE_NODE_WRITER",

@@ -1,5 +1,8 @@
-const request = require("request");
+const _ = require("lodash");
+const http = require("http");
+const https = require("https");
 const URI = require("uri-js");
+const { axios_request, stringify } = require("../../../utils/general");
 const USER_AGENT = "democratic-csi-driver";
 
 class Client {
@@ -12,6 +15,31 @@ class Client {
       this.options.apiVersion = 1;
     }
   }
+
+  getHttpAgent() {
+    if (!this.httpAgent) {
+      this.httpAgent = new http.Agent({
+        keepAlive: true,
+        maxSockets: Infinity,
+        rejectUnauthorized: !!!this.options.allowInsecure,
+      });
+    }
+
+    return this.httpAgent;
+  }
+
+  getHttpsAgent() {
+    if (!this.httpsAgent) {
+      this.httpsAgent = new https.Agent({
+        keepAlive: true,
+        maxSockets: Infinity,
+        rejectUnauthorized: !!!this.options.allowInsecure,
+      });
+    }
+
+    return this.httpsAgent;
+  }
+
   getBaseURL() {
     const server = this.options;
     if (!server.protocol) {
@@ -46,14 +74,59 @@ class Client {
     return this.options.apiVersion;
   }
 
+  getRequestCommonOptions() {
+    const client = this;
+    const options = {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": USER_AGENT,
+        "Content-Type": "application/json",
+      },
+      responseType: "json",
+      httpAgent: this.getHttpAgent(),
+      httpsAgent: this.getHttpsAgent(),
+      timeout: 60 * 1000,
+    };
+
+    if (client.options.apiKey) {
+      options.headers.Authorization = `Bearer ${client.options.apiKey}`;
+    } else if (client.options.username && client.options.password) {
+      options.auth = {
+        username: client.options.username,
+        password: client.options.password,
+      };
+    }
+
+    return options;
+  }
+
   log_repsonse(error, response, body, options) {
-    this.logger.debug("FREENAS HTTP REQUEST: " + JSON.stringify(options));
+    let prop;
+    let val;
+
+    prop = "auth.username";
+    val = _.get(options, prop, false);
+    if (val) {
+      _.set(options, prop, "redacted");
+    }
+
+    prop = "auth.password";
+    val = _.get(options, prop, false);
+    if (val) {
+      _.set(options, prop, "redacted");
+    }
+
+    prop = "headers.Authorization";
+    val = _.get(options, prop, false);
+    if (val) {
+      _.set(options, prop, "redacted");
+    }
+
+    this.logger.debug("FREENAS HTTP REQUEST: " + stringify(options));
     this.logger.debug("FREENAS HTTP ERROR: " + error);
     this.logger.debug("FREENAS HTTP STATUS: " + response.statusCode);
-    this.logger.debug(
-      "FREENAS HTTP HEADERS: " + JSON.stringify(response.headers)
-    );
-    this.logger.debug("FREENAS HTTP BODY: " + JSON.stringify(body));
+    this.logger.debug("FREENAS HTTP HEADERS: " + stringify(response.headers));
+    this.logger.debug("FREENAS HTTP BODY: " + stringify(body));
   }
 
   async get(endpoint, data) {
@@ -63,33 +136,18 @@ class Client {
     }
 
     return new Promise((resolve, reject) => {
-      const options = {
-        method: "GET",
-        url: this.getBaseURL() + endpoint,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": USER_AGENT,
-          "Content-Type": "application/json",
-        },
-        json: true,
-        qs: data,
-        agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure,
-        },
-      };
-      request(options, function (err, res, body) {
+      const options = client.getRequestCommonOptions();
+      options.method = "GET";
+      options.url = this.getBaseURL() + endpoint;
+      options.params = data;
+
+      axios_request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
-
         resolve(res);
-      }).auth(
-        client.options.username,
-        client.options.password,
-        true,
-        client.options.apiKey
-      );
+      });
     });
   }
 
@@ -100,33 +158,19 @@ class Client {
     }
 
     return new Promise((resolve, reject) => {
-      const options = {
-        method: "POST",
-        url: this.getBaseURL() + endpoint,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": USER_AGENT,
-          "Content-Type": "application/json",
-        },
-        json: true,
-        body: data,
-        agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure,
-        },
-      };
-      request(options, function (err, res, body) {
+      const options = client.getRequestCommonOptions();
+      options.method = "POST";
+      options.url = this.getBaseURL() + endpoint;
+      options.data = data;
+
+      axios_request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
 
         resolve(res);
-      }).auth(
-        client.options.username,
-        client.options.password,
-        true,
-        client.options.apiKey
-      );
+      });
     });
   }
 
@@ -137,33 +181,19 @@ class Client {
     }
 
     return new Promise((resolve, reject) => {
-      const options = {
-        method: "PUT",
-        url: this.getBaseURL() + endpoint,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": USER_AGENT,
-          "Content-Type": "application/json",
-        },
-        json: true,
-        body: data,
-        agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure,
-        },
-      };
-      request(options, function (err, res, body) {
+      const options = client.getRequestCommonOptions();
+      options.method = "PUT";
+      options.url = this.getBaseURL() + endpoint;
+      options.data = data;
+
+      axios_request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
 
         resolve(res);
-      }).auth(
-        client.options.username,
-        client.options.password,
-        true,
-        client.options.apiKey
-      );
+      });
     });
   }
 
@@ -174,33 +204,19 @@ class Client {
     }
 
     return new Promise((resolve, reject) => {
-      const options = {
-        method: "DELETE",
-        url: this.getBaseURL() + endpoint,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": USER_AGENT,
-          "Content-Type": "application/json",
-        },
-        json: true,
-        body: data,
-        agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure,
-        },
-      };
-      request(options, function (err, res, body) {
+      const options = client.getRequestCommonOptions();
+      options.method = "DELETE";
+      options.url = this.getBaseURL() + endpoint;
+      options.data = data;
+
+      axios_request(options, function (err, res, body) {
         client.log_repsonse(...arguments, options);
         if (err) {
           reject(err);
         }
 
         resolve(res);
-      }).auth(
-        client.options.username,
-        client.options.password,
-        true,
-        client.options.apiKey
-      );
+      });
     });
   }
 }

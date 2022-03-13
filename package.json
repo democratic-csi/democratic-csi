@@ -1,6 +1,6 @@
 {
   "name": "democratic-csi",
-  "version": "1.5.5",
+  "version": "1.6.0",
   "description": "kubernetes csi driver framework",
   "main": "bin/democratic-csi",
   "scripts": {
@@ -22,14 +22,13 @@
     "@grpc/proto-loader": "^0.6.0",
     "@kubernetes/client-node": "^0.16.3",
     "async-mutex": "^0.3.1",
+    "axios": "^0.26.1",
     "bunyan": "^1.8.15",
-    "grpc-uds": "^0.1.6",
     "handlebars": "^4.7.7",
     "js-yaml": "^4.0.0",
     "lodash": "^4.17.21",
     "lru-cache": "^7.4.0",
     "prompt": "^1.2.2",
-    "request": "^2.88.2",
     "semver": "^7.3.4",
     "ssh2": "^1.1.0",
     "uri-js": "^4.4.1",

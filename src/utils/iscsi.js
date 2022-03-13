@@ -5,6 +5,8 @@ function getIscsiValue(value) {
   return value;
 }
 
+const DEFAULT_TIMEOUT = process.env.ISCSI_DEFAULT_TIMEOUT || 30000;
+
 class ISCSI {
   constructor(options = {}) {
     const iscsi = this;
@@ -17,10 +19,6 @@ class ISCSI {
 
     if (!options.paths.sudo) {
       options.paths.sudo = "/usr/bin/sudo";
-    }
-
-    if (!options.timeout) {
-      options.timeout = 10 * 60 * 1000;
     }
 
     if (!options.executor) {
@@ -155,10 +153,7 @@ class ISCSI {
 
         let session = false;
         sessions.every((i_session) => {
-          if (
-            `${i_session.iqn}` == tgtIQN &&
-            portal == i_session.portal
-          ) {
+          if (`${i_session.iqn}` == tgtIQN && portal == i_session.portal) {
             session = i_session;
             return false;
           }
@@ -493,11 +488,14 @@ class ISCSI {
     };
   }
 
-  exec(command, args, options) {
+  exec(command, args, options = {}) {
+    if (!options.hasOwnProperty("timeout")) {
+      options.timeout = DEFAULT_TIMEOUT;
+    }
+
     const iscsi = this;
     args = args || [];
 
-    let timeout;
     let stdout = "";
     let stderr = "";
 
@@ -507,14 +505,6 @@ class ISCSI {
     }
     console.log("executing iscsi command: %s %s", command, args.join(" "));
     const child = iscsi.options.executor.spawn(command, args, options);
-
-    let didTimeout = false;
-    if (options && options.timeout) {
-      timeout = setTimeout(() => {
-        didTimeout = true;
-        child.kill(options.killSignal || "SIGTERM");
-      }, options.timeout);
-    }
 
     return new Promise((resolve, reject) => {
       child.stdout.on("data", function (data) {
@@ -526,10 +516,14 @@ class ISCSI {
       });
 
       child.on("close", function (code) {
-        const result = { code, stdout, stderr };
-        if (timeout) {
-          clearTimeout(timeout);
+        const result = { code, stdout, stderr, timeout: false };
+
+        // timeout scenario
+        if (code === null) {
+          result.timeout = true;
+          reject(result);
         }
+
         if (code) {
           reject(result);
         } else {

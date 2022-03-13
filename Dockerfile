@@ -1,4 +1,4 @@
-FROM debian:10-slim AS build
+FROM debian:11-slim AS build
 #FROM --platform=$BUILDPLATFORM debian:10-slim AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
         && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
 ENV LANG=en_US.utf8
-ENV NODE_VERSION=v12.22.6
+#ENV NODE_VERSION=v12.22.6
 #ENV NODE_VERSION=v14.15.1
+ENV NODE_VERSION=v16.4.0
 ENV NODE_ENV=production
 
 # install build deps
@@ -32,7 +33,7 @@ RUN useradd --create-home csi \
 WORKDIR /home/csi/app
 USER csi
 
-COPY package*.json ./
+COPY --chown=csi:csi package*.json ./
 RUN npm install --grpc_node_binary_host_mirror=https://grpc-uds-binaries.s3-us-west-2.amazonaws.com/debian-buster
 COPY --chown=csi:csi . .
 RUN rm -rf docker
@@ -41,7 +42,7 @@ RUN rm -rf docker
 ######################
 # actual image
 ######################
-FROM debian:10-slim
+FROM debian:11-slim
 
 LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
 
@@ -74,7 +75,7 @@ COPY --from=build /usr/local/lib/nodejs/bin/node /usr/local/bin/node
 # netbase is required by rpcbind/rpcinfo to work properly
 # /etc/{services,rpc} are required
 RUN apt-get update && \
-        apt-get install -y netbase socat e2fsprogs xfsprogs fatresize dosfstools nfs-common cifs-utils sudo && \
+        apt-get install -y netbase socat e2fsprogs xfsprogs btrfs-progs fatresize dosfstools nfs-common cifs-utils sudo && \
         rm -rf /var/lib/apt/lists/*
 
 # controller requirements

@@ -8,6 +8,6 @@ class GrpcError {
 
 module.exports.GrpcError = GrpcError;
 
-const grpcImplementation = process.env.GRPC_IMPLEMENTATION || "grpc-uds";
+const grpcImplementation = process.env.GRPC_IMPLEMENTATION || "@grpc/grpc-js";
 console.log(`grpc implementation: ${grpcImplementation}`);
 module.exports.grpc = require(grpcImplementation);
