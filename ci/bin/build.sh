@@ -4,6 +4,10 @@ set -e
 set -x
 
 export PATH="/usr/local/lib/nodejs/bin:${PATH}"
+
+node --version
+npm --version
+
 # install deps
 npm i
 

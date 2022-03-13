@@ -103,7 +103,10 @@ class ISCSI {
           "-o",
           "new",
         ]);
+        // create DB entry
         await iscsi.exec(options.paths.iscsiadm, args);
+        
+        // update attributes 1 by 1
         for (let attribute in attributes) {
           let args = [];
           args = args.concat([
