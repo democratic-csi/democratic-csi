@@ -1,4 +1,5 @@
 const cp = require("child_process");
+const { sleep } = require("./general");
 
 function getIscsiValue(value) {
   if (value == "<empty>") return null;
@@ -105,7 +106,7 @@ class ISCSI {
         ]);
         // create DB entry
         await iscsi.exec(options.paths.iscsiadm, args);
-        
+
         // update attributes 1 by 1
         for (let attribute in attributes) {
           let args = [];
@@ -123,7 +124,30 @@ class ISCSI {
             "--value",
             attributes[attribute],
           ]);
-          await iscsi.exec(options.paths.iscsiadm, args);
+          // https://bugzilla.redhat.com/show_bug.cgi?id=884427
+          // Could not execute operation on all records: encountered iSCSI database failure
+          let retries = 0;
+          let maxRetries = 5;
+          let retryWait = 1000;
+          while (retries < maxRetries) {
+            retries++;
+            try {
+              //throw {stderr: "Could not execute operation on all records: encountered iSCSI database failure"};
+              await iscsi.exec(options.paths.iscsiadm, args);
+              break;
+            } catch (err) {
+              if (
+                retries < maxRetries &&
+                err.stderr.includes(
+                  "Could not execute operation on all records: encountered iSCSI database failure"
+                )
+              ) {
+                await sleep(retryWait);
+              } else {
+                throw err;
+              }
+            }
+          }
         }
       },
 

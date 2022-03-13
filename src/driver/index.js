@@ -463,7 +463,6 @@ class CsiBaseDriver {
           }
 
           // create 'DB' entry
-          // TODO: fix flake - Could not execute operation on all records: encountered iSCSI database failure
           await iscsi.iscsiadm.createNodeDBEntry(
             iscsiConnection.iqn,
             iscsiConnection.portal,

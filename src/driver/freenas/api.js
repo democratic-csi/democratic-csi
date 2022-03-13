@@ -1555,6 +1555,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
                     _.get(response, "body.errno") == 14
                   ) {
                     retries++;
+                    this.ctx.logger.debug(
+                      "target: %s is in use, retry %s shortly",
+                      targetId,
+                      retries
+                    );
                     await sleep(retryWait);
                     response = await httpClient.delete(endpoint);
                   }
