@@ -13,8 +13,7 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
 
 ENV LANG=en_US.utf8
 #ENV NODE_VERSION=v12.22.6
-#ENV NODE_VERSION=v14.15.1
-ENV NODE_VERSION=v16.4.0
+ENV NODE_VERSION=v16.14.0
 ENV NODE_ENV=production
 
 # install build deps

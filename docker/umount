@@ -5,6 +5,7 @@ container_supported_filesystems=(
   "ext3"
   "ext4"
   "ext4dev"
+  "btrfs"
   "xfs"
   "vfat"
   "nfs"
