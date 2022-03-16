@@ -1,6 +1,6 @@
 # v1.6.0
 
-Released 2022-03-
+Released 2022-03-16
 
 This is a **massive** release with substantial changes. Ideally this release
 should be installed with chart version `>=0.11.0`. Make note that due to the
