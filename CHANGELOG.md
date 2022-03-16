@@ -1,3 +1,30 @@
+# v1.6.0
+
+Released 2022-03-
+
+This is a **massive** release with substantial changes. Ideally this release
+should be installed with chart version `>=0.11.0`. Make note that due to the
+updated base image from `buster` to `bullseye` that the filesystem tools have
+all been updated as well (`mkfs.foo`, `resize2fs`, `fsck.foo`, etc).
+
+To facilitate the removal `grpc-uds` package a new sister project was created:
+
+https://github.com/democratic-csi/csi-grpc-proxy
+
+Not all environments require the usage of the proxy, but it is enabled by
+default with `helm` chart versions `>=0.11.0`.
+
+- update `nodejs` version to `v16`
+  - remove dependency on `grpc-uds` package (replaced entirely by
+    `@grpc/grpc-js`)
+  - remove dependency on `request` package (replaced by `axios`)
+  - use native `timeout` functionality for `spawn` operations
+- update http clients to use `keep-alive` logic
+- add a default 30s `timeout` to `iscsiadm` commands
+- base docker image on `bullseye`
+- support for `btrfs` as a `fs_type`
+- support `s390x` and `ppc64le` docker images
+
 # v1.5.4
 
 Released 2022-03-03

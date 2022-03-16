@@ -11,6 +11,10 @@ node:
         enabled: false
         customOptions: []
         customFilesystemOptions: []
+      btrfs:
+        enabled: false
+        customOptions: []
+        customFilesystemOptions: []
   format:
     xfs:
       customOptions: []
@@ -21,3 +25,5 @@ node:
       #- -E
       #- nodiscard
       # ...
+    btrfs:
+      customOptions: []

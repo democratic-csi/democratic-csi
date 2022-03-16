@@ -1,6 +1,8 @@
 const cp = require("child_process");
 const fs = require("fs");
 
+const DEFAULT_TIMEOUT = process.env.FILESYSTEM_DEFAULT_TIMEOUT || 30000;
+
 /**
  * https://github.com/kubernetes/kubernetes/tree/master/pkg/util/mount
  * https://github.com/kubernetes/kubernetes/blob/master/pkg/util/mount/mount_linux.go
@@ -14,10 +16,6 @@ class Filesystem {
 
     if (!options.paths.sudo) {
       options.paths.sudo = "/usr/bin/sudo";
-    }
-
-    if (!options.timeout) {
-      options.timeout = 10 * 60 * 1000;
     }
 
     if (!options.executor) {
@@ -454,6 +452,12 @@ class Filesystem {
     let result;
 
     switch (fstype.toLowerCase()) {
+      case "btrfs":
+        command = "btrfs";
+        //args = args.concat(options);
+        args = args.concat(["filesystem", "resize", "max"]);
+        args.push(device); // in this case should be a mounted path
+        break;
       case "ext4":
       case "ext3":
       case "ext4dev":
@@ -500,6 +504,12 @@ class Filesystem {
     let result;
 
     switch (fstype.toLowerCase()) {
+      case "btrfs":
+        command = "btrfs";
+        args = args.concat(options);
+        args.push("check");
+        args.push(device);
+        break;
       case "ext4":
       case "ext3":
       case "ext4dev":
@@ -591,11 +601,15 @@ class Filesystem {
     return true;
   }
 
-  exec(command, args, options) {
+  exec(command, args, options = {}) {
+    if (!options.hasOwnProperty("timeout")) {
+      // TODO: cannot use this as fsck etc are too risky to kill
+      //options.timeout = DEFAULT_TIMEOUT;
+    }
+
     const filesystem = this;
     args = args || [];
 
-    let timeout;
     let stdout = "";
     let stderr = "";
 
@@ -605,14 +619,6 @@ class Filesystem {
     }
     console.log("executing filesystem command: %s %s", command, args.join(" "));
     const child = filesystem.options.executor.spawn(command, args, options);
-
-    let didTimeout = false;
-    if (options && options.timeout) {
-      timeout = setTimeout(() => {
-        didTimeout = true;
-        child.kill(options.killSignal || "SIGTERM");
-      }, options.timeout);
-    }
 
     return new Promise((resolve, reject) => {
       child.stdout.on("data", function (data) {
@@ -625,10 +631,8 @@ class Filesystem {
 
       child.on("close", function (code) {
         const result = { code, stdout, stderr, timeout: false };
-        if (timeout) {
-          clearTimeout(timeout);
-        }
 
+        // timeout scenario
         if (code === null) {
           result.timeout = true;
           reject(result);

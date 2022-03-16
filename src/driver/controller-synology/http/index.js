@@ -1,4 +1,7 @@
-const request = require("request");
+const _ = require("lodash");
+const http = require("http");
+const https = require("https");
+const { axios_request, stringify } = require("../../../utils/general");
 const Mutex = require("async-mutex").Mutex;
 
 const USER_AGENT = "democratic-csi";
@@ -18,34 +21,57 @@ class SynologyHttpClient {
     }
   }
 
-  async login() {
-    if (!this.sid) {
-      // See https://global.download.synology.com/download/Document/Software/DeveloperGuide/Os/DSM/All/enu/DSM_Login_Web_API_Guide_enu.pdf
-      const data = {
-        api: "SYNO.API.Auth",
-        version: "6",
-        method: "login",
-        account: this.options.username,
-        passwd: this.options.password,
-        session: this.options.session,
-        format: "sid",
-      };
-
-      let response = await this.do_request("GET", "auth.cgi", data);
-      this.sid = response.body.data.sid;
+  getHttpAgent() {
+    if (!this.httpAgent) {
+      this.httpAgent = new http.Agent({
+        keepAlive: true,
+        maxSockets: Infinity,
+        rejectUnauthorized: !!!this.options.allowInsecure,
+      });
     }
 
-    return this.sid;
+    return this.httpAgent;
+  }
+
+  getHttpsAgent() {
+    if (!this.httpsAgent) {
+      this.httpsAgent = new https.Agent({
+        keepAlive: true,
+        maxSockets: Infinity,
+        rejectUnauthorized: !!!this.options.allowInsecure,
+      });
+    }
+
+    return this.httpsAgent;
   }
 
   log_response(error, response, body, options) {
-    this.logger.debug("SYNOLOGY HTTP REQUEST: " + JSON.stringify(options));
+    let prop;
+    let val;
+
+    prop = "auth.username";
+    val = _.get(options, prop, false);
+    if (val) {
+      _.set(options, prop, "redacted");
+    }
+
+    prop = "auth.password";
+    val = _.get(options, prop, false);
+    if (val) {
+      _.set(options, prop, "redacted");
+    }
+
+    prop = "headers.Authorization";
+    val = _.get(options, prop, false);
+    if (val) {
+      _.set(options, prop, "redacted");
+    }
+
+    this.logger.debug("SYNOLOGY HTTP REQUEST: " + stringify(options));
     this.logger.debug("SYNOLOGY HTTP ERROR: " + error);
     this.logger.debug("SYNOLOGY HTTP STATUS: " + response.statusCode);
-    this.logger.debug(
-      "SYNOLOGY HTTP HEADERS: " + JSON.stringify(response.headers)
-    );
-    this.logger.debug("SYNOLOGY HTTP BODY: " + JSON.stringify(body));
+    this.logger.debug("SYNOLOGY HTTP HEADERS: " + stringify(response.headers));
+    this.logger.debug("SYNOLOGY HTTP BODY: " + stringify(body));
   }
 
   async do_request(method, path, data = {}, options = {}) {
@@ -82,10 +108,10 @@ class SynologyHttpClient {
             ? "application/x-www-form-urlencoded"
             : "application/json",
         },
-        json: invoke_options.use_form_encoded ? false : true,
-        agentOptions: {
-          rejectUnauthorized: !!!client.options.allowInsecure,
-        },
+        responseType: "json",
+        httpAgent: this.getHttpAgent(),
+        httpsAgent: this.getHttpsAgent(),
+        timeout: 60 * 1000,
       };
 
       switch (method) {
@@ -96,20 +122,19 @@ class SynologyHttpClient {
               qsData[p] = JSON.stringify(qsData[p]);
             }
           }
-          options.qs = qsData;
+          options.params = qsData;
           break;
         default:
           if (invoke_options.use_form_encoded) {
-            //options.body = URLSearchParams(data);
-            options.form = data;
+            options.data = URLSearchParams(data).toString();
           } else {
-            options.body = data;
+            options.data = data;
           }
           break;
       }
 
       try {
-        request(options, function (error, response, body) {
+        axios_request(options, function (error, response, body) {
           client.log_response(...arguments, options);
 
           if (error) {
@@ -145,6 +170,26 @@ class SynologyHttpClient {
         }
       }
     });
+  }
+
+  async login() {
+    if (!this.sid) {
+      // See https://global.download.synology.com/download/Document/Software/DeveloperGuide/Os/DSM/All/enu/DSM_Login_Web_API_Guide_enu.pdf
+      const data = {
+        api: "SYNO.API.Auth",
+        version: "6",
+        method: "login",
+        account: this.options.username,
+        passwd: this.options.password,
+        session: this.options.session,
+        format: "sid",
+      };
+
+      let response = await this.do_request("GET", "auth.cgi", data);
+      this.sid = response.body.data.sid;
+    }
+
+    return this.sid;
   }
 
   async GetLuns() {

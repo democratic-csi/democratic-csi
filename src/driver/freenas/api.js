@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const { CsiBaseDriver } = require("../index");
 const HttpClient = require("./http").Client;
@@ -1539,7 +1540,30 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 }
 
                 if (deleteAsset) {
+                  let retries = 0;
+                  let maxRetries = 5;
+                  let retryWait = 1000;
                   response = await httpClient.delete(endpoint);
+
+                  // sometimes after an initiator has detached it takes a moment for TrueNAS to settle
+                  // code: 422 body: {\"message\":\"Target csi-ci-55877e95sanity-node-expand-volume-e54f81fa-cd38e798 is in use.\",\"errno\":14}
+                  while (
+                    response.statusCode == 422 &&
+                    retries < maxRetries &&
+                    _.get(response, "body.message").includes("Target") &&
+                    _.get(response, "body.message").includes("is in use") &&
+                    _.get(response, "body.errno") == 14
+                  ) {
+                    retries++;
+                    this.ctx.logger.debug(
+                      "target: %s is in use, retry %s shortly",
+                      targetId,
+                      retries
+                    );
+                    await sleep(retryWait);
+                    response = await httpClient.delete(endpoint);
+                  }
+
                   if (![200, 204, 404].includes(response.statusCode)) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
@@ -1929,7 +1953,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&
-              !["ext3", "ext4", "ext4dev", "xfs"].includes(
+              !["btrfs", "ext3", "ext4", "ext4dev", "xfs"].includes(
                 capability.mount.fs_type
               )
             ) {

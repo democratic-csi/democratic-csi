@@ -29,6 +29,8 @@ const VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME =
 const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_instance_id";
 
+const MAX_ZVOL_NAME_LENGTH_CACHE_KEY = "controller-zfs:max_zvol_name_length";
+
 /**
  * Base driver to provisin zfs assets using zfs cli commands.
  * Derived drivers only need to implement:
@@ -201,7 +203,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       case "filesystem":
         return ["nfs", "cifs"];
       case "volume":
-        return ["ext3", "ext4", "ext4dev", "xfs"];
+        return ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
     }
   }
 
@@ -413,6 +415,14 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     let kernel;
     let kernel_release;
 
+    const cachedValue = await driver.ctx.cache.get(
+      MAX_ZVOL_NAME_LENGTH_CACHE_KEY
+    );
+
+    if (cachedValue) {
+      return cachedValue;
+    }
+
     // get kernel
     command = "uname -s";
     driver.ctx.logger.verbose("uname command: %s", command);
@@ -423,12 +433,14 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       kernel = response.stdout.trim();
     }
 
+    let max;
     switch (kernel.toLowerCase().trim()) {
       // Linux is 255 (probably larger 4096) but scst may have a 255 limit
       // https://ngelinux.com/what-is-the-maximum-file-name-length-in-linux-and-how-to-see-this-is-this-really-255-characters-answer-is-no/
       // https://github.com/dmeister/scst/blob/master/iscsi-scst/include/iscsi_scst.h#L28
       case "linux":
-        return 255;
+        max = 255;
+        break;
       case "freebsd":
         // get kernel_release
         command = "uname -r";
@@ -444,14 +456,20 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           let kernel_release_major = parts[0];
 
           if (kernel_release_major >= 13) {
-            return 255;
+            max = 255;
           } else {
-            return 63;
+            max = 63;
           }
         }
+        break;
       default:
         throw new Error(`unknown kernel: ${kernel}`);
     }
+
+    await driver.ctx.cache.set(MAX_ZVOL_NAME_LENGTH_CACHE_KEY, max, {
+      ttl: 60 * 1000,
+    });
+    return max;
   }
 
   async setFilesystemMode(path, mode) {

@@ -2,6 +2,8 @@
 
 const yaml = require("js-yaml");
 const fs = require("fs");
+const { grpc } = require("../src/utils/grpc");
+const { stringify } = require("../src/utils/general");
 
 let options;
 const args = require("yargs")
@@ -78,8 +80,6 @@ if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
 const package = require("../package.json");
 args.version = package.version;
 
-//const grpc = require("grpc");
-const grpc = require("grpc-uds");
 const protoLoader = require("@grpc/proto-loader");
 const LRU = require("lru-cache");
 const cache = new LRU({ max: 500 });
@@ -91,7 +91,7 @@ if (args.logLevel) {
   logger.level = args.logLevel;
 }
 
-const csiVersion = process.env.CSI_VERSION || args.csiVersion || "1.2.0";
+const csiVersion = process.env.CSI_VERSION || args.csiVersion || "1.5.0";
 const PROTO_PATH = __dirname + "/../csi_proto/csi-v" + csiVersion + ".proto";
 
 // Suggested options for similarity to existing grpc.load behavior
@@ -128,7 +128,7 @@ try {
 let operationLock = new Set();
 
 async function requestHandlerProxy(call, callback, serviceMethodName) {
-  const cleansedCall = JSON.parse(JSON.stringify(call));
+  const cleansedCall = JSON.parse(stringify(call));
   for (const key in cleansedCall.request) {
     if (key.includes("secret")) {
       cleansedCall.request[key] = "redacted";
@@ -335,27 +335,71 @@ logger.info(
   bindSocket
 );
 
-if (bindAddress) {
-  csiServer.bind(bindAddress, grpc.ServerCredentials.createInsecure());
-}
-
-if (bindSocket) {
-  csiServer.bind(bindSocket, grpc.ServerCredentials.createInsecure());
-}
-
-csiServer.start();
-
 [`SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`].forEach(
   (eventType) => {
     process.on(eventType, (code) => {
       console.log(`running server shutdown, exit code: ${code}`);
-      let socketPath = args.serverSocket || "";
+      let socketPath = bindSocket;
       socketPath = socketPath.replace(/^unix:\/\//g, "");
       if (socketPath && fs.existsSync(socketPath)) {
-        fs.unlinkSync(socketPath);
+        let fsStat = fs.statSync(socketPath);
+        if (fsStat.isSocket()) {
+          fs.unlinkSync(socketPath);
+        }
       }
 
       process.exit(code);
     });
   }
 );
+
+if (require.main === module) {
+  (async function () {
+    try {
+      if (bindAddress) {
+        await new Promise((resolve, reject) => {
+          csiServer.bindAsync(
+            bindAddress,
+            grpc.ServerCredentials.createInsecure(),
+            (err) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              resolve();
+            }
+          );
+        });
+      }
+
+      if (bindSocket) {
+        let socketPath = bindSocket;
+        socketPath = socketPath.replace(/^unix:\/\//g, "");
+        if (socketPath && fs.existsSync(socketPath)) {
+          let fsStat = fs.statSync(socketPath);
+          if (fsStat.isSocket()) {
+            fs.unlinkSync(socketPath);
+          }
+        }
+
+        await new Promise((resolve, reject) => {
+          csiServer.bindAsync(
+            bindSocket,
+            grpc.ServerCredentials.createInsecure(),
+            (err) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              resolve();
+            }
+          );
+        });
+      }
+      csiServer.start();
+    } catch (e) {
+      console.log(e);
+      process.exit(1);
+    }
+  })();
+}

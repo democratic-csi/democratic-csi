@@ -254,6 +254,7 @@ jobs:
           chmod a+x ~/.docker/cli-plugins/docker-buildx
           docker info
           docker buildx version
+          docker buildx ls
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
           docker buildx create --name xbuilder --use
           docker buildx inspect --bootstrap
@@ -265,4 +266,4 @@ jobs:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
           DOCKER_CLI_EXPERIMENTAL: enabled
-          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7
+          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le

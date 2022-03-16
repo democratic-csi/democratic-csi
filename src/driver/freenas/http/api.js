@@ -208,11 +208,9 @@ class Api {
   }
 
   async setVersionInfoCache(versionInfo) {
-    await this.cache.set(
-      FREENAS_SYSTEM_VERSION_CACHE_KEY,
-      versionInfo,
-      60 * 1000
-    );
+    await this.cache.set(FREENAS_SYSTEM_VERSION_CACHE_KEY, versionInfo, {
+      ttl: 60 * 1000,
+    });
   }
 
   async getSystemVersion() {

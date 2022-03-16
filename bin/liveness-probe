@@ -1,9 +1,7 @@
 #!/usr/bin/env -S node --nouse-idle-notification --expose-gc
 
-const yaml = require("js-yaml");
-const fs = require("fs");
+const { grpc } = require("../src/utils/grpc");
 
-let options;
 const args = require("yargs")
   .env("DEMOCRATIC_CSI_LIVENESS_PROBE")
   .scriptName("liveness-probe")
@@ -33,10 +31,8 @@ const args = require("yargs")
 const package = require("../package.json");
 args.version = package.version;
 
-//const grpc = require("grpc");
-const grpc = require("grpc-uds");
 const protoLoader = require("@grpc/proto-loader");
-const csiVersion = process.env.CSI_VERSION || args.csiVersion || "1.2.0";
+const csiVersion = process.env.CSI_VERSION || args.csiVersion || "1.5.0";
 const PROTO_PATH = __dirname + "/../csi_proto/csi-v" + csiVersion + ".proto";
 
 // Suggested options for similarity to existing grpc.load behavior
@@ -51,8 +47,18 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 const csi = protoDescriptor.csi.v1;
 
+let csiAddress = args.csiAddress;
+const tcpRegex = /[^\:]+:[0-9]*$/;
+
+if (
+  !tcpRegex.test(csiAddress) &&
+  !csiAddress.toLowerCase().startsWith("unix://")
+) {
+  csiAddress = "unix://" + csiAddress;
+}
+
 const clientIdentity = new csi.Identity(
-  args.csiAddress,
+  csiAddress,
   grpc.credentials.createInsecure()
 );
 

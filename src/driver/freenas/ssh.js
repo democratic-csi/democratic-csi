@@ -4,6 +4,7 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const SshClient = require("../../utils/ssh").SshClient;
 const HttpClient = require("./http").Client;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
+const sleep = require("../../utils/general").sleep;
 
 const Handlebars = require("handlebars");
 
@@ -1572,7 +1573,30 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 }
 
                 if (deleteAsset) {
+                  let retries = 0;
+                  let maxRetries = 5;
+                  let retryWait = 1000;
                   response = await httpClient.delete(endpoint);
+
+                  // sometimes after an initiator has detached it takes a moment for TrueNAS to settle
+                  // code: 422 body: {\"message\":\"Target csi-ci-55877e95sanity-node-expand-volume-e54f81fa-cd38e798 is in use.\",\"errno\":14}
+                  while (
+                    response.statusCode == 422 &&
+                    retries < maxRetries &&
+                    _.get(response, "body.message").includes("Target") &&
+                    _.get(response, "body.message").includes("is in use") &&
+                    _.get(response, "body.errno") == 14
+                  ) {
+                    retries++;
+                    this.ctx.logger.debug(
+                      "target: %s is in use, retry %s shortly",
+                      targetId,
+                      retries
+                    );
+                    await sleep(retryWait);
+                    response = await httpClient.delete(endpoint);
+                  }
+
                   if (![200, 204].includes(response.statusCode)) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
@@ -2011,11 +2035,9 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   async setVersionInfoCache(versionInfo) {
     const driver = this;
 
-    await driver.ctx.cache.set(
-      FREENAS_SYSTEM_VERSION_CACHE_KEY,
-      versionInfo,
-      60 * 1000
-    );
+    await driver.ctx.cache.set(FREENAS_SYSTEM_VERSION_CACHE_KEY, versionInfo, {
+      ttl: 60 * 1000,
+    });
   }
 
   async getSystemVersion() {
