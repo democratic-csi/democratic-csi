@@ -1,3 +1,11 @@
+# v1.6.1
+
+Released 2022-03-23
+
+- include `rsync` binary in docker image (see #166)
+- minor improvements to logging
+- bump deps
+
 # v1.6.0
 
 Released 2022-03-16

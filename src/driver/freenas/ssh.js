@@ -4,7 +4,7 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const SshClient = require("../../utils/ssh").SshClient;
 const HttpClient = require("./http").Client;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
-const sleep = require("../../utils/general").sleep;
+const { sleep, stringify } = require("../../utils/general");
 
 const Handlebars = require("handlebars");
 
@@ -2109,7 +2109,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     // likely bad creds/url
     throw new GrpcError(
       grpc.status.UNKNOWN,
-      `FreeNAS error getting system version info: ${JSON.stringify({
+      `FreeNAS error getting system version info: ${stringify({
         errors: versionErrors,
         responses: versionResponses,
       })}`

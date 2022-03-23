@@ -1,4 +1,4 @@
-const { sleep } = require("../../../utils/general");
+const { sleep, stringify } = require("../../../utils/general");
 const { Zetabyte } = require("../../../utils/zfs");
 
 // used for in-memory cache of the version info
@@ -279,7 +279,7 @@ class Api {
     // likely bad creds/url
     throw new GrpcError(
       grpc.status.UNKNOWN,
-      `FreeNAS error getting system version info: ${JSON.stringify({
+      `FreeNAS error getting system version info: ${stringify({
         errors: versionErrors,
         responses: versionResponses,
       })}`
