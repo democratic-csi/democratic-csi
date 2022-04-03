@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --nouse-idle-notification --expose-gc
+#!/usr/bin/env -S node --expose-gc ${NODE_OPTIONS_CSI_1} ${NODE_OPTIONS_CSI_2} ${NODE_OPTIONS_CSI_3} ${NODE_OPTIONS_CSI_4} ${NODE_OPTIONS_CSI_5}
 
 const yaml = require("js-yaml");
 const fs = require("fs");
@@ -352,6 +352,31 @@ logger.info(
     });
   }
 );
+
+if (process.env.LOG_MEMORY_USAGE == "1") {
+  setInterval(() => {
+    console.log("logging memory usages due to LOG_MEMORY_USAGE env var");
+    const used = process.memoryUsage();
+    for (let key in used) {
+      console.log(
+        `[${new Date()}] Memory Usage: ${key} ${
+          Math.round((used[key] / 1024 / 1024) * 100) / 100
+        } MB`
+      );
+    }
+  }, process.env.LOG_MEMORY_USAGE_INTERVAL || 5000);
+}
+
+if (process.env.MANUAL_GC == "1") {
+  setInterval(() => {
+    console.log("gc invoked due to MANUAL_GC env var");
+    try {
+      if (global.gc) {
+        global.gc();
+      }
+    } catch (e) {}
+  }, process.env.MANUAL_GC_INTERVAL || 60000);
+}
 
 if (require.main === module) {
   (async function () {
