@@ -115,7 +115,7 @@ try {
     options
   );
 } catch (err) {
-  logger.error(err.toString());
+  logger.error(`${err.toString()} ${err.stack}`);
   process.exit(1);
 }
 

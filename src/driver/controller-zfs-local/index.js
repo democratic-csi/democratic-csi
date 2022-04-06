@@ -35,17 +35,17 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
       return new LocalCliExecClient({
         logger: this.ctx.logger,
       });
-    })
+    });
   }
 
   async getZetabyte() {
-    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
       const execClient = this.getExecClient();
 
       const options = {};
       options.executor = execClient;
       options.idempotent = true;
-  
+
       /*
       if (
         this.options.zfs.hasOwnProperty("cli") &&
@@ -55,7 +55,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
         options.paths = this.options.zfs.cli.paths;
       }
       */
-  
+
       // use env based paths to allow for custom wrapper scripts to chroot to the host
       options.paths = {
         zfs: "zfs",
@@ -63,13 +63,13 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
         sudo: "sudo",
         chroot: "chroot",
       };
-  
+
       options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-  
+
       if (typeof this.setZetabyteCustomOptions === "function") {
         await this.setZetabyteCustomOptions(options);
       }
-  
+
       return new Zetabyte(options);
     });
   }

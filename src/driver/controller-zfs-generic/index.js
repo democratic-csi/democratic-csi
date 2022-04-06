@@ -21,7 +21,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   }
 
   async getZetabyte() {
-    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
       const execClient = this.getExecClient();
       const options = {};
       options.executor = new ZfsSshProcessManager(execClient);

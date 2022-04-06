@@ -36,12 +36,12 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async getZetabyte() {
-    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
       const sshClient = this.getExecClient();
       const options = {};
       options.executor = new ZfsSshProcessManager(sshClient);
       options.idempotent = true;
-  
+
       if (
         this.options.zfs.hasOwnProperty("cli") &&
         this.options.zfs.cli &&
@@ -49,13 +49,13 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       ) {
         options.paths = this.options.zfs.cli.paths;
       }
-  
+
       options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-  
+
       if (typeof this.setZetabyteCustomOptions === "function") {
         await this.setZetabyteCustomOptions(options);
       }
-  
+
       return new Zetabyte(options);
     });
   }
@@ -95,19 +95,21 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async getHttpClient(autoDetectVersion = true) {
-    const autodetectkey = autoDetectVersion === true ? 1 : 0
-    return registry.get(`${__REGISTRY_NS__}:http_client:autoDetectVersion_${autodetectkey}`, () => {
-      const client = new HttpClient(this.options.httpConnection);
-      client.logger = this.ctx.logger;
-  
-      if (autoDetectVersion && !!!this.options.httpConnection.apiVersion) {
-        const apiVersion = await this.getApiVersion();
-        client.setApiVersion(apiVersion);
+    const autodetectkey = autoDetectVersion === true ? 1 : 0;
+    return registry.getAsync(
+      `${__REGISTRY_NS__}:http_client:autoDetectVersion_${autodetectkey}`,
+      async () => {
+        const client = new HttpClient(this.options.httpConnection);
+        client.logger = this.ctx.logger;
+
+        if (autoDetectVersion && !!!this.options.httpConnection.apiVersion) {
+          const apiVersion = await this.getApiVersion();
+          client.setApiVersion(apiVersion);
+        }
+
+        return client;
       }
-  
-      return client;
-    });
-    
+    );
   }
 
   getDriverShareType() {

@@ -1909,7 +1909,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getTrueNASHttpApiClient() {
-    return registry.get(`${__REGISTRY_NS__}:api_client`, () => {
+    return registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
       const httpClient = await this.getHttpClient();
       return new TrueNASApiClient(httpClient, this.ctx.cache);
     });
