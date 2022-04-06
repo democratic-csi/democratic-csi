@@ -26,7 +26,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       const options = {};
       options.executor = new ZfsSshProcessManager(execClient);
       options.idempotent = true;
-  
+
       if (
         this.options.zfs.hasOwnProperty("cli") &&
         this.options.zfs.cli &&
@@ -34,13 +34,13 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       ) {
         options.paths = this.options.zfs.cli.paths;
       }
-  
+
       options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-  
+
       if (typeof this.setZetabyteCustomOptions === "function") {
         await this.setZetabyteCustomOptions(options);
       }
-  
+
       return new Zetabyte(options);
     });
   }
@@ -406,7 +406,7 @@ delete ${iscsiName}
       options
     );
     if (response.code != 0) {
-      throw new Error(response.stderr);
+      throw new Error(JSON.stringify(response));
     }
     driver.ctx.logger.verbose(
       "TargetCLI response: " + JSON.stringify(response)

@@ -194,6 +194,9 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
     let message;
     if (e instanceof Error) {
       message = e.toString();
+      if (e.stack) {
+        message += ` ${e.stack}`;
+      }
     } else {
       message = JSON.stringify(e);
     }
