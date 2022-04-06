@@ -2,11 +2,13 @@ const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const LocalCliExecClient = require("./exec").LocalCliClient;
-const os = require("os");
+const registry = require("../../utils/registry");
 const { Zetabyte } = require("../../utils/zfs");
 
 const ZFS_ASSET_NAME_PROPERTY_NAME = "zfs_asset_name";
 const NODE_TOPOLOGY_KEY_NAME = "org.democratic-csi.topology/node";
+
+const __REGISTRY_NS__ = "ControllerZfsLocalDriver";
 
 class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
   constructor(ctx, options) {
@@ -29,43 +31,47 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
   }
 
   getExecClient() {
-    return new LocalCliExecClient({
-      logger: this.ctx.logger,
-    });
+    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+      return new LocalCliExecClient({
+        logger: this.ctx.logger,
+      });
+    })
   }
 
   async getZetabyte() {
-    const execClient = this.getExecClient();
+    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+      const execClient = this.getExecClient();
 
-    const options = {};
-    options.executor = execClient;
-    options.idempotent = true;
-
-    /*
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("paths")
-    ) {
-      options.paths = this.options.zfs.cli.paths;
-    }
-    */
-
-    // use env based paths to allow for custom wrapper scripts to chroot to the host
-    options.paths = {
-      zfs: "zfs",
-      zpool: "zpool",
-      sudo: "sudo",
-      chroot: "chroot",
-    };
-
-    options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-
-    if (typeof this.setZetabyteCustomOptions === "function") {
-      await this.setZetabyteCustomOptions(options);
-    }
-
-    return new Zetabyte(options);
+      const options = {};
+      options.executor = execClient;
+      options.idempotent = true;
+  
+      /*
+      if (
+        this.options.zfs.hasOwnProperty("cli") &&
+        this.options.zfs.cli &&
+        this.options.zfs.cli.hasOwnProperty("paths")
+      ) {
+        options.paths = this.options.zfs.cli.paths;
+      }
+      */
+  
+      // use env based paths to allow for custom wrapper scripts to chroot to the host
+      options.paths = {
+        zfs: "zfs",
+        zpool: "zpool",
+        sudo: "sudo",
+        chroot: "chroot",
+      };
+  
+      options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
+  
+      if (typeof this.setZetabyteCustomOptions === "function") {
+        await this.setZetabyteCustomOptions(options);
+      }
+  
+      return new Zetabyte(options);
+    });
   }
 
   /**

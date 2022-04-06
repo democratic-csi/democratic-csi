@@ -1,8 +1,10 @@
+const registry = require("../../../utils/registry");
 const { sleep, stringify } = require("../../../utils/general");
 const { Zetabyte } = require("../../../utils/zfs");
 
 // used for in-memory cache of the version info
 const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
+const __REGISTRY_NS__ = "FreeNASHttpApi";
 
 class Api {
   constructor(client, cache, options = {}) {
@@ -20,14 +22,16 @@ class Api {
    * @returns
    */
   async getZetabyte() {
-    return new Zetabyte({
-      executor: {
-        spawn: function () {
-          throw new Error(
-            "cannot use the zb implementation to execute zfs commands, must use the http api"
-          );
+    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+      return new Zetabyte({
+        executor: {
+          spawn: function () {
+            throw new Error(
+              "cannot use the zb implementation to execute zfs commands, must use the http api"
+            );
+          },
         },
-      },
+      });
     });
   }
 

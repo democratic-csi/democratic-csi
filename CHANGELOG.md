@@ -1,3 +1,10 @@
+# v1.6.2
+
+Released 2022-04-06
+
+- dep bumps
+- optimize via object instance reuse of various clients etc
+
 # v1.6.1
 
 Released 2022-03-23

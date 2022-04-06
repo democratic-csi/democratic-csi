@@ -1,3 +1,5 @@
+const os = require("os");
+
 /**
  * Levels
  *
@@ -27,7 +29,7 @@ let formatters;
 let defaultMeta;
 if (env == "production") {
   formatters = [winston.format.json()];
-  defaultMeta = { service: "democratic-csi" };
+  defaultMeta = { service: "democratic-csi", host: os.hostname() };
 } else {
   formatters = [winston.format.colorize(), winston.format.simple()];
   defaultMeta = {};
@@ -36,6 +38,7 @@ if (env == "production") {
 const logger = winston.createLogger({
   level: level,
   format: winston.format.combine(
+    winston.format.timestamp(),
     winston.format.errors({ stack: true }),
     winston.format.splat(),
     ...formatters
@@ -43,9 +46,9 @@ const logger = winston.createLogger({
   defaultMeta: defaultMeta,
   transports: [
     new winston.transports.Console({
-      handleExceptions: true
-    })
-  ]
+      handleExceptions: true,
+    }),
+  ],
 });
 
 /**
@@ -102,9 +105,9 @@ var shim = bunyan.createLogger({
     {
       type: "raw",
       level: "trace",
-      stream: new Bunyan2Winston(logger)
-    }
-  ]
+      stream: new Bunyan2Winston(logger),
+    },
+  ],
 });
 
 logger.bunyan = shim;
@@ -112,5 +115,5 @@ logger.bunyan = shim;
 //global.console = logger;
 
 module.exports = {
-  logger: logger
+  logger: logger,
 };

@@ -1,6 +1,7 @@
 const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const registry = require("../../utils/registry");
 const SshClient = require("../../utils/ssh").SshClient;
 const HttpClient = require("./http").Client;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
@@ -22,35 +23,41 @@ const FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME =
 
 // used for in-memory cache of the version info
 const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
+const __REGISTRY_NS__ = "FreeNASSshDriver";
+
 class FreeNASSshDriver extends ControllerZfsBaseDriver {
   getExecClient() {
-    return new SshClient({
-      logger: this.ctx.logger,
-      connection: this.options.sshConnection,
+    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+      return new SshClient({
+        logger: this.ctx.logger,
+        connection: this.options.sshConnection,
+      });
     });
   }
 
   async getZetabyte() {
-    const sshClient = this.getExecClient();
-    const options = {};
-    options.executor = new ZfsSshProcessManager(sshClient);
-    options.idempotent = true;
-
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("paths")
-    ) {
-      options.paths = this.options.zfs.cli.paths;
-    }
-
-    options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-
-    if (typeof this.setZetabyteCustomOptions === "function") {
-      await this.setZetabyteCustomOptions(options);
-    }
-
-    return new Zetabyte(options);
+    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+      const sshClient = this.getExecClient();
+      const options = {};
+      options.executor = new ZfsSshProcessManager(sshClient);
+      options.idempotent = true;
+  
+      if (
+        this.options.zfs.hasOwnProperty("cli") &&
+        this.options.zfs.cli &&
+        this.options.zfs.cli.hasOwnProperty("paths")
+      ) {
+        options.paths = this.options.zfs.cli.paths;
+      }
+  
+      options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
+  
+      if (typeof this.setZetabyteCustomOptions === "function") {
+        await this.setZetabyteCustomOptions(options);
+      }
+  
+      return new Zetabyte(options);
+    });
   }
 
   /**
@@ -88,15 +95,19 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async getHttpClient(autoDetectVersion = true) {
-    const client = new HttpClient(this.options.httpConnection);
-    client.logger = this.ctx.logger;
-
-    if (autoDetectVersion && !!!this.options.httpConnection.apiVersion) {
-      const apiVersion = await this.getApiVersion();
-      client.setApiVersion(apiVersion);
-    }
-
-    return client;
+    const autodetectkey = autoDetectVersion === true ? 1 : 0
+    return registry.get(`${__REGISTRY_NS__}:http_client:autoDetectVersion_${autodetectkey}`, () => {
+      const client = new HttpClient(this.options.httpConnection);
+      client.logger = this.ctx.logger;
+  
+      if (autoDetectVersion && !!!this.options.httpConnection.apiVersion) {
+        const apiVersion = await this.getApiVersion();
+        client.setApiVersion(apiVersion);
+      }
+  
+      return client;
+    });
+    
   }
 
   getDriverShareType() {

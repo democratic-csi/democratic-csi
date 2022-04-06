@@ -1,6 +1,7 @@
 const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const registry = require("../../utils/registry");
 const SshClient = require("../../utils/ssh").SshClient;
 const sleep = require("../../utils/general").sleep;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
@@ -8,36 +9,40 @@ const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 const Handlebars = require("handlebars");
 
 const ISCSI_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:iscsi_assets_name";
-
+const __REGISTRY_NS__ = "ControllerZfsGenericDriver";
 class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getExecClient() {
-    return new SshClient({
-      logger: this.ctx.logger,
-      connection: this.options.sshConnection,
+    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+      return new SshClient({
+        logger: this.ctx.logger,
+        connection: this.options.sshConnection,
+      });
     });
   }
 
   async getZetabyte() {
-    const execClient = this.getExecClient();
-    const options = {};
-    options.executor = new ZfsSshProcessManager(execClient);
-    options.idempotent = true;
-
-    if (
-      this.options.zfs.hasOwnProperty("cli") &&
-      this.options.zfs.cli &&
-      this.options.zfs.cli.hasOwnProperty("paths")
-    ) {
-      options.paths = this.options.zfs.cli.paths;
-    }
-
-    options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-
-    if (typeof this.setZetabyteCustomOptions === "function") {
-      await this.setZetabyteCustomOptions(options);
-    }
-
-    return new Zetabyte(options);
+    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+      const execClient = this.getExecClient();
+      const options = {};
+      options.executor = new ZfsSshProcessManager(execClient);
+      options.idempotent = true;
+  
+      if (
+        this.options.zfs.hasOwnProperty("cli") &&
+        this.options.zfs.cli &&
+        this.options.zfs.cli.hasOwnProperty("paths")
+      ) {
+        options.paths = this.options.zfs.cli.paths;
+      }
+  
+      options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
+  
+      if (typeof this.setZetabyteCustomOptions === "function") {
+        await this.setZetabyteCustomOptions(options);
+      }
+  
+      return new Zetabyte(options);
+    });
   }
 
   /**
@@ -362,7 +367,9 @@ delete ${iscsiName}
     taregetCliCommand.push("|");
     taregetCliCommand.push("targetcli");
 
-    if (_.get(this.options, "iscsi.shareStrategyTargetCli.sudoEnabled", false)) {
+    if (
+      _.get(this.options, "iscsi.shareStrategyTargetCli.sudoEnabled", false)
+    ) {
       command = "sudo";
       args.unshift("sh");
     }

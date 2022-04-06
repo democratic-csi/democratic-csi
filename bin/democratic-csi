@@ -134,6 +134,7 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       cleansedCall.request[key] = "redacted";
     }
   }
+
   try {
     logger.info(
       "new request - driver: %s method: %s call: %j",
@@ -337,17 +338,38 @@ logger.info(
 
 [`SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`].forEach(
   (eventType) => {
-    process.on(eventType, (code) => {
+    process.on(eventType, async (code) => {
       console.log(`running server shutdown, exit code: ${code}`);
+
+      // attempt clean shutdown of in-flight requests
+      try {
+        await new Promise((resolve, reject) => {
+          try {
+            csiServer.tryShutdown(() => {
+              resolve();
+            });
+          } catch (e) {
+            reject(e);
+          }
+        });
+
+        console.log(`grpc server gracefully closed all connections`);
+      } catch (e) {
+        console.log("failed to cleanly shutdown grpc server", e);
+      }
+
+      // NOTE: if the shutdown above finishes cleanly the socket will already be removed
       let socketPath = bindSocket;
       socketPath = socketPath.replace(/^unix:\/\//g, "");
       if (socketPath && fs.existsSync(socketPath)) {
         let fsStat = fs.statSync(socketPath);
         if (fsStat.isSocket()) {
           fs.unlinkSync(socketPath);
+          console.log(`removed grpc socket ${socketPath}`);
         }
       }
 
+      console.log("server fully shutdown, exiting");
       process.exit(code);
     });
   }
@@ -376,6 +398,15 @@ if (process.env.MANUAL_GC == "1") {
       }
     } catch (e) {}
   }, process.env.MANUAL_GC_INTERVAL || 60000);
+}
+
+if (process.env.LOG_GRPC_SESSIONS == "1") {
+  setInterval(() => {
+    console.log("dumping sessions");
+    try {
+      console.log(csiServer.sessions);
+    } catch (e) {}
+  }, 5000);
 }
 
 if (require.main === module) {
@@ -420,6 +451,8 @@ if (require.main === module) {
             }
           );
         });
+
+        fs.chmodSync(socketPath, 0o666);
       }
       csiServer.start();
     } catch (e) {
