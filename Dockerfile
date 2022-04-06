@@ -12,8 +12,7 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
         && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
 ENV LANG=en_US.utf8
-#ENV NODE_VERSION=v12.22.6
-ENV NODE_VERSION=v16.14.0
+ENV NODE_VERSION=v16.14.2
 ENV NODE_ENV=production
 
 # install build deps
