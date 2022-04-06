@@ -610,17 +610,17 @@ class Filesystem {
     const filesystem = this;
     args = args || [];
 
-    let stdout = "";
-    let stderr = "";
-
     if (filesystem.options.sudo) {
       args.unshift(command);
       command = filesystem.options.paths.sudo;
     }
     console.log("executing filesystem command: %s %s", command, args.join(" "));
-    const child = filesystem.options.executor.spawn(command, args, options);
-
+    
     return new Promise((resolve, reject) => {
+      const child = filesystem.options.executor.spawn(command, args, options);
+      let stdout = "";
+      let stderr = "";
+  
       child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });

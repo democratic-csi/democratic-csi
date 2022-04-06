@@ -77,9 +77,6 @@ class OneClient {
     const oneclient = this;
     args = args || [];
 
-    let stdout = "";
-    let stderr = "";
-
     if (oneclient.options.sudo) {
       args.unshift(command);
       command = oneclient.options.paths.sudo;
@@ -93,9 +90,13 @@ class OneClient {
     );
 
     console.log("executing oneclient command: %s", cleansedLog);
-    const child = oneclient.options.executor.spawn(command, args, options);
 
     return new Promise((resolve, reject) => {
+      const child = oneclient.options.executor.spawn(command, args, options);
+
+      let stdout = "";
+      let stderr = "";
+
       child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });

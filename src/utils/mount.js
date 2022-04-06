@@ -2,7 +2,7 @@ const cp = require("child_process");
 const { Filesystem } = require("../utils/filesystem");
 
 // avoid using avail,size,used as it causes hangs when the fs is stale
-FINDMNT_COMMON_OPTIONS = [
+const FINDMNT_COMMON_OPTIONS = [
   "--output",
   "source,target,fstype,label,options",
   "-b",
@@ -43,6 +43,14 @@ class Mount {
         spawn: cp.spawn,
       };
     }
+
+    if (!options.filesystem) {
+      options.filesystem = new Filesystem();
+    }
+  }
+
+  async getFilesystemInstance() {
+    return this.options.filesystem;
   }
 
   /**
@@ -51,12 +59,12 @@ class Mount {
    * @param {*} device
    */
   async deviceIsMounted(device) {
-    const filesystem = new Filesystem();
+    const mount = this;
+    const filesystem = await mount.getFilesystemInstance();
     if (device.startsWith("/")) {
       device = await filesystem.realpath(device);
     }
 
-    const mount = this;
     let args = [];
     args = args.concat(["--source", device]);
     args = args.concat(FINDMNT_COMMON_OPTIONS);
@@ -114,12 +122,12 @@ class Mount {
    * @param {*} device
    */
   async deviceIsMountedAtPath(device, path) {
-    const filesystem = new Filesystem();
+    const mount = this;
+    const filesystem = await mount.getFilesystemInstance();
     if (device.startsWith("/") && !device.startsWith("//")) {
       device = await filesystem.realpath(device);
     }
 
-    const mount = this;
     let args = [];
     args = args.concat(["--source", device]);
     args = args.concat(["--mountpoint", path]);
@@ -282,8 +290,8 @@ class Mount {
    * @param {*} path
    */
   async isBindMountedBlockDevice(path) {
-    const filesystem = new Filesystem();
     const mount = this;
+    const filesystem = await mount.getFilesystemInstance();
 
     const is_mounted = await mount.pathIsMounted(path);
     if (!is_mounted) {
@@ -385,9 +393,6 @@ class Mount {
     const mount = this;
     args = args || [];
 
-    let stdout = "";
-    let stderr = "";
-
     if (mount.options.sudo) {
       args.unshift(command);
       command = mount.options.paths.sudo;
@@ -402,9 +407,13 @@ class Mount {
     );
 
     console.log("executing mount command: %s", cleansedLog);
-    const child = mount.options.executor.spawn(command, args, options);
 
     return new Promise((resolve, reject) => {
+      const child = mount.options.executor.spawn(command, args, options);
+
+      let stdout = "";
+      let stderr = "";
+
       child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });

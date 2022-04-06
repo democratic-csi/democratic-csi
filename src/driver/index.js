@@ -7,9 +7,12 @@ const { Mount } = require("../utils/mount");
 const { OneClient } = require("../utils/oneclient");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
+const registry = require("../utils/registry");
 const semver = require("semver");
 const sleep = require("../utils/general").sleep;
 const { Zetabyte } = require("../utils/zfs");
+
+const __REGISTRY_NS__ = "CsiBaseDriver";
 
 /**
  * common code shared between all drivers
@@ -91,6 +94,71 @@ class CsiBaseDriver {
     }
 
     return normalized;
+  }
+
+  /**
+   * Get an instance of the Filesystem class
+   *
+   * @returns Filesystem
+   */
+  getDefaultFilesystemInstance() {
+    return registry.get(
+      `${__REGISTRY_NS__}:default_filesystem_instance`,
+      () => {
+        return new Filesystem();
+      }
+    );
+  }
+
+  /**
+   * Get an instance of the Mount class
+   *
+   * @returns Mount
+   */
+  getDefaultMountInstance() {
+    return registry.get(`${__REGISTRY_NS__}:default_mount_instance`, () => {
+      const filesystem = this.getDefaultFilesystemInstance();
+      return new Mount({ filesystem });
+    });
+  }
+
+  /**
+   * Get an instance of the ISCSI class
+   *
+   * @returns ISCSI
+   */
+  getDefaultISCSIInstance() {
+    return registry.get(`${__REGISTRY_NS__}:default_iscsi_instance`, () => {
+      return new ISCSI();
+    });
+  }
+
+  getDefaultZetabyteInstance() {
+    return registry.get(`${__REGISTRY_NS__}:default_zb_instance`, () => {
+      return new Zetabyte({
+        idempotent: true,
+        paths: {
+          zfs: "zfs",
+          zpool: "zpool",
+          sudo: "sudo",
+          chroot: "chroot",
+        },
+        //logger: driver.ctx.logger,
+        executor: {
+          spawn: function () {
+            const command = `${arguments[0]} ${arguments[1].join(" ")}`;
+            return cp.exec(command);
+          },
+        },
+        log_commands: true,
+      });
+    });
+  }
+
+  getDefaultOneClientInstance() {
+    return registry.get(`${__REGISTRY_NS__}:default_oneclient_instance`, () => {
+      return new OneClient();
+    });
   }
 
   async GetPluginInfo(call) {
@@ -276,9 +344,9 @@ class CsiBaseDriver {
    */
   async NodeStageVolume(call) {
     const driver = this;
-    const mount = new Mount();
-    const filesystem = new Filesystem();
-    const iscsi = new ISCSI();
+    const mount = driver.getDefaultMountInstance();
+    const filesystem = driver.getDefaultFilesystemInstance();
+    const iscsi = driver.getDefaultISCSIInstance();
     let result;
     let device;
 
@@ -590,7 +658,7 @@ class CsiBaseDriver {
 
         break;
       case "oneclient":
-        let oneclient = new OneClient();
+        let oneclient = driver.getDefaultOneClientInstance();
         device = "oneclient";
         result = await mount.deviceIsMountedAtPath(device, staging_target_path);
         if (result) {
@@ -634,23 +702,7 @@ class CsiBaseDriver {
         break;
       case "zfs-local":
         // TODO: make this a geneic zb instance (to ensure works with node-manual driver)
-        const zb = new Zetabyte({
-          idempotent: true,
-          paths: {
-            zfs: "zfs",
-            zpool: "zpool",
-            sudo: "sudo",
-            chroot: "chroot",
-          },
-          //logger: driver.ctx.logger,
-          executor: {
-            spawn: function () {
-              const command = `${arguments[0]} ${arguments[1].join(" ")}`;
-              return cp.exec(command);
-            },
-          },
-          log_commands: true,
-        });
+        const zb = driver.getDefaultZetabyteInstance();
         result = await zb.zfs.get(`${volume_context.zfs_asset_name}`, [
           "type",
           "mountpoint",
@@ -861,9 +913,9 @@ class CsiBaseDriver {
    */
   async NodeUnstageVolume(call) {
     const driver = this;
-    const mount = new Mount();
-    const filesystem = new Filesystem();
-    const iscsi = new ISCSI();
+    const mount = driver.getDefaultMountInstance();
+    const filesystem = driver.getDefaultFilesystemInstance();
+    const iscsi = driver.getDefaultISCSIInstance();
     let result;
     let is_block = false;
     let is_device_mapper = false;
@@ -1081,8 +1133,8 @@ class CsiBaseDriver {
 
   async NodePublishVolume(call) {
     const driver = this;
-    const mount = new Mount();
-    const filesystem = new Filesystem();
+    const mount = driver.getDefaultMountInstance();
+    const filesystem = driver.getDefaultFilesystemInstance();
     let result;
 
     const volume_id = call.request.volume_id;
@@ -1236,8 +1288,8 @@ class CsiBaseDriver {
 
   async NodeUnpublishVolume(call) {
     const driver = this;
-    const mount = new Mount();
-    const filesystem = new Filesystem();
+    const mount = driver.getDefaultMountInstance();
+    const filesystem = driver.getDefaultFilesystemInstance();
     let result;
 
     const volume_id = call.request.volume_id;
@@ -1316,8 +1368,8 @@ class CsiBaseDriver {
 
   async NodeGetVolumeStats(call) {
     const driver = this;
-    const mount = new Mount();
-    const filesystem = new Filesystem();
+    const mount = driver.getDefaultMountInstance();
+    const filesystem = driver.getDefaultFilesystemInstance();
     let result;
     let device_path;
     let access_type;
@@ -1414,8 +1466,9 @@ class CsiBaseDriver {
    * @param {*} call
    */
   async NodeExpandVolume(call) {
-    const mount = new Mount();
-    const filesystem = new Filesystem();
+    const driver = this;
+    const mount = driver.getDefaultMountInstance();
+    const filesystem = driver.getDefaultFilesystemInstance();
     let device;
     let fs_info;
     let device_path;

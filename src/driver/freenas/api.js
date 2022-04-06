@@ -5,6 +5,7 @@ const HttpClient = require("./http").Client;
 const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte } = require("../../utils/zfs");
 const getLargestNumber = require("../../utils/general").getLargestNumber;
+const registry = require("../../utils/registry");
 const sleep = require("../../utils/general").sleep;
 
 const Handlebars = require("handlebars");
@@ -43,6 +44,8 @@ const VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_driver";
 const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_instance_id";
+
+const __REGISTRY_NS__ = "FreeNASApiDriver";
 
 class FreeNASApiDriver extends CsiBaseDriver {
   constructor(ctx, options) {
@@ -154,14 +157,16 @@ class FreeNASApiDriver extends CsiBaseDriver {
    * @returns
    */
   async getZetabyte() {
-    return new Zetabyte({
-      executor: {
-        spawn: function () {
-          throw new Error(
-            "cannot use the zb implementation to execute zfs commands, must use the http api"
-          );
+    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+      return new Zetabyte({
+        executor: {
+          spawn: function () {
+            throw new Error(
+              "cannot use the zb implementation to execute zfs commands, must use the http api"
+            );
+          },
         },
-      },
+      });
     });
   }
 
@@ -1887,11 +1892,12 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getHttpClient() {
-    const client = new HttpClient(this.options.httpConnection);
-    client.logger = this.ctx.logger;
-    client.setApiVersion(2); // requires version 2
-
-    return client;
+    return registry.get(`${__REGISTRY_NS__}:http_client`, () => {
+      const client = new HttpClient(this.options.httpConnection);
+      client.logger = this.ctx.logger;
+      client.setApiVersion(2); // requires version 2
+      return client;
+    });
   }
 
   async getMinimumVolumeSize() {
@@ -1903,11 +1909,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getTrueNASHttpApiClient() {
-    const driver = this;
-    const httpClient = await this.getHttpClient();
-    const apiClient = new TrueNASApiClient(httpClient, driver.ctx.cache);
-
-    return apiClient;
+    return registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
+      const httpClient = await this.getHttpClient();
+      return new TrueNASApiClient(httpClient, this.ctx.cache);
+    });
   }
 
   assertCapabilities(capabilities) {

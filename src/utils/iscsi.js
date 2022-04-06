@@ -523,17 +523,18 @@ class ISCSI {
     const iscsi = this;
     args = args || [];
 
-    let stdout = "";
-    let stderr = "";
-
     if (iscsi.options.sudo) {
       args.unshift(command);
       command = iscsi.options.paths.sudo;
     }
     console.log("executing iscsi command: %s %s", command, args.join(" "));
-    const child = iscsi.options.executor.spawn(command, args, options);
 
     return new Promise((resolve, reject) => {
+      const child = iscsi.options.executor.spawn(command, args, options);
+
+      let stdout = "";
+      let stderr = "";
+
       child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });

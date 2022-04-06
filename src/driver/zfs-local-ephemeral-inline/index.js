@@ -2,6 +2,7 @@ const fs = require("fs");
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const { Filesystem } = require("../../utils/filesystem");
+const registry = require("../../utils/registry");
 const semver = require("semver");
 const SshClient = require("../../utils/ssh").SshClient;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
@@ -14,6 +15,7 @@ const VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_driver";
 const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_instance_id";
+const __REGISTRY_NS__ = "ZfsLocalEphemeralInlineDriver";
 
 /**
  * https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/20190122-csi-inline-volumes.md
@@ -123,27 +125,31 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
   }
 
   getSshClient() {
-    return new SshClient({
-      logger: this.ctx.logger,
-      connection: this.options.sshConnection,
+    return registry.get(`${__REGISTRY_NS__}:ssh_client`, () => {
+      return new SshClient({
+        logger: this.ctx.logger,
+        connection: this.options.sshConnection,
+      });
     });
   }
 
   getZetabyte() {
-    let sshClient;
-    let executor;
-    if (this.options.sshConnection) {
-      sshClient = this.getSshClient();
-      executor = new ZfsSshProcessManager(sshClient);
-    }
-    return new Zetabyte({
-      executor,
-      idempotent: true,
-      chroot: this.options.zfs.chroot,
-      paths: {
-        zpool: "/usr/sbin/zpool",
-        zfs: "/usr/sbin/zfs",
-      },
+    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+      let sshClient;
+      let executor;
+      if (this.options.sshConnection) {
+        sshClient = this.getSshClient();
+        executor = new ZfsSshProcessManager(sshClient);
+      }
+      return new Zetabyte({
+        executor,
+        idempotent: true,
+        chroot: this.options.zfs.chroot,
+        paths: {
+          zpool: "/usr/sbin/zpool",
+          zfs: "/usr/sbin/zfs",
+        },
+      });
     });
   }
 

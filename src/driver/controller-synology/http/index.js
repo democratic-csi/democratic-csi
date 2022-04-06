@@ -3,8 +3,10 @@ const http = require("http");
 const https = require("https");
 const { axios_request, stringify } = require("../../../utils/general");
 const Mutex = require("async-mutex").Mutex;
+const registry = require("../../../utils/registry");
 
 const USER_AGENT = "democratic-csi";
+const __REGISTRY_NS__ = "SynologyHttpClient";
 
 class SynologyHttpClient {
   constructor(options = {}) {
@@ -22,27 +24,23 @@ class SynologyHttpClient {
   }
 
   getHttpAgent() {
-    if (!this.httpAgent) {
-      this.httpAgent = new http.Agent({
+    return registry.get(`${__REGISTRY_NS__}:http_agent`, () => {
+      return new http.Agent({
         keepAlive: true,
         maxSockets: Infinity,
         rejectUnauthorized: !!!this.options.allowInsecure,
       });
-    }
-
-    return this.httpAgent;
+    });
   }
 
   getHttpsAgent() {
-    if (!this.httpsAgent) {
-      this.httpsAgent = new https.Agent({
+    return registry.get(`${__REGISTRY_NS__}:https_agent`, () => {
+      return new https.Agent({
         keepAlive: true,
         maxSockets: Infinity,
         rejectUnauthorized: !!!this.options.allowInsecure,
       });
-    }
-
-    return this.httpsAgent;
+    });
   }
 
   log_response(error, response, body, options) {
