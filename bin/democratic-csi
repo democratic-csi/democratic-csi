@@ -69,6 +69,11 @@ const args = require("yargs")
     describe: "listen socket for the server",
     type: "string",
   })
+  .option("server-socket-permissions-mode", {
+    describe: "permissions on the socket file for the server",
+    type: "string",
+    default: "0600", // os default is 755
+  })
   .version()
   .help().argv;
 
@@ -76,6 +81,8 @@ if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
   console.log("must listen on tcp and/or unix socket");
   process.exit(1);
 }
+
+//console.log(args);
 
 const package = require("../package.json");
 args.version = package.version;
@@ -455,7 +462,7 @@ if (require.main === module) {
           );
         });
 
-        fs.chmodSync(socketPath, 0o666);
+        fs.chmodSync(socketPath, args["server-socket-permissions-mode"]);
       }
       csiServer.start();
     } catch (e) {

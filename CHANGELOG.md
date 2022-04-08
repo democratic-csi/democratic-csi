@@ -1,9 +1,17 @@
+# v1.6.3
+
+Released 2022-04-08
+
+- dep bumps
+- more secure permissions on the socket file
+
 # v1.6.2
 
 Released 2022-04-06
 
 - dep bumps
 - optimize via object instance reuse of various clients etc
+- graceful shutdown of the grpc server
 
 # v1.6.1
 
