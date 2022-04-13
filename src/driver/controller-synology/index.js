@@ -142,6 +142,24 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
   }
 
+  /**
+   * Parses a boolean value (e.g. from the value of a parameter. This recognizes
+   * strings containing boolean literals as well as the numbers 1 and 0.
+   *
+   * @param {String} value - The value to be parsed.
+   * @returns {boolean} The parsed boolean value.
+   */
+  parseBoolean(value) {
+    if (value === undefined) {
+      return undefined;
+    }
+    const parsed = parseInt(value)
+    if (!isNaN(parsed)) {
+      return Boolean(parsed)
+    }
+    return "true".localeCompare(value, undefined, {sensitivity: "accent"}) === 0
+  }
+
   buildIscsiName(name) {
     let iscsiName = name;
     if (this.options.iscsi.namePrefix) {
@@ -153,6 +171,25 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     return iscsiName.toLowerCase();
+  }
+
+  /**
+   * Returns the value for the 'location' parameter indicating on which volume
+   * a LUN is to be created.
+   *
+   * @param {Object} parameters - Parameters received from a StorageClass
+   * @param {String} parameters.volume - The volume specified by the StorageClass
+   * @returns {String} The location of the volume.
+   */
+  getLocation({volume}) {
+    let location = volume ?? this.options?.synology?.volume
+    if (location === undefined) {
+      location = "volume1"
+    }
+    if (!location.startsWith('/')) {
+      location = "/" + location
+    }
+    return location
   }
 
   assertCapabilities(capabilities) {
@@ -310,6 +347,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     let volume_context = {};
+    const normalizedParameters = driver.getNormalizedParameters(call.request.parameters);
     switch (driver.getDriverShareType()) {
       case "nfs":
         // TODO: create volume here
@@ -425,7 +463,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                     `invalid volume_id: ${volume_content_source.volume.volume_id}`
                   );
                 }
-                await httpClient.CreateClonedVolume(src_lun_uuid, iscsiName);
+                await httpClient.CreateClonedVolume(src_lun_uuid, iscsiName, driver.getLocation(normalizedParameters));
               }
               break;
             default:
@@ -446,9 +484,59 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           // create lun
           data = Object.assign({}, driver.options.iscsi.lunTemplate, {
             name: iscsiName,
-            location: driver.options.synology.volume,
-            size: capacity_bytes,
+            location: driver.getLocation(normalizedParameters),
+            size: capacity_bytes
           });
+          data.type = normalizedParameters.lunType ?? data.type;
+          if ('lunDescription' in normalizedParameters) {
+            data.description = normalizedParameters.lunDescription;
+          }
+          if (normalizedParameters.ioPolicy === "Direct") {
+            data.direct_io_pattern = 3;
+          } else if (normalizedParameters.ioPolicy === "Buffered") {
+            data.direct_io_pattern = 0;
+          } else if (normalizedParameters.ioPolicy !== undefined) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `snapshot consistency must be either CrashConsistent or AppConsistent`
+            );
+          }
+
+          const dev_attribs = (data.dev_attribs ?? []).reduce(
+            (obj, item) => Object.assign(obj, {[item.dev_attrib]: driver.parseBoolean(item.enable)}), {}
+          );
+          dev_attribs.emulate_tpws = driver.parseBoolean(normalizedParameters.hardwareAssistedZeroing) ?? dev_attribs.emulate_tpws;
+          dev_attribs.emulate_caw = driver.parseBoolean(normalizedParameters.hardwareAssistedLocking) ?? dev_attribs.emulate_caw;
+          dev_attribs.emulate_3pc = driver.parseBoolean(normalizedParameters.hardwareAssistedDataTransfer) ?? dev_attribs.emulate_3pc;
+          dev_attribs.emulate_tpu = driver.parseBoolean(normalizedParameters.spaceReclamation) ?? dev_attribs.emulate_tpu;
+          dev_attribs.emulate_fua_write = driver.parseBoolean(normalizedParameters.enableFuaWrite) ?? dev_attribs.emulate_fua_write;
+          dev_attribs.emulate_sync_cache = driver.parseBoolean(normalizedParameters.enableSyncCache) ?? dev_attribs.emulate_sync_cache;
+          dev_attribs.can_snapshot = driver.parseBoolean(normalizedParameters.allowSnapshots) ?? dev_attribs.can_snapshot;
+          data.dev_attribs = Object.entries(dev_attribs).filter(
+            e => e[1] !== undefined
+          ).map(
+            e => ({dev_attrib: e[0], enable: Number(e[1])})
+          );
+
+          if (["BLUN", "THIN", "ADV"].includes(data.type) && 'direct_io_pattern' in data) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `ioPolicy can only be used with thick provisioning.`
+            );
+          }
+          if (["BLUN_THICK", "FILE"].includes(data.type) && dev_attribs.emulate_tpu) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `spaceReclamation can only be used with thin provisioning.`
+            );
+          }
+          if (["BLUN_THICK", "FILE"].includes(data.type) && dev_attribs.can_snapshot) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `allowSnapshots can only be used with thin provisioning.`
+            );
+          }
+
           lun_uuid = await httpClient.CreateLun(data);
         }
 
@@ -458,6 +546,60 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           name: iscsiName,
           iqn,
         });
+        if ('headerChecksum' in normalizedParameters) {
+          data.has_data_checksum = normalizedParameters['headerChecksum'];
+        }
+        if ('dataChecksum' in normalizedParameters) {
+          data.has_data_checksum = normalizedParameters['dataChecksum'];
+        }
+        if ('maxSessions' in normalizedParameters) {
+          data.max_sessions = Number(normalizedParameters['maxSessions']);
+          if (isNaN(data.max_sessions)) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `maxSessions must be a number.`
+            );
+          }
+        }
+        if (!('multi_sessions' in data) && 'max_sessions' in data) {
+          data.multi_sessions = data.max_sessions == 1;
+        }
+        if ('maxReceiveSegmentBytes' in normalizedParameters) {
+          data.max_recv_seg_bytes = Number(normalizedParameters['maxReceiveSegmentBytes']);
+          if (isNaN(data.max_recv_seg_bytes)) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `maxReceiveSegmentBytes must be a number.`
+            );
+          }
+        }
+        if ('maxSendSegmentBytes' in normalizedParameters) {
+          data.max_send_seg_bytes = Number(normalizedParameters['maxSendSegmentBytes']);
+          if (isNaN(data.max_send_seg_bytes)) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `maxSendSegmentBytes must be a number.`
+            );
+          }
+        }
+
+        if ('user' in call.request.secrets && 'password' in call.request.secrets) {
+          data.user = call.request.secrets.user;
+          data.password = call.request.secrets.password;
+          data['chap'] = true;
+          if ('mutualUser' in call.request.secrets && 'mutualPassword' in call.request.secrets) {
+            data.mutual_user = call.request.secrets.mutualUser;
+            data.mutual_password = call.request.secrets.mutualPassword;
+            data.auth_type = 2;
+            data.mutual_chap = true;
+          } else {
+            data.auth_type = 1;
+            data.mutual_chap = false;
+          }
+        } else {
+          data.auth_type ??= 0;
+          data.chap ??= false;
+        }
         let target_id = await httpClient.CreateTarget(data);
         //target = await httpClient.GetTargetByTargetID(target_id);
         target = await httpClient.GetTargetByIQN(iqn);
@@ -737,8 +879,10 @@ class ControllerSynologyDriver extends CsiBaseDriver {
   async GetCapacity(call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
+    const normalizedParameters = driver.getNormalizedParameters(call.request.parameters)
+    const location = driver.getLocation(normalizedParameters);
 
-    if (!driver.options.synology.volume) {
+    if (!location) {
       throw new GrpcError(
         grpc.status.FAILED_PRECONDITION,
         `invalid configuration: missing volume`
@@ -753,9 +897,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       }
     }
 
-    let response = await httpClient.GetVolumeInfo(
-      driver.options.synology.volume
-    );
+    let response = await httpClient.GetVolumeInfo(location);
     return { available_capacity: response.body.data.volume.size_free_byte };
   }
 
@@ -850,11 +992,25 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     let snapshot;
     snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
     if (!snapshot) {
+      const normalizedParameters = driver.getNormalizedParameters(call.request.parameters);
       let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, {
         src_lun_uuid: lun.uuid,
         taken_by: "democratic-csi",
         description: name, //check
       });
+      if ('isLocked' in normalizedParameters) {
+        data['is_locked'] = driver.parseBoolean(normalizedParameters.isLocked);
+      }
+      if (normalizedParameters.consistency === "AppConsistent") {
+        data['is_app_consistent'] = true;
+      } else if (normalizedParameters.consistency === 'CrashConsistent') {
+        data['is_app_consistent'] = false;
+      } else if ('consistency' in normalizedParameters.consistency) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `snapshot consistency must be either CrashConsistent or AppConsistent`
+        );
+      }
 
       await httpClient.CreateSnapshot(data);
       snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);

@@ -10,9 +10,10 @@ httpConnection:
   session: "democratic-csi"
   serialize: true
 
-synology:
-  # choose the proper volume for your system
-  volume: /volume1
+# choose the default volume for your system. The default value is /volume1.
+# This can also be overridden by StorageClasses
+# synology:
+#   volume: /volume1
 
 iscsi:
   targetPortal: "server[:port]"
@@ -27,63 +28,5 @@ iscsi:
   # full iqn limit is 223 bytes, plan accordingly
   namePrefix: ""
   nameSuffix: ""
-
-  # documented below are several blocks
-  # pick the option appropriate for you based on what your backing fs is and desired features
-  # you do not need to alter dev_attribs under normal circumstances but they may be altered in advanced use-cases
-  lunTemplate:
-    # btrfs thin provisioning
-    type: "BLUN"
-    # tpws = Hardware-assisted zeroing
-    # caw = Hardware-assisted locking
-    # 3pc = Hardware-assisted data transfer
-    # tpu = Space reclamation
-    # can_snapshot = Snapshot
-    #dev_attribs:
-    #- dev_attrib: emulate_tpws
-    #  enable: 1
-    #- dev_attrib: emulate_caw
-    #  enable: 1
-    #- dev_attrib: emulate_3pc
-    #  enable: 1
-    #- dev_attrib: emulate_tpu
-    #  enable: 0
-    #- dev_attrib: can_snapshot
-    #  enable: 1
-
-    # btfs thick provisioning
-    # only zeroing and locking supported
-    #type: "BLUN_THICK"
-    # tpws = Hardware-assisted zeroing
-    # caw = Hardware-assisted locking
-    #dev_attribs:
-    #- dev_attrib: emulate_tpws
-    #  enable: 1
-    #- dev_attrib: emulate_caw
-    #  enable: 1
-
-    # ext4 thinn provisioning UI sends everything with enabled=0
-    #type: "THIN"
-
-    # ext4 thin with advanced legacy features set
-    # can only alter tpu (all others are set as enabled=1)
-    #type: "ADV"
-    #dev_attribs:
-    #- dev_attrib: emulate_tpu
-    #  enable: 1
-
-    # ext4 thick
-    # can only alter caw
-    #type: "FILE"
-    #dev_attribs:
-    #- dev_attrib: emulate_caw
-    #  enable: 1
-
-  lunSnapshotTemplate:
-    is_locked: true
-    # https://kb.synology.com/en-me/DSM/tutorial/What_is_file_system_consistent_snapshot
-    is_app_consistent: true
-
-  targetTemplate:
-    auth_type: 0
-    max_sessions: 0
+  # LUN options and CHAP authentication can be configured using StorageClasses.
+  # See https://github.com/democratic-csi/democratic-csi/blob/master/docs/storage-class-parameters.md

@@ -612,16 +612,20 @@ class SynologyHttpClient {
     );
   }
 
-  async CreateClonedVolume(src_lun_uuid, dst_lun_name) {
+  async CreateClonedVolume(src_lun_uuid, dst_lun_name, dst_location, description) {
     const create_cloned_volume = {
       api: "SYNO.Core.ISCSI.LUN",
       version: 1,
       method: "clone",
       src_lun_uuid: JSON.stringify(src_lun_uuid), // src lun uuid
       dst_lun_name: dst_lun_name, // dst lun name
+      dst_location: dst_location,
       is_same_pool: true, // always true? string?
       clone_type: "democratic-csi", // check
     };
+    if (description) {
+      create_cloned_volume.description = description;
+    }
     return await this.do_request("GET", "entry.cgi", create_cloned_volume);
   }
 
