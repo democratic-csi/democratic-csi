@@ -4,9 +4,49 @@ const https = require("https");
 const { axios_request, stringify } = require("../../../utils/general");
 const Mutex = require("async-mutex").Mutex;
 const registry = require("../../../utils/registry");
+const { GrpcError, grpc } = require("../../../utils/grpc");
 
 const USER_AGENT = "democratic-csi";
 const __REGISTRY_NS__ = "SynologyHttpClient";
+
+SYNO_ERROR_MESSAGES = {
+  18990002: "The synology volume is out of disk space.",
+  18990538: "A LUN with this name already exists.",
+  18990541: "The maximum number of LUNS has been reached.",
+  18990542: "The maximum number if iSCSI target has been reached.",
+  18990744: "An iSCSI target with this name already exists.",
+  18990532: "No such snapshot.",
+  18990500: "Bad LUN type",
+  18990543: "Maximum number of snapshots reached.",
+  18990635: "Invalid ioPolicy."
+}
+
+SYNO_GRPC_CODES = {
+  18990002: grpc.status.RESOURCE_EXHAUSTED,
+  18990538: grpc.status.ALREADY_EXISTS,
+  18990541: grpc.status.RESOURCE_EXHAUSTED,
+  18990542: grpc.status.RESOURCE_EXHAUSTED,
+  18990744: grpc.status.ALREADY_EXISTS,
+  18990532: grpc.status.NOT_FOUND,
+  18990500: grpc.status.INVALID_ARGUMENT,
+  18990543: grpc.status.RESOURCE_EXHAUSTED,
+  18990635: grpc.status.INVALID_ARGUMENT
+}
+
+class SynologyError extends GrpcError {
+  constructor(code, httpCode = undefined) {
+    super(0, "");
+    this.synoCode = code;
+    this.httpCode = httpCode;
+    if (code > 0) {
+      this.code = SYNO_GRPC_CODES[code] ?? grpc.status.UNKNOWN;
+      this.message = SYNO_ERROR_MESSAGES[code] ?? `An unknown error occurred when executing a synology command (code = ${code}).`;
+    } else {
+      this.code = grpc.status.UNKNOWN;
+      this.message = `The synology webserver returned a status code ${httpCode}`;
+    }
+  }
+}
 
 class SynologyHttpClient {
   constructor(options = {}) {
@@ -149,7 +189,7 @@ class SynologyHttpClient {
           }
 
           if (response.statusCode > 299 || response.statusCode < 200) {
-            reject(response);
+            reject(new SynologyError(-1, response.statusCode))
           }
 
           if (response.body.success === false) {
@@ -157,7 +197,7 @@ class SynologyHttpClient {
             if (response.body.error.code == 119 && sid == client.sid) {
               client.sid = null;
             }
-            reject(response);
+            reject(new SynologyError(response.body.error.code, response.statusCode));
           }
 
           resolve(response);
@@ -412,7 +452,7 @@ class SynologyHttpClient {
       response = await this.do_request("GET", "entry.cgi", iscsi_lun_create);
       return response.body.data.uuid;
     } catch (err) {
-      if ([18990538].includes(err.body.error.code)) {
+      if (err.synoCode === 18990538) {
         response = await this.do_request("GET", "entry.cgi", lun_list);
         let lun = response.body.data.luns.find((i) => {
           return i.name == iscsi_lun_create.name;
@@ -503,7 +543,7 @@ class SynologyHttpClient {
 
       return response.body.data.target_id;
     } catch (err) {
-      if ([18990744].includes(err.body.error.code)) {
+      if (err.synoCode === 18990744) {
         //do lookup
         const iscsi_target_list = {
           api: "SYNO.Core.ISCSI.Target",
@@ -549,7 +589,7 @@ class SynologyHttpClient {
       /**
        * 18990710 = non-existant
        */
-      //if (![18990710].includes(err.body.error.code)) {
+      //if (err.synoCode !== 18990710) {
       throw err;
       //}
     }
