@@ -9,28 +9,16 @@ const { GrpcError, grpc } = require("../../../utils/grpc");
 const USER_AGENT = "democratic-csi";
 const __REGISTRY_NS__ = "SynologyHttpClient";
 
-SYNO_ERROR_MESSAGES = {
-  18990002: "The synology volume is out of disk space.",
-  18990538: "A LUN with this name already exists.",
-  18990541: "The maximum number of LUNS has been reached.",
-  18990542: "The maximum number if iSCSI target has been reached.",
-  18990744: "An iSCSI target with this name already exists.",
-  18990532: "No such snapshot.",
-  18990500: "Bad LUN type",
-  18990543: "Maximum number of snapshots reached.",
-  18990635: "Invalid ioPolicy."
-}
-
-SYNO_GRPC_CODES = {
-  18990002: grpc.status.RESOURCE_EXHAUSTED,
-  18990538: grpc.status.ALREADY_EXISTS,
-  18990541: grpc.status.RESOURCE_EXHAUSTED,
-  18990542: grpc.status.RESOURCE_EXHAUSTED,
-  18990744: grpc.status.ALREADY_EXISTS,
-  18990532: grpc.status.NOT_FOUND,
-  18990500: grpc.status.INVALID_ARGUMENT,
-  18990543: grpc.status.RESOURCE_EXHAUSTED,
-  18990635: grpc.status.INVALID_ARGUMENT
+SYNO_ERRORS = {
+  18990002: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The synology volume is out of disk space." },
+  18990538: { status: grpc.status.ALREADY_EXISTS, message: "A LUN with this name already exists." },
+  18990541: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The maximum number of LUNS has been reached." },
+  18990542: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The maximum number if iSCSI target has been reached." },
+  18990744: { status: grpc.status.ALREADY_EXISTS, message: "An iSCSI target with this name already exists." },
+  18990532: { status: grpc.status.NOT_FOUND, message: "No such snapshot." },
+  18990500: { status: grpc.status.INVALID_ARGUMENT, message: "Bad LUN type" },
+  18990543: { status: grpc.status.RESOURCE_EXHAUSTED, message: "Maximum number of snapshots reached." },
+  18990635: { status: grpc.status.INVALID_ARGUMENT, message: "Invalid ioPolicy." }
 }
 
 class SynologyError extends GrpcError {
@@ -39,8 +27,9 @@ class SynologyError extends GrpcError {
     this.synoCode = code;
     this.httpCode = httpCode;
     if (code > 0) {
-      this.code = SYNO_GRPC_CODES[code] ?? grpc.status.UNKNOWN;
-      this.message = SYNO_ERROR_MESSAGES[code] ?? `An unknown error occurred when executing a synology command (code = ${code}).`;
+      const error = SYNO_ERRORS[code]
+      this.code = error?.status ?? grpc.status.UNKNOWN;
+      this.message = error?.message ?? `An unknown error occurred when executing a synology command (code = ${code}).`;
     } else {
       this.code = grpc.status.UNKNOWN;
       this.message = `The synology webserver returned a status code ${httpCode}`;
