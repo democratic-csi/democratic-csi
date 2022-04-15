@@ -1,9 +1,11 @@
 # Storage Class Parameters
 
-Some drivers support different settings for volumes. These can be configured via the driver configuration and/or storage classes.
+Some drivers support different settings for volumes. These can be configured via the driver configuration and/or storage
+classes.
 
 ## `synology-iscsi`
-The `synology-iscsi` driver supports several storage class parameters. Note however that not all parameters/values are supported for all backing file systems and LUN type. The following options are available:
+The `synology-iscsi` driver supports several storage class parameters. Note however that not all parameters/values are
+supported for all backing file systems and LUN type. The following options are available:
 
 ### Configure Storage Classes
 ```yaml
@@ -56,12 +58,16 @@ metadata:
 parameters:
   isLocked: true
   # https://kb.synology.com/en-me/DSM/tutorial/What_is_file_system_consistent_snapshot
+  # Note that AppConsistent snapshots require a working Synology Storage Console. Otherwise both values will have
+  # equivalent behavior.
   consistency: AppConsistent # Or CrashConsistent
 ...
 ```
 
 ### Enabling CHAP Authentication
-You can enable CHAP Authentication for `StorageClass`es by supplying an appropriate `StorageClass` secret (see the [documentation](https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html) for more details). You can use the same password for alle volumes of a `StorageClass` or use different passwords per volume.
+You can enable CHAP Authentication for `StorageClass`es by supplying an appropriate `StorageClass` secret (see the
+[documentation](https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html) for more details). You
+can use the same password for alle volumes of a `StorageClass` or use different passwords per volume.
 
 ```yaml
 apiVersion: storage.k8s.io/v1
@@ -95,6 +101,8 @@ stringData:
   password: MyOtherPassword
 ```
 
-Note that CHAP authentication will only be enabled if the secret is correctly configured. If e.g. a password is missing CHAP authentication will not be enabled (but the volume will still be created). You cannot automatically enable/disable CHAP or change the password after the volume has been created.
+Note that CHAP authentication will only be enabled if the secret contains a username and password. If e.g. a password is
+missing CHAP authentication will not be enabled (but the volume will still be created). You cannot automatically
+enable/disable CHAP or change the password after the volume has been created.
 
 If the secret itself is referenced but not present, the volume will not be created.
