@@ -333,19 +333,19 @@ class SynologyHttpClient {
     return snapshots;
   }
 
-  async GetSnapshotByLunIDAndName(lun_id, name) {
+  async GetSnapshotByLunUUIDAndName(lun_uuid, name) {
     const get_snapshot_info = {
-      lid: lun_id, //check?
-      api: "SYNO.Core.Storage.iSCSILUN",
-      method: "load_snapshot",
+      api: "SYNO.Core.ISCSI.LUN",
+      method: "list_snapshot",
       version: 1,
+      src_lun_uuid: JSON.stringify(lun_uuid),
     };
 
     let response = await this.do_request("GET", "entry.cgi", get_snapshot_info);
 
-    if (response.body.data) {
-      let snapshot = response.body.data.find((i) => {
-        return i.desc == name;
+    if (response.body.data.snapshots) {
+      let snapshot = response.body.data.snapshots.find((i) => {
+        return i.description == name;
       });
 
       if (snapshot) {
@@ -354,18 +354,18 @@ class SynologyHttpClient {
     }
   }
 
-  async GetSnapshotByLunIDAndSnapshotUUID(lun_id, snapshot_uuid) {
+  async GetSnapshotByLunUUIDAndSnapshotUUID(lun_uuid, snapshot_uuid) {
     const get_snapshot_info = {
-      lid: lun_id, //check?
-      api: "SYNO.Core.Storage.iSCSILUN",
-      method: "load_snapshot",
+      api: "SYNO.Core.ISCSI.LUN",
+      method: "list_snapshot",
       version: 1,
+      src_lun_uuid: JSON.stringify(lun_uuid),
     };
 
     let response = await this.do_request("GET", "entry.cgi", get_snapshot_info);
 
-    if (response.body.data) {
-      let snapshot = response.body.data.find((i) => {
+    if (response.body.data.snapshots) {
+      let snapshot = response.body.data.snapshots.find((i) => {
         return i.uuid == snapshot_uuid;
       });
 

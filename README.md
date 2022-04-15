@@ -283,7 +283,7 @@ Ensure ssh and zfs is installed on the nfs/iscsi server and that you have instal
 
 ### Synology (synology-iscsi)
 
-Ensure iscsi manager has been installed and is generally setup/configured.
+Ensure iscsi manager has been installed and is generally setup/configured. DSM 6.3+ is supported.
 
 ## Helm Installation
 

@@ -399,13 +399,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
         if (volume_content_source) {
           let src_lun_uuid;
-          let src_lun_id;
           switch (volume_content_source.type) {
             case "snapshot":
               let parts = volume_content_source.snapshot.snapshot_id.split("/");
 
-              src_lun_id = parts[2];
-              if (!src_lun_id) {
+              src_lun_uuid = parts[2];
+              if (!src_lun_uuid) {
                 throw new GrpcError(
                   grpc.status.NOT_FOUND,
                   `invalid snapshot_id: ${volume_content_source.snapshot.snapshot_id}`
@@ -420,11 +419,14 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                 );
               }
 
-              let src_lun = await httpClient.GetLunByID(src_lun_id);
-              src_lun_uuid = src_lun.uuid;
+              // This is for backwards compatibility. Previous versions of this driver used the LUN ID instead of the
+              // UUID. If this is the case we need to get the LUN UUID before we can proceed.
+              if (!src_lun_uuid.includes("-")) {
+                src_lun_uuid = await httpClient.GetLunByID(src_lun_uuid).uuid;
+              }
 
-              let snapshot = await httpClient.GetSnapshotByLunIDAndSnapshotUUID(
-                src_lun_id,
+              let snapshot = await httpClient.GetSnapshotByLunUUIDAndSnapshotUUID(
+                src_lun_uuid,
                 snapshot_uuid
               );
               if (!snapshot) {
@@ -990,7 +992,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
     // check for already exists
     let snapshot;
-    snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
+    snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);
     if (!snapshot) {
       const normalizedParameters = driver.getNormalizedParameters(call.request.parameters);
       let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, {
@@ -1013,7 +1015,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       }
 
       await httpClient.CreateSnapshot(data);
-      snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
+      snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);
 
       if (!snapshot) {
         throw new Error(`failed to create snapshot`);
@@ -1027,7 +1029,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
          * is needed to create a volume from this snapshot.
          */
         size_bytes: snapshot.total_size,
-        snapshot_id: `/lun/${lun.lun_id}/${snapshot.uuid}`, // add shanpshot_uuid //fixme
+        snapshot_id: `/lun/${lun.uuid}/${snapshot.uuid}`,
         source_volume_id: source_volume_id,
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
         creation_time: {
@@ -1064,8 +1066,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     let parts = snapshot_id.split("/");
-    let lun_id = parts[2];
-    if (!lun_id) {
+    let lun_uuid = parts[2];
+    if (!lun_uuid) {
       return {};
     }
 
@@ -1074,9 +1076,14 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       return {};
     }
 
-    // TODO: delete snapshot
-    let snapshot = await httpClient.GetSnapshotByLunIDAndSnapshotUUID(
-      lun_id,
+    // This is for backwards compatibility. Previous versions of this driver used the LUN ID instead of the UUID. If
+    // this is the case we need to get the LUN UUID before we can proceed.
+    if (!lun_uuid.includes("-")) {
+      lun_uuid = await httpClient.GetLunByID(lun_uuid).uuid;
+    }
+
+    let snapshot = await httpClient.GetSnapshotByLunUUIDAndSnapshotUUID(
+      lun_uuid,
       snapshot_uuid
     );
 
