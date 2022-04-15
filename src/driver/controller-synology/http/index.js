@@ -178,7 +178,7 @@ class SynologyHttpClient {
           }
 
           if (response.statusCode > 299 || response.statusCode < 200) {
-            reject(new SynologyError(-1, response.statusCode))
+            reject(new SynologyError(null, response.statusCode))
           }
 
           if (response.body.success === false) {
