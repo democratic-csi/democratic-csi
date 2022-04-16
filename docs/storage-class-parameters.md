@@ -64,6 +64,9 @@ parameters:
 ...
 ```
 
+Note that it is currently not supported by Synology devices to restore a snapshot onto a different volume. You can
+create volumes from snapshots, but you should use the same `StorageClass` as the original volume of the snapshot did. 
+
 ### Enabling CHAP Authentication
 You can enable CHAP Authentication for `StorageClass`es by supplying an appropriate `StorageClass` secret (see the
 [documentation](https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html) for more details). You

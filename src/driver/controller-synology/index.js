@@ -441,7 +441,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                 await httpClient.CreateVolumeFromSnapshot(
                   src_lun_uuid,
                   snapshot_uuid,
-                  iscsiName
+                  iscsiName,
+                  normalizedParameters.description
                 );
               }
               break;
@@ -465,7 +466,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                     `invalid volume_id: ${volume_content_source.volume.volume_id}`
                   );
                 }
-                await httpClient.CreateClonedVolume(src_lun_uuid, iscsiName, driver.getLocation(normalizedParameters));
+                await httpClient.CreateClonedVolume(
+                  src_lun_uuid,
+                  iscsiName,
+                  driver.getLocation(normalizedParameters),
+                  normalizedParameters.description
+                );
               }
               break;
             default:
@@ -549,13 +555,13 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           iqn,
         });
         if ('headerChecksum' in normalizedParameters) {
-          data.has_data_checksum = normalizedParameters['headerChecksum'];
+          data.has_data_checksum = normalizedParameters.headerChecksum;
         }
         if ('dataChecksum' in normalizedParameters) {
-          data.has_data_checksum = normalizedParameters['dataChecksum'];
+          data.has_data_checksum = normalizedParameters.dataChecksum;
         }
         if ('maxSessions' in normalizedParameters) {
-          data.max_sessions = Number(normalizedParameters['maxSessions']);
+          data.max_sessions = Number(normalizedParameters.maxSessions);
           if (isNaN(data.max_sessions)) {
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
@@ -567,7 +573,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           data.multi_sessions = data.max_sessions == 1;
         }
         if ('maxReceiveSegmentBytes' in normalizedParameters) {
-          data.max_recv_seg_bytes = Number(normalizedParameters['maxReceiveSegmentBytes']);
+          data.max_recv_seg_bytes = Number(normalizedParameters.maxReceiveSegmentBytes);
           if (isNaN(data.max_recv_seg_bytes)) {
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
@@ -576,7 +582,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
         }
         if ('maxSendSegmentBytes' in normalizedParameters) {
-          data.max_send_seg_bytes = Number(normalizedParameters['maxSendSegmentBytes']);
+          data.max_send_seg_bytes = Number(normalizedParameters.maxSendSegmentBytes);
           if (isNaN(data.max_send_seg_bytes)) {
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
@@ -588,7 +594,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         if ('user' in call.request.secrets && 'password' in call.request.secrets) {
           data.user = call.request.secrets.user;
           data.password = call.request.secrets.password;
-          data['chap'] = true;
+          data.chap = true;
           if ('mutualUser' in call.request.secrets && 'mutualPassword' in call.request.secrets) {
             data.mutual_user = call.request.secrets.mutualUser;
             data.mutual_password = call.request.secrets.mutualPassword;
@@ -1001,12 +1007,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         description: name, //check
       });
       if ('isLocked' in normalizedParameters) {
-        data['is_locked'] = driver.parseBoolean(normalizedParameters.isLocked);
+        data.is_locked = driver.parseBoolean(normalizedParameters.isLocked);
       }
       if (normalizedParameters.consistency === "AppConsistent") {
-        data['is_app_consistent'] = true;
+        data.is_app_consistent = true;
       } else if (normalizedParameters.consistency === 'CrashConsistent') {
-        data['is_app_consistent'] = false;
+        data.is_app_consistent = false;
       } else if ('consistency' in normalizedParameters.consistency) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,

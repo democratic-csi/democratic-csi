@@ -39,7 +39,12 @@ class SynologyError extends GrpcError {
 
 class SynologyHttpClient {
   constructor(options = {}) {
-    this.options = JSON.parse(JSON.stringify(options));
+    this.options = Object.assign({
+      protocol: "https",
+      port: 5001,
+      allowInsecure: false,
+      session: "democratic-csi"
+    }, JSON.parse(JSON.stringify(options)));
     this.logger = console;
     this.doLoginMutex = new Mutex();
     this.apiSerializeMutex = new Mutex();
@@ -618,7 +623,7 @@ class SynologyHttpClient {
     return await this.do_request("GET", "entry.cgi", create_cloned_volume);
   }
 
-  async CreateVolumeFromSnapshot(src_lun_uuid, snapshot_uuid, cloned_lun_name) {
+  async CreateVolumeFromSnapshot(src_lun_uuid, snapshot_uuid, cloned_lun_name, description) {
     const create_volume_from_snapshot = {
       api: "SYNO.Core.ISCSI.LUN",
       version: 1,
@@ -628,6 +633,9 @@ class SynologyHttpClient {
       cloned_lun_name: cloned_lun_name, // cloned lun name
       clone_type: "democratic-csi", // check
     };
+    if (description) {
+      create_volume_from_snapshot.description = description;
+    }
     return await this.do_request(
       "GET",
       "entry.cgi",
