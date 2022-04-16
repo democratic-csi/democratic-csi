@@ -16,7 +16,6 @@ metadata:
 parameters:
     fsType: ext4
     # The following options affect the LUN representing the volume
-    volume: /volume2 # Optional. Override the volume on which the LUN will be created.
     lunType: BLUN       # Btrfs thin provisioning
     lunType: BLUN_THICK # Btrfs thick provisioning
     lunType: THIN       # Ext4 thin provisioning
@@ -34,10 +33,18 @@ parameters:
     # The following options affect the iSCSI target
     headerDigenst: false
     dataDigest: false
-    maxSessions: 1 # Note that this option requires a compatible filesystem
+    maxSessions: 1 # Note that this option requires a compatible filesystem. Use 0 for unlimited sessions (default).
     maxRecieveSegmentBytes: 262144
     maxSendSegmentBytes: 262144
-...
+    lunTemplate: |
+      # This inline yaml object will be passed to the Synology API when creating the LUN. Use this for custom options.
+      dev_attribs:
+      - dev_attrib: emulate_caw
+        enable: 1
+    targetTemplate: |
+      # This inline yaml object will be passed to the Synology API when creating the target. Use this for custom
+      # options.
+      max_sessions: 0
 ```
 
 About extended features:
@@ -61,6 +68,10 @@ parameters:
   # Note that AppConsistent snapshots require a working Synology Storage Console. Otherwise both values will have
   # equivalent behavior.
   consistency: AppConsistent # Or CrashConsistent
+  lunSnapshotTemplate: |
+    # This inline yaml object will be passed to the Synology API when creating the snapshot. Use this for custom
+    # options.
+    is_locked: true
 ...
 ```
 

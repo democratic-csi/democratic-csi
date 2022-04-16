@@ -39,12 +39,7 @@ class SynologyError extends GrpcError {
 
 class SynologyHttpClient {
   constructor(options = {}) {
-    this.options = Object.assign({
-      protocol: "https",
-      port: 5001,
-      allowInsecure: false,
-      session: "democratic-csi"
-    }, JSON.parse(JSON.stringify(options)));
+    this.options = JSON.parse(JSON.stringify(options));
     this.logger = console;
     this.doLoginMutex = new Mutex();
     this.apiSerializeMutex = new Mutex();

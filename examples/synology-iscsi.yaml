@@ -10,8 +10,7 @@ httpConnection:
   session: "democratic-csi"
   serialize: true
 
-# choose the default volume for your system. The default value is /volume1.
-# This can also be overridden by StorageClasses
+# Choose the DSM volume this driver operates on. The default value is /volume1.
 # synology:
 #   volume: /volume1
 

@@ -4,6 +4,7 @@ const registry = require("../../utils/registry");
 const SynologyHttpClient = require("./http").SynologyHttpClient;
 const semver = require("semver");
 const sleep = require("../../utils/general").sleep;
+const yaml = require("js-yaml");
 
 const __REGISTRY_NS__ = "ControllerSynologyDriver";
 
@@ -181,8 +182,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    * @param {String} parameters.volume - The volume specified by the StorageClass
    * @returns {String} The location of the volume.
    */
-  getLocation({volume}) {
-    let location = volume ?? this.options?.synology?.volume
+  getLocation() {
+    let location = this.options?.synology?.volume;
     if (location === undefined) {
       location = "volume1"
     }
@@ -469,7 +470,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                 await httpClient.CreateClonedVolume(
                   src_lun_uuid,
                   iscsiName,
-                  driver.getLocation(normalizedParameters),
+                  driver.getLocation(),
                   normalizedParameters.description
                 );
               }
@@ -490,9 +491,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
         } else {
           // create lun
-          data = Object.assign({}, driver.options.iscsi.lunTemplate, {
+          data = Object.assign({}, driver.options.iscsi.lunTemplate, yaml.load(normalizedParameters.lunTemplate), {
             name: iscsiName,
-            location: driver.getLocation(normalizedParameters),
+            location: driver.getLocation(),
             size: capacity_bytes
           });
           data.type = normalizedParameters.lunType ?? data.type;
@@ -550,7 +551,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
         // create target
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
-        data = Object.assign({}, driver.options.iscsi.targetTemplate, {
+        data = Object.assign({}, driver.options.iscsi.targetTemplate, yaml.load(normalizedParameters.targetTemplate), {
           name: iscsiName,
           iqn,
         });
@@ -887,8 +888,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
   async GetCapacity(call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
-    const normalizedParameters = driver.getNormalizedParameters(call.request.parameters)
-    const location = driver.getLocation(normalizedParameters);
+    const location = driver.getLocation();
 
     if (!location) {
       throw new GrpcError(
@@ -1001,7 +1001,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);
     if (!snapshot) {
       const normalizedParameters = driver.getNormalizedParameters(call.request.parameters);
-      let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, {
+      let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, yaml.load(normalizedParameters.lunSnapshotTemplate), {
         src_lun_uuid: lun.uuid,
         taken_by: "democratic-csi",
         description: name, //check
