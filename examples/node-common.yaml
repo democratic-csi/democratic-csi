@@ -2,6 +2,9 @@
 
 node:
   mount:
+    # predominantly used to facilitate testing
+    # mount_flags should generally be defined in storage classes, etc
+    mount_flags: ""
     # should fsck be executed before mounting the fs
     checkFilesystem:
       xfs:

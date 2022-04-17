@@ -1,5 +1,6 @@
 const cp = require("child_process");
 const fs = require("fs");
+const path = require("path");
 
 const DEFAULT_TIMEOUT = process.env.FILESYSTEM_DEFAULT_TIMEOUT || 30000;
 
@@ -23,6 +24,10 @@ class Filesystem {
         spawn: cp.spawn,
       };
     }
+  }
+
+  covertUnixSeparatorToWindowsSeparator(p) {
+    return p.replaceAll(path.posix.sep, path.win32.sep);
   }
 
   /**
@@ -615,12 +620,12 @@ class Filesystem {
       command = filesystem.options.paths.sudo;
     }
     console.log("executing filesystem command: %s %s", command, args.join(" "));
-    
+
     return new Promise((resolve, reject) => {
       const child = filesystem.options.executor.spawn(command, args, options);
       let stdout = "";
       let stderr = "";
-  
+
       child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });

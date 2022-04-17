@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package v1alpha1;
+
+option go_package = "github.com/kubernetes-csi/csi-proxy/client/api/system/v1alpha1";
+
+service System {
+  // GetBIOSSerialNumber returns the device's serial number
+  rpc GetBIOSSerialNumber(GetBIOSSerialNumberRequest)
+      returns (GetBIOSSerialNumberResponse) {}
+
+  // StartService starts a Windows service
+  // NOTE: This method affects global node state and should only be used
+  //       with consideration to other CSI drivers that run concurrently.
+  rpc StartService(StartServiceRequest) returns (StartServiceResponse) {}
+
+  // StopService stops a Windows service
+  // NOTE: This method affects global node state and should only be used
+  //       with consideration to other CSI drivers that run concurrently.
+  rpc StopService(StopServiceRequest) returns (StopServiceResponse) {}
+
+  // GetService queries a Windows service state
+  rpc GetService(GetServiceRequest) returns (GetServiceResponse) {}
+}
+
+message GetBIOSSerialNumberRequest {
+  // Intentionally empty
+}
+
+message GetBIOSSerialNumberResponse {
+  // Serial number
+  string serial_number = 1;
+}
+
+message StartServiceRequest {
+  // Service name (as listed in System\CCS\Services keys)
+  string name = 1;
+}
+
+message StartServiceResponse {
+  // Intentionally empty
+}
+
+message StopServiceRequest {
+  // Service name (as listed in System\CCS\Services keys)
+  string name = 1;
+
+  // Forces stopping of services that has dependent services
+  bool force = 2;
+}
+
+message StopServiceResponse {
+  // Intentionally empty
+}
+
+// https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_status#members
+enum ServiceStatus {
+  UNKNOWN = 0;
+  STOPPED = 1;
+  START_PENDING = 2;
+  STOP_PENDING = 3;
+  RUNNING = 4;
+  CONTINUE_PENDING = 5;
+  PAUSE_PENDING = 6;
+  PAUSED = 7;
+}
+
+// https://docs.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfiga
+enum StartType {
+  BOOT = 0;
+  SYSTEM = 1;
+  AUTOMATIC = 2;
+  MANUAL = 3;
+  DISABLED = 4;
+}
+
+message GetServiceRequest {
+  // Service name (as listed in System\CCS\Services keys)
+  string name = 1;
+}
+
+message GetServiceResponse {
+  // Service display name
+  string display_name = 1;
+
+  // Service start type.
+  // Used to control whether a service will start on boot, and if so on which
+  // boot phase.
+  StartType start_type = 2;
+
+  // Service status, e.g. stopped, running, paused
+  ServiceStatus status = 3;
+}

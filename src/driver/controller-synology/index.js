@@ -3,7 +3,7 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const registry = require("../../utils/registry");
 const SynologyHttpClient = require("./http").SynologyHttpClient;
 const semver = require("semver");
-const sleep = require("../../utils/general").sleep;
+const GeneralUtils = require("../../utils/general");
 
 const __REGISTRY_NS__ = "ControllerSynologyDriver";
 
@@ -171,7 +171,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
           if (
             capability.mount.fs_type &&
-            !["nfs", "cifs"].includes(capability.mount.fs_type)
+            !GeneralUtils.default_supported_file_filesystems().includes(
+              capability.mount.fs_type
+            )
           ) {
             message = `invalid fs_type ${capability.mount.fs_type}`;
             return false;
@@ -198,7 +200,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&
-              !["btrfs", "ext3", "ext4", "ext4dev", "xfs"].includes(
+              !GeneralUtils.default_supported_block_filesystems().includes(
                 capability.mount.fs_type
               )
             ) {
@@ -609,12 +611,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
             let waitTimeBetweenChecks = settleSeconds * 1000;
 
-            await sleep(waitTimeBetweenChecks);
+            await GeneralUtils.sleep(waitTimeBetweenChecks);
             lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
 
             while (currentCheck <= settleMaxRetries && lun_uuid) {
               currentCheck++;
-              await sleep(waitTimeBetweenChecks);
+              await GeneralUtils.sleep(waitTimeBetweenChecks);
               lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
             }
 
