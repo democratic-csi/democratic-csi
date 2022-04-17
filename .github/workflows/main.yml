@@ -74,7 +74,7 @@ jobs:
           - truenas/scale/22.02/scale-iscsi.yaml
           - truenas/scale/22.02/scale-nfs.yaml
           # 80 char limit
-          #- truenas/scale-smb.yaml
+          - truenas/scale/22.02/scale-smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-local
@@ -103,10 +103,10 @@ jobs:
       matrix:
         config:
           # 63 char limit
-          #- truenas/core-iscsi.yaml
+          - truenas/core/12.0/core-iscsi.yaml
           - truenas/core/12.0/core-nfs.yaml
           # 80 char limit
-          #- truenas/core-smb.yaml
+          - truenas/core/12.0/core-smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-local
@@ -137,7 +137,7 @@ jobs:
           - truenas/core/13.0/core-iscsi.yaml
           - truenas/core/13.0/core-nfs.yaml
           # 80 char limit
-          #- truenas/core-smb.yaml
+          - truenas/core/13.0/core-smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-local

@@ -17,28 +17,24 @@ sshConnection:
 zfs:
   datasetProperties:
     # smb options
-    #aclmode: restricted
-    #casesensitivity: mixed
+    aclmode: restricted
+    aclinherit: passthrough
+    acltype: nfsv4
+    casesensitivity: insensitive
 
   datasetParentName: tank/ci/${CI_BUILD_KEY}/v
   detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
 
   datasetEnableQuotas: true
-  datasetEnableReservation: true
-  datasetPermissionsMode: "0777"
-  datasetPermissionsUser: 0
-  datasetPermissionsGroup: 0
+  datasetEnableReservation: false
+  datasetPermissionsMode: "0770"
+  datasetPermissionsUser: 1001
+  datasetPermissionsGroup: 1001
   
-  # for smb with guest
-  #datasetPermissionsUser: nobody
-  #datasetPermissionsGroup: nobody
-  
-  #datasetPermissionsGroup: root
-  #datasetPermissionsAcls:
-  #- "-m everyone@:full_set:allow"
-
-  #datasetPermissionsAcls:
-  #- "-m u:kube:full_set:allow"
+  datasetPermissionsAcls:
+  - "-m g:builtin_users:full_set:fd:allow"
+  - "-m group@:modify_set:fd:allow"
+  - "-m owner@:full_set:fd:allow"
 
 smb:
   shareHost: ${TRUENAS_HOST}
