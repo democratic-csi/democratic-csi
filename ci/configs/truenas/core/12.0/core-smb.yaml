@@ -48,7 +48,7 @@ smb:
   shareAllowedHosts: []
   shareDeniedHosts: []
   #shareDefaultPermissions: true
-  shareGuestOk: true
+  shareGuestOk: false
   #shareGuestOnly: true
   #shareShowHiddenFiles: true
   shareRecycleBin: true
@@ -56,3 +56,13 @@ smb:
   shareAccessBasedEnumeration: true
   shareTimeMachine: false
   #shareStorageTask:
+
+node:
+  mount:
+    mount_flags: "username=smbroot,password=smbroot"
+
+_private:
+  csi:
+    volume:
+      idHash:
+        strategy: crc16
