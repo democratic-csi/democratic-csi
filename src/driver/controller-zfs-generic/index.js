@@ -61,6 +61,24 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
     }
   }
 
+  generateSmbShareName(datasetName) {
+    const driver = this;
+
+    driver.ctx.logger.verbose(
+      `generating smb share name for dataset: ${datasetName}`
+    );
+
+    let name = datasetName || "";
+    name = name.replaceAll("/", "_");
+    name = name.replaceAll("-", "_");
+
+    driver.ctx.logger.verbose(
+      `generated smb share name for dataset: ${datasetName} - ${name}`
+    );
+
+    return name;
+  }
+
   /**
    * should create any necessary share resources
    * should set the SHARE_VOLUME_CONTEXT_PROPERTY_NAME propery
@@ -68,6 +86,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
    * @param {*} datasetName
    */
   async createShare(call, datasetName) {
+    const driver = this;
     const zb = await this.getZetabyte();
     const execClient = this.getExecClient();
 
@@ -114,13 +133,6 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
         let share;
         switch (this.options.smb.shareStrategy) {
           case "setDatasetProperties":
-            function generateShareName(dataset) {
-              let name = dataset;
-              name = name.replaceAll("/", "_");
-              name = name.replaceAll("-", "_");
-              return name;
-            }
-
             for (let key of ["share", "sharesmb"]) {
               if (
                 this.options.smb.shareStrategySetDatasetProperties.properties[
@@ -135,7 +147,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
               }
             }
 
-            share = generateShareName(datasetName);
+            share = driver.generateSmbShareName(datasetName);
             break;
           default:
             break;
@@ -336,7 +348,7 @@ create /backstores/block/${iscsiName}
           default:
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `invalid configuration: unknown shareStrategy ${this.options.nfs.shareStrategy}`
+              `invalid configuration: unknown shareStrategy ${this.options.smb.shareStrategy}`
             );
         }
         break;
