@@ -1,4 +1,9 @@
-#!/usr/bin/env -S node --expose-gc ${NODE_OPTIONS_CSI_1} ${NODE_OPTIONS_CSI_2} ${NODE_OPTIONS_CSI_3} ${NODE_OPTIONS_CSI_4} ${NODE_OPTIONS_CSI_5}
+#!/usr/bin/env -S node --expose-gc ${NODE_OPTIONS_CSI_1} ${NODE_OPTIONS_CSI_2} ${NODE_OPTIONS_CSI_3} ${NODE_OPTIONS_CSI_4}
+
+/**
+ * keep the shebang line length under 128
+ * https://github.com/democratic-csi/democratic-csi/issues/171
+ */
 
 const yaml = require("js-yaml");
 const fs = require("fs");

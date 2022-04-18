@@ -11,7 +11,7 @@ zfs:
   detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
 
   datasetEnableQuotas: true
-  datasetEnableReservation: true
+  datasetEnableReservation: false
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: 0
   datasetPermissionsGroup: 0

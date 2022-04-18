@@ -33,6 +33,7 @@ function factory(ctx, options) {
     case "synology-iscsi":
       return new ControllerSynologyDriver(ctx, options);
     case "zfs-generic-nfs":
+    case "zfs-generic-smb":
     case "zfs-generic-iscsi":
       return new ControllerZfsGenericDriver(ctx, options);
     case "zfs-local-dataset":

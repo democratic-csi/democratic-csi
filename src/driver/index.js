@@ -679,6 +679,10 @@ class CsiBaseDriver {
               if (!has_guest) {
                 mount_flags.push("guest");
               }
+
+              if (volume_mount_group) {
+                mount_flags.push(`gid=${volume_mount_group}`);
+              }
             }
             break;
           case "iscsi":

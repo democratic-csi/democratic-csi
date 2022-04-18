@@ -167,6 +167,7 @@ jobs:
         config:
           - zfs-generic/iscsi.yaml
           - zfs-generic/nfs.yaml
+          - zfs-generic/smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-generic
