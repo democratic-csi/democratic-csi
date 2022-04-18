@@ -5,6 +5,9 @@
  * https://github.com/democratic-csi/democratic-csi/issues/171
  */
 
+
+// polyfills
+require("../src/utils/polyfills");
 const yaml = require("js-yaml");
 const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
