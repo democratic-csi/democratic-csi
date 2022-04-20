@@ -74,7 +74,7 @@ jobs:
           - truenas/scale/22.02/scale-iscsi.yaml
           - truenas/scale/22.02/scale-nfs.yaml
           # 80 char limit
-          #- truenas/scale-smb.yaml
+          - truenas/scale/22.02/scale-smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-local
@@ -103,10 +103,10 @@ jobs:
       matrix:
         config:
           # 63 char limit
-          #- truenas/core-iscsi.yaml
+          - truenas/core/12.0/core-iscsi.yaml
           - truenas/core/12.0/core-nfs.yaml
           # 80 char limit
-          #- truenas/core-smb.yaml
+          - truenas/core/12.0/core-smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-local
@@ -137,7 +137,7 @@ jobs:
           - truenas/core/13.0/core-iscsi.yaml
           - truenas/core/13.0/core-nfs.yaml
           # 80 char limit
-          #- truenas/core-smb.yaml
+          - truenas/core/13.0/core-smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-local
@@ -167,6 +167,7 @@ jobs:
         config:
           - zfs-generic/iscsi.yaml
           - zfs-generic/nfs.yaml
+          - zfs-generic/smb.yaml
     runs-on:
       - self-hosted
       - csi-sanity-zfs-generic
@@ -250,7 +251,7 @@ jobs:
         run: |
           export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
           mkdir -p ~/.docker/cli-plugins/
-          wget -qO ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.5.1/buildx-v0.5.1.linux-${ARCH}
+          wget -qO ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.8.2/buildx-v0.8.2.linux-${ARCH}
           chmod a+x ~/.docker/cli-plugins/docker-buildx
           docker info
           docker buildx version

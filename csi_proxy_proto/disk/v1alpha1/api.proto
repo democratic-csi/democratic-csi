@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package v1alpha1;
+
+service Disk {
+    // ListDiskLocations returns locations <Adapter, Bus, Target, LUN ID> of all
+    // disk devices enumerated by the host
+    rpc ListDiskLocations(ListDiskLocationsRequest) returns (ListDiskLocationsResponse) {}
+
+    // PartitionDisk initializes and partitions a disk device (if the disk has not
+    // been partitioned already) and returns the resulting volume device ID
+    rpc PartitionDisk(PartitionDiskRequest) returns (PartitionDiskResponse) {}
+
+    // Rescan refreshes the host's storage cache
+    rpc Rescan(RescanRequest) returns (RescanResponse) {}
+
+    // GetDiskNumberByName returns disk number based on the passing disk name information
+    rpc GetDiskNumberByName(GetDiskNumberByNameRequest) returns (GetDiskNumberByNameResponse) {}
+}
+
+message ListDiskLocationsRequest {
+    // Intentionally empty
+}
+
+message DiskLocation {
+    string Adapter = 1;
+    string Bus = 2;
+    string Target = 3;
+    string LUNID = 4;
+}
+
+message ListDiskLocationsResponse {
+    // Map of disk device IDs and <adapter, bus, target, lun ID> associated with each disk device
+    map <string, DiskLocation> disk_locations = 1;
+}
+
+message PartitionDiskRequest {
+    // Disk device ID of the disk to partition
+    string diskID = 1;
+}
+
+message PartitionDiskResponse {
+    // Intentionally empty
+}
+
+message RescanRequest {
+    // Intentionally empty
+}
+
+message RescanResponse {
+    // Intentionally empty
+}
+
+message GetDiskNumberByNameRequest {
+    // Disk ID
+    string disk_name = 1;
+}
+
+message GetDiskNumberByNameResponse {
+    // Disk number
+    string disk_number = 1;
+}

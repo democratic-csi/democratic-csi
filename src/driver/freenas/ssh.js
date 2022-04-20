@@ -4,6 +4,7 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const registry = require("../../utils/registry");
 const SshClient = require("../../utils/ssh").SshClient;
 const HttpClient = require("./http").Client;
+const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 const { sleep, stringify } = require("../../utils/general");
 
@@ -110,6 +111,13 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         return client;
       }
     );
+  }
+
+  async getTrueNASHttpApiClient() {
+    return registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
+      const httpClient = await this.getHttpClient();
+      return new TrueNASApiClient(httpClient, this.ctx.cache);
+    });
   }
 
   getDriverShareType() {
@@ -1716,6 +1724,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   async setFilesystemMode(path, mode) {
     const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
 
     switch (apiVersion) {
       case 1:
@@ -1747,6 +1756,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         response = await httpClient.post(endpoint, perms);
 
         if (response.statusCode == 200) {
+          await httpApiClient.CoreWaitForJob(response.body, 30);
           return;
         }
 
@@ -1764,6 +1774,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   async setFilesystemOwnership(path, user = false, group = false) {
     const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
 
     if (user === false || typeof user == "undefined" || user === null) {
       user = "";
@@ -1832,6 +1843,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         response = await httpClient.post(endpoint, perms);
 
         if (response.statusCode == 200) {
+          await httpApiClient.CoreWaitForJob(response.body, 30);
           return;
         }
 

@@ -2,6 +2,9 @@
 
 node:
   mount:
+    # predominantly used to facilitate testing
+    # mount_flags should generally be defined in storage classes, etc
+    mount_flags: ""
     # should fsck be executed before mounting the fs
     checkFilesystem:
       xfs:
@@ -27,3 +30,30 @@ node:
       # ...
     btrfs:
       customOptions: []
+
+  csiProxy:
+    # should be left unset in most situation, will be auto-detected
+    #enabled: true
+
+    # connection attributes can be set to grpc endpoint
+    # ie: hostname:port, or /some/path, or \\.\pipe\foo
+    # connection and version will use internal defaults and should generally be left unset
+    services:
+      filesystem:
+        #version: v1
+        #connection:
+      disk:
+        #version: v1
+        #connection:
+      volume:
+        #version: v1
+        #connection:
+      smb:
+        #version: v1
+        #connection:
+      system:
+        #version: v1alpha1
+        #connection:
+      iscsi:
+        #version: v1alpha2
+        #connection:

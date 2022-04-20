@@ -1,0 +1,57 @@
+driver: zfs-generic-smb
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+
+zfs:
+  # can be used to override defaults if necessary
+  # the example below is useful for TrueNAS 12
+  #cli:
+  #  sudoEnabled: true
+  #  paths:
+  #    zfs: /usr/local/sbin/zfs
+  #    zpool: /usr/local/sbin/zpool
+  #    sudo: /usr/local/bin/sudo
+  #    chroot: /usr/sbin/chroot
+  
+  # can be used to set arbitrary values on the dataset/zvol
+  # can use handlebars templates with the parameters from the storage class/CO
+  datasetProperties:
+    #aclmode: restricted
+    #aclinherit: passthrough
+    #acltype: nfsv4
+    casesensitivity: insensitive
+
+  datasetParentName: tank/k8s/test
+  # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
+  # they may be siblings, but neither should be nested in the other
+  detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
+
+  datasetEnableQuotas: true
+  datasetEnableReservation: false
+  datasetPermissionsMode: "0770"
+  datasetPermissionsUser: smbroot
+  datasetPermissionsGroup: smbroot
+
+  #datasetPermissionsAclsBinary: nfs4_setfacl
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
+  #- -s group@:modify_set:fd:allow
+  #- -a owner@:full_set:fd:allow
+
+smb:
+  # https://docs.oracle.com/cd/E23824_01/html/821-1448/gayne.html
+  # https://www.hiroom2.com/2016/05/18/ubuntu-16-04-share-zfs-storage-via-nfs-smb/
+  shareStrategy: "setDatasetProperties"
+  shareStrategySetDatasetProperties:
+    properties:
+      sharesmb: "on"
+      # share: ""
+  shareHost: "server address"

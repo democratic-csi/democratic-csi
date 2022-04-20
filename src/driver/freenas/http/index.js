@@ -122,6 +122,9 @@ class Client {
       _.set(options, prop, "redacted");
     }
 
+    delete options.httpAgent;
+    delete options.httpsAgent;
+
     this.logger.debug("FREENAS HTTP REQUEST: " + stringify(options));
     this.logger.debug("FREENAS HTTP ERROR: " + error);
     this.logger.debug("FREENAS HTTP STATUS: " + response.statusCode);

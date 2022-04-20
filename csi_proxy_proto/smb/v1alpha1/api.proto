@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package v1alpha1;
+
+service Smb {
+    // NewSmbGlobalMapping creates an SMB mapping on the SMB client to an SMB share.
+    rpc NewSmbGlobalMapping(NewSmbGlobalMappingRequest) returns (NewSmbGlobalMappingResponse) {}
+
+    // RemoveSmbGlobalMapping removes the SMB mapping to an SMB share.
+    rpc RemoveSmbGlobalMapping(RemoveSmbGlobalMappingRequest) returns (RemoveSmbGlobalMappingResponse) {}
+}
+
+
+message NewSmbGlobalMappingRequest {
+    // A remote SMB share to mount
+    // All unicode characters allowed in SMB server name specifications are
+    // permitted except for restrictions below
+    //
+    // Restrictions:
+    // SMB remote path specified in the format: \\server-name\sharename, \\server.fqdn\sharename or \\a.b.c.d\sharename
+    // If not an IP address, share name has to be a valid DNS name.
+    // UNC specifications to local paths or prefix: \\?\ is not allowed.
+    // Characters: + [ ] " / : ; | < > , ? * = $ are not allowed.
+    string remote_path = 1;
+    // Optional local path to mount the smb on
+    string local_path = 2;
+
+    // Username credential associated with the share
+    string username = 3;
+
+    // Password credential associated with the share
+    string password = 4;
+}
+
+message NewSmbGlobalMappingResponse {
+    // Windows error code
+    // Success is represented as 0
+    string error = 1;
+}
+
+
+message RemoveSmbGlobalMappingRequest {
+    // A remote SMB share mapping to remove
+    // All unicode characters allowed in SMB server name specifications are
+    // permitted except for restrictions below
+    //
+    // Restrictions:
+    // SMB share specified in the format: \\server-name\sharename, \\server.fqdn\sharename or \\a.b.c.d\sharename
+    // If not an IP address, share name has to be a valid DNS name.
+    // UNC specifications to local paths or prefix: \\?\ is not allowed.
+    // Characters: + [ ] " / : ; | < > , ? * = $ are not allowed.
+    string remote_path = 1;
+}
+
+message RemoveSmbGlobalMappingResponse {
+    // Windows error code
+    // Success is represented as 0
+    string error = 1;
+}

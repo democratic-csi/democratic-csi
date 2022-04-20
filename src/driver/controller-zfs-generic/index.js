@@ -52,12 +52,31 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getDriverZfsResourceType() {
     switch (this.options.driver) {
       case "zfs-generic-nfs":
+      case "zfs-generic-smb":
         return "filesystem";
       case "zfs-generic-iscsi":
         return "volume";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
     }
+  }
+
+  generateSmbShareName(datasetName) {
+    const driver = this;
+
+    driver.ctx.logger.verbose(
+      `generating smb share name for dataset: ${typeof datasetName} ${datasetName}`
+    );
+
+    let name = datasetName || "";
+    name = name.replaceAll("/", "_");
+    name = name.replaceAll("-", "_");
+
+    driver.ctx.logger.verbose(
+      `generated smb share name for dataset (${datasetName}): ${name}`
+    );
+
+    return name;
   }
 
   /**
@@ -67,6 +86,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
    * @param {*} datasetName
    */
   async createShare(call, datasetName) {
+    const driver = this;
     const zb = await this.getZetabyte();
     const execClient = this.getExecClient();
 
@@ -106,6 +126,41 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
           node_attach_driver: "nfs",
           server: this.options.nfs.shareHost,
           share: properties.mountpoint.value,
+        };
+        return volume_context;
+
+      case "zfs-generic-smb":
+        let share;
+        switch (this.options.smb.shareStrategy) {
+          case "setDatasetProperties":
+            for (let key of ["share", "sharesmb"]) {
+              if (
+                this.options.smb.shareStrategySetDatasetProperties.properties[
+                  key
+                ]
+              ) {
+                await zb.zfs.set(datasetName, {
+                  [key]:
+                    this.options.smb.shareStrategySetDatasetProperties
+                      .properties[key],
+                });
+              }
+            }
+
+            share = driver.generateSmbShareName(datasetName);
+            break;
+          default:
+            break;
+        }
+
+        properties = await zb.zfs.get(datasetName, ["mountpoint"]);
+        properties = properties[datasetName];
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        volume_context = {
+          node_attach_driver: "smb",
+          server: this.options.smb.shareHost,
+          share,
         };
         return volume_context;
 
@@ -264,6 +319,36 @@ create /backstores/block/${iscsiName}
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
               `invalid configuration: unknown shareStrategy ${this.options.nfs.shareStrategy}`
+            );
+        }
+        break;
+
+      case "zfs-generic-smb":
+        switch (this.options.smb.shareStrategy) {
+          case "setDatasetProperties":
+            for (let key of ["share", "sharesmb"]) {
+              if (
+                this.options.smb.shareStrategySetDatasetProperties.properties[
+                  key
+                ]
+              ) {
+                try {
+                  await zb.zfs.inherit(datasetName, key);
+                } catch (err) {
+                  if (err.toString().includes("dataset does not exist")) {
+                    // do nothing
+                  } else {
+                    throw err;
+                  }
+                }
+              }
+            }
+            await sleep(2000); // let things settle
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `invalid configuration: unknown shareStrategy ${this.options.smb.shareStrategy}`
             );
         }
         break;

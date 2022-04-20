@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package v1alpha2;
+
+option go_package = "github.com/kubernetes-csi/csi-proxy/client/api/iscsi/v1alpha2";
+
+service Iscsi {
+  // AddTargetPortal registers an iSCSI target network address for later
+  // discovery.
+  // AddTargetPortal currently does not support selecting different NICs or
+  // a different iSCSI initiator (e.g a hardware initiator). This means that
+  // Windows will select the initiator NIC and instance on its own.
+  rpc AddTargetPortal(AddTargetPortalRequest)
+      returns (AddTargetPortalResponse) {}
+
+  // DiscoverTargetPortal initiates discovery on an iSCSI target network address
+  // and returns discovered IQNs.
+  rpc DiscoverTargetPortal(DiscoverTargetPortalRequest)
+      returns (DiscoverTargetPortalResponse) {}
+
+  // RemoveTargetPortal removes an iSCSI target network address registration.
+  rpc RemoveTargetPortal(RemoveTargetPortalRequest)
+      returns (RemoveTargetPortalResponse) {}
+
+  // ListTargetPortal lists all currently registered iSCSI target network
+  // addresses.
+  rpc ListTargetPortals(ListTargetPortalsRequest)
+      returns (ListTargetPortalsResponse) {}
+
+  // ConnectTarget connects to an iSCSI Target
+  rpc ConnectTarget(ConnectTargetRequest) returns (ConnectTargetResponse) {}
+
+  // DisconnectTarget disconnects from an iSCSI Target
+  rpc DisconnectTarget(DisconnectTargetRequest)
+      returns (DisconnectTargetResponse) {}
+
+  // GetTargetDisks returns the disk addresses that correspond to an iSCSI
+  // target
+  rpc GetTargetDisks(GetTargetDisksRequest) returns (GetTargetDisksResponse) {}
+
+  // SetMutualChapSecret sets the default CHAP secret that all initiators on
+  // this machine (node) use to authenticate the target on mutual CHAP
+  // authentication.
+  // NOTE: This method affects global node state and should only be used
+  //       with consideration to other CSI drivers that run concurrently.
+  rpc SetMutualChapSecret(SetMutualChapSecretRequest)
+      returns (SetMutualChapSecretResponse) {}
+}
+
+// TargetPortal is an address and port pair for a specific iSCSI storage
+// target.
+message TargetPortal {
+  // iSCSI Target (server) address
+  string target_address = 1;
+
+  // iSCSI Target port (default iSCSI port is 3260)
+  uint32 target_port = 2;
+}
+
+message AddTargetPortalRequest {
+  // iSCSI Target Portal to register in the initiator
+  TargetPortal target_portal = 1;
+}
+
+message AddTargetPortalResponse {
+  // Intentionally empty
+}
+
+message DiscoverTargetPortalRequest {
+  // iSCSI Target Portal on which to initiate discovery
+  TargetPortal target_portal = 1;
+}
+
+message DiscoverTargetPortalResponse {
+  // List of discovered IQN addresses
+  // follows IQN format: iqn.yyyy-mm.naming-authority:unique-name
+  repeated string iqns = 1;
+}
+
+message RemoveTargetPortalRequest {
+  // iSCSI Target Portal
+  TargetPortal target_portal = 1;
+}
+
+message RemoveTargetPortalResponse {
+  // Intentionally empty
+}
+
+message ListTargetPortalsRequest {
+  // Intentionally empty
+}
+
+message ListTargetPortalsResponse {
+  // A list of Target Portals currently registered in the initiator
+  repeated TargetPortal target_portals = 1;
+}
+
+// iSCSI logon authentication type
+enum AuthenticationType {
+  // No authentication is used
+  NONE = 0;
+
+  // One way CHAP authentication. The target authenticates the initiator.
+  ONE_WAY_CHAP = 1;
+
+  // Mutual CHAP authentication. The target and initiator authenticate each
+  // other.
+  MUTUAL_CHAP = 2;
+}
+
+message ConnectTargetRequest {
+  // Target portal to which the initiator will connect
+  TargetPortal target_portal = 1;
+
+  // IQN of the iSCSI Target
+  string iqn = 2;
+
+  // Connection authentication type, None by default
+  //
+  // One Way Chap uses the chap_username and chap_secret
+  // fields mentioned below to authenticate the initiator.
+  //
+  // Mutual Chap uses both the user/secret mentioned below
+  // and the Initiator Chap Secret (See `SetMutualChapSecret`)
+  // to authenticate the target and initiator.
+  AuthenticationType auth_type = 3;
+
+  // CHAP Username used to authenticate the initiator
+  string chap_username = 4;
+
+  // CHAP password used to authenticate the initiator
+  string chap_secret = 5;
+}
+
+message ConnectTargetResponse {
+  // Intentionally empty
+}
+
+message GetTargetDisksRequest {
+  // Target portal whose disks will be queried
+  TargetPortal target_portal = 1;
+
+  // IQN of the iSCSI Target
+  string iqn = 2;
+}
+
+message GetTargetDisksResponse {
+  // List composed of disk ids (numbers) that are associated with the
+  // iSCSI target
+  repeated string diskIDs = 1;
+}
+
+message DisconnectTargetRequest {
+  // Target portal from which initiator will disconnect
+  TargetPortal target_portal = 1;
+
+  // IQN of the iSCSI Target
+  string iqn = 2;
+}
+
+message DisconnectTargetResponse {
+  // Intentionally empty
+}
+
+message SetMutualChapSecretRequest {
+  // the default CHAP secret that all initiators on this machine (node) use to
+  // authenticate the target on mutual CHAP authentication.
+  // Must be at least 12 byte long for non-Ipsec connections, at least one
+  // byte long for Ipsec connections, and at most 16 bytes long.
+  string MutualChapSecret = 1;
+}
+
+message SetMutualChapSecretResponse {
+  // Intentionally empty
+}

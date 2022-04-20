@@ -1,5 +1,13 @@
-#!/usr/bin/env -S node --expose-gc ${NODE_OPTIONS_CSI_1} ${NODE_OPTIONS_CSI_2} ${NODE_OPTIONS_CSI_3} ${NODE_OPTIONS_CSI_4} ${NODE_OPTIONS_CSI_5}
+#!/usr/bin/env -S node --expose-gc ${NODE_OPTIONS_CSI_1} ${NODE_OPTIONS_CSI_2} ${NODE_OPTIONS_CSI_3} ${NODE_OPTIONS_CSI_4}
 
+/**
+ * keep the shebang line length under 128
+ * https://github.com/democratic-csi/democratic-csi/issues/171
+ */
+
+
+// polyfills
+require("../src/utils/polyfills");
 const yaml = require("js-yaml");
 const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
@@ -136,6 +144,14 @@ let operationLock = new Set();
 
 async function requestHandlerProxy(call, callback, serviceMethodName) {
   const cleansedCall = JSON.parse(stringify(call));
+
+  delete cleansedCall.call;
+  delete cleansedCall.canceled;
+  for (const key in cleansedCall) {
+    if (key.startsWith("_")) {
+      delete cleansedCall[key];
+    }
+  }
   for (const key in cleansedCall.request) {
     if (key.includes("secret")) {
       cleansedCall.request[key] = "redacted";
@@ -165,6 +181,17 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       });
     }
 
+    // for testing purposes
+    //await GeneralUtils.sleep(10000);
+
+    // for CI/testing purposes
+    if (["NodePublishVolume", "NodeStageVolume"].includes(serviceMethodName)) {
+      await driver.setVolumeContextCache(
+        call.request.volume_id,
+        call.request.volume_context
+      );
+    }
+
     let response;
     let responseError;
     try {
@@ -190,12 +217,21 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       throw responseError;
     }
 
+    // for CI/testing purposes
+    if (serviceMethodName == "CreateVolume") {
+      await driver.setVolumeContextCache(
+        response.volume.volume_id,
+        response.volume.volume_context
+      );
+    }
+
     logger.info(
       "new response - driver: %s method: %s response: %j",
       driver.constructor.name,
       serviceMethodName,
       response
     );
+
     callback(null, response);
   } catch (e) {
     let message;
@@ -205,7 +241,7 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
         message += ` ${e.stack}`;
       }
     } else {
-      message = JSON.stringify(e);
+      message = stringify(e);
     }
 
     logger.error(

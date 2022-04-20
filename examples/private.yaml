@@ -1,0 +1,18 @@
+#
+# these SHOULD NOT be used
+# they are here for documentation purposes only and are likely to:
+# - be removed
+# - break things
+#
+
+_private:
+  csi:
+    volume:
+      derivedContext:
+        # driver left blank is used to auto select
+        driver: memory # strictly to facilitate testing
+        #driver: kubernetes
+      idHash:
+        strategy: crc16
+        #strategy: crc32
+        #strategy: md5

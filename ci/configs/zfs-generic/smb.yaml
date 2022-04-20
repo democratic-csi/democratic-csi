@@ -1,0 +1,40 @@
+driver: zfs-generic-smb
+
+sshConnection:
+  host: ${SERVER_HOST}
+  port: 22
+  username: ${SERVER_USERNAME}
+  password: ${SERVER_PASSWORD}
+
+zfs:
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  datasetProperties:
+    #aclmode: restricted
+    #aclinherit: passthrough
+    #acltype: nfsv4
+    casesensitivity: insensitive
+
+  datasetEnableQuotas: true
+  datasetEnableReservation: false
+  datasetPermissionsMode: "0770"
+  datasetPermissionsUser: smbroot
+  datasetPermissionsGroup: smbroot
+
+smb:
+  shareHost: ${SERVER_HOST}
+  shareStrategy: "setDatasetProperties"
+  shareStrategySetDatasetProperties:
+    properties:
+      sharesmb: "on"
+
+node:
+  mount:
+    mount_flags: "username=smbroot,password=smbroot"
+
+_private:
+  csi:
+    volume:
+      idHash:
+        strategy: crc16
