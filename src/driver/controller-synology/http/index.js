@@ -58,10 +58,11 @@ class SynologyError extends GrpcError {
     this.httpCode = httpCode;
     if (code > 0) {
       const error = SYNO_ERRORS[code];
-      this.code = error?.status ?? grpc.status.UNKNOWN;
+      this.code = error && error.status ? error.status : grpc.status.UNKNOWN;
       this.message =
-        error?.message ??
-        `An unknown error occurred when executing a synology command (code = ${code}).`;
+        error && error.message
+          ? error.message
+          : `An unknown error occurred when executing a synology command (code = ${code}).`;
     } else {
       this.code = grpc.status.UNKNOWN;
       this.message = `The synology webserver returned a status code ${httpCode}`;
