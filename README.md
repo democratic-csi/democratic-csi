@@ -215,6 +215,9 @@ Ensure the following services are configurged and running:
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/portal'`
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
+  - The maximum number of volumes is limited to 255 by default on FreeBSD (physical devices such as disks and CD-ROM drives count against this value).
+  Be sure to properly adjust both [tunables](https://www.freebsd.org/cgi/man.cgi?query=ctl&sektion=4#end) `kern.cam.ctl.max_ports` and `kern.cam.ctl.max_luns` to avoid running out of resources when dynamically provisioning iSCSI volumes on FreeNAS or TrueNAS Core.
+
 - smb
 
 If you would prefer you can configure `democratic-csi` to use a
@@ -301,7 +304,7 @@ smbpasswd -L -a smbroot
 
 ### Synology (synology-iscsi)
 
-Ensure iscsi manager has been installed and is generally setup/configured.
+Ensure iscsi manager has been installed and is generally setup/configured. DSM 6.3+ is supported.
 
 ## Helm Installation
 
