@@ -65,7 +65,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
     const driver = this;
 
     driver.ctx.logger.verbose(
-      `generating smb share name for dataset: ${typeof datasetName} ${datasetName}`
+      `generating smb share name for dataset: ${datasetName}`
     );
 
     let name = datasetName || "";

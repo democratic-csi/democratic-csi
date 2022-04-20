@@ -1,11 +1,12 @@
+const _ = require("lodash");
 const { CsiBaseDriver } = require("../index");
+const GeneralUtils = require("../../utils/general");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const Handlebars = require("handlebars");
 const registry = require("../../utils/registry");
 const SynologyHttpClient = require("./http").SynologyHttpClient;
 const semver = require("semver");
-const sleep = require("../../utils/general").sleep;
 const yaml = require("js-yaml");
-const GeneralUtils = require("../../utils/general");
 
 const __REGISTRY_NS__ = "ControllerSynologyDriver";
 
@@ -146,19 +147,33 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
   getObjectFromDevAttribs(list = []) {
     if (!list) {
-      return {}
+      return {};
     }
     return list.reduce(
-      (obj, item) => Object.assign(obj, {[item.dev_attrib]: item.enable}), {}
-    )
+      (obj, item) => Object.assign(obj, { [item.dev_attrib]: item.enable }),
+      {}
+    );
   }
 
   getDevAttribsFromObject(obj, keepNull = false) {
-    return Object.entries(obj).filter(
-      e => keepNull || (e[1] != null)
-    ).map(
-      e => ({dev_attrib: e[0], enable: e[1]})
-    );
+    return Object.entries(obj)
+      .filter((e) => keepNull || e[1] != null)
+      .map((e) => ({ dev_attrib: e[0], enable: e[1] }));
+  }
+
+  parseParameterYamlData(data, fieldHint = "") {
+    try {
+      return yaml.load(data);
+    } catch {
+      if (err instanceof yaml.YAMLException) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `${fieldHint} not a valid YAML document.`.trim()
+        );
+      } else {
+        throw err;
+      }
+    }
   }
 
   buildIscsiName(name) {
@@ -183,14 +198,14 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    * @returns {String} The location of the volume.
    */
   getLocation() {
-    let location = this.options?.synology?.volume;
-    if (location === undefined) {
-      location = "volume1"
+    let location = _.get(this.options, "synology.volume");
+    if (!location) {
+      location = "volume1";
     }
-    if (!location.startsWith('/')) {
-      location = "/" + location
+    if (!location.startsWith("/")) {
+      location = "/" + location;
     }
-    return location
+    return location;
   }
 
   assertCapabilities(capabilities) {
@@ -350,7 +365,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     let volume_context = {};
-    const normalizedParameters = driver.getNormalizedParameters(call.request.parameters);
+    const normalizedParameters = driver.getNormalizedParameters(
+      call.request.parameters
+    );
     switch (driver.getDriverShareType()) {
       case "nfs":
         // TODO: create volume here
@@ -368,12 +385,52 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         break;
       case "iscsi":
         let iscsiName = driver.buildIscsiName(name);
-        let storageClassTemplate;
+        let lunTemplate;
+        let targetTemplate;
         let data;
         let target;
         let lun_mapping;
         let lun_uuid;
         let existingLun;
+
+        lunTemplate = Object.assign(
+          {},
+          _.get(driver.options, "iscsi.lunTemplate", {}),
+          driver.parseParameterYamlData(
+            _.get(normalizedParameters, "lunTemplate", "{}"),
+            "parameters.lunTemplate"
+          ),
+          driver.parseParameterYamlData(
+            _.get(call.request, "secrets.lunTemplate", "{}"),
+            "secrets.lunTemplate"
+          )
+        );
+        targetTemplate = Object.assign(
+          {},
+          _.get(driver.options, "iscsi.targetTemplate", {}),
+          driver.parseParameterYamlData(
+            _.get(normalizedParameters, "targetTemplate", "{}"),
+            "parameters.targetTemplate"
+          ),
+          driver.parseParameterYamlData(
+            _.get(call.request, "secrets.targetTemplate", "{}"),
+            "secrets.targetTemplate"
+          )
+        );
+
+        // render the template for description
+        if (lunTemplate.description) {
+          lunTemplate.description = Handlebars.compile(lunTemplate.description)(
+            {
+              name: call.request.name,
+              parameters: call.request.parameters,
+              csi: {
+                name: this.ctx.args.csiName,
+                version: this.ctx.args.csiVersion,
+              },
+            }
+          );
+        }
 
         // ensure volumes with the same name being requested a 2nd time but with a different size fails
         try {
@@ -429,10 +486,11 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                 src_lun_uuid = await httpClient.GetLunByID(src_lun_uuid).uuid;
               }
 
-              let snapshot = await httpClient.GetSnapshotByLunUUIDAndSnapshotUUID(
-                src_lun_uuid,
-                snapshot_uuid
-              );
+              let snapshot =
+                await httpClient.GetSnapshotByLunUUIDAndSnapshotUUID(
+                  src_lun_uuid,
+                  snapshot_uuid
+                );
               if (!snapshot) {
                 throw new GrpcError(
                   grpc.status.NOT_FOUND,
@@ -446,7 +504,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                   src_lun_uuid,
                   snapshot_uuid,
                   iscsiName,
-                  normalizedParameters.description
+                  lunTemplate.description
                 );
               }
               break;
@@ -474,7 +532,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                   src_lun_uuid,
                   iscsiName,
                   driver.getLocation(),
-                  normalizedParameters.description
+                  lunTemplate.description
                 );
               }
               break;
@@ -494,62 +552,22 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
         } else {
           // create lun
-          try {
-            storageClassTemplate = yaml.load(normalizedParameters.lunTemplate ?? "")
-            const devAttribs = driver.getDevAttribsFromObject(Object.assign(
-              {},
-              driver.getObjectFromDevAttribs(driver.options.iscsi.lunTemplate?.dev_attribs),
-              driver.getObjectFromDevAttribs(storageClassTemplate?.dev_attribs)
-            ))
-            data = Object.assign({}, driver.options.iscsi.lunTemplate, storageClassTemplate, {
-              name: iscsiName,
-              location: driver.getLocation(),
-              size: capacity_bytes,
-              dev_attribs: devAttribs
-            });
+          data = Object.assign({}, lunTemplate, {
+            name: iscsiName,
+            location: driver.getLocation(),
+            size: capacity_bytes,
+          });
 
-            lun_uuid = await httpClient.CreateLun(data);
-          } catch (err) {
-            if (err instanceof yaml.YAMLException) {
-              throw new GrpcError(
-                grpc.status.INVALID_ARGUMENT,
-                `The lunTemplate on StorageClass is not a valid YAML document.`
-              );
-            } else {
-              throw err
-            }
-          }
+          lun_uuid = await httpClient.CreateLun(data);
         }
 
         // create target
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
-        try {
-          storageClassTemplate = yaml.load(normalizedParameters.targetTemplate ?? "")
-        } catch (err) {
-          throw new GrpcError(
-            grpc.status.INVALID_ARGUMENT,
-            `The targetTemplate on StorageClass is not a valid YAML document.`
-          );
-        }
-        data = Object.assign({}, driver.options.iscsi.targetTemplate, storageClassTemplate, {
+        data = Object.assign({}, targetTemplate, {
           name: iscsiName,
           iqn,
         });
 
-        if ('user' in call.request.secrets && 'password' in call.request.secrets) {
-          data.user = call.request.secrets.user;
-          data.password = call.request.secrets.password;
-          data.chap = true;
-          if ('mutualUser' in call.request.secrets && 'mutualPassword' in call.request.secrets) {
-            data.mutual_user = call.request.secrets.mutualUser;
-            data.mutual_password = call.request.secrets.mutualPassword;
-            data.auth_type = 2;
-            data.mutual_chap = true;
-          } else {
-            data.auth_type = 1;
-            data.mutual_chap = false;
-          }
-        }
         let target_id = await httpClient.CreateTarget(data);
         //target = await httpClient.GetTargetByTargetID(target_id);
         target = await httpClient.GetTargetByIQN(iqn);
@@ -924,6 +942,24 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
+    const normalizedParameters = driver.getNormalizedParameters(
+      call.request.parameters
+    );
+    let lunSnapshotTemplate;
+
+    lunSnapshotTemplate = Object.assign(
+      {},
+      _.get(driver.options, "iscsi.lunSnapshotTemplate", {}),
+      driver.parseParameterYamlData(
+        _.get(normalizedParameters, "lunSnapshotTemplate", "{}"),
+        "parameters.lunSnapshotTemplate"
+      ),
+      driver.parseParameterYamlData(
+        _.get(call.request, "secrets.lunSnapshotTemplate", "{}"),
+        "secrets.lunSnapshotTemplate"
+      )
+    );
+
     // check for other snapshopts with the same name on other volumes and fail as appropriate
     // TODO: technically this should only be checking lun/snapshots relevant to this specific install of the driver
     // but alas an isolation/namespacing mechanism does not exist in synology
@@ -939,19 +975,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
     // check for already exists
     let snapshot;
-    let snapshotClassTemplate;
     snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);
     if (!snapshot) {
-      const normalizedParameters = driver.getNormalizedParameters(call.request.parameters);
-      try {
-        snapshotClassTemplate = yaml.load(normalizedParameters.lunSnapshotTemplate ?? "");
-      } catch (err) {
-        throw new GrpcError(
-          grpc.status.INVALID_ARGUMENT,
-          `The snapshotTemplate on VolumeSnapshotClass is not a valid YAML document.`
-        );
-      }
-      let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, snapshotClassTemplate, {
+      let data = Object.assign({}, lunSnapshotTemplate, {
         src_lun_uuid: lun.uuid,
         taken_by: "democratic-csi",
         description: name, //check

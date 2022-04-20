@@ -10,17 +10,46 @@ const USER_AGENT = "democratic-csi";
 const __REGISTRY_NS__ = "SynologyHttpClient";
 
 SYNO_ERRORS = {
-  18990002: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The synology volume is out of disk space." },
-  18990318: { status: grpc.status.INVALID_ARGUMENT, message: "The requested lun type is incompatible with the Synology filesystem." },
-  18990538: { status: grpc.status.ALREADY_EXISTS, message: "A LUN with this name already exists." },
-  18990541: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The maximum number of LUNS has been reached." },
-  18990542: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The maximum number if iSCSI target has been reached." },
-  18990744: { status: grpc.status.ALREADY_EXISTS, message: "An iSCSI target with this name already exists." },
+  400: {
+    status: grpc.status.UNAUTHENTICATED,
+    message: "Failed to authenticate to the Synology DSM",
+  },
+  18990002: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "The synology volume is out of disk space.",
+  },
+  18990318: {
+    status: grpc.status.INVALID_ARGUMENT,
+    message:
+      "The requested lun type is incompatible with the Synology filesystem.",
+  },
+  18990538: {
+    status: grpc.status.ALREADY_EXISTS,
+    message: "A LUN with this name already exists.",
+  },
+  18990541: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "The maximum number of LUNS has been reached.",
+  },
+  18990542: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "The maximum number if iSCSI target has been reached.",
+  },
+  18990744: {
+    status: grpc.status.ALREADY_EXISTS,
+    message: "An iSCSI target with this name already exists.",
+  },
   18990532: { status: grpc.status.NOT_FOUND, message: "No such snapshot." },
   18990500: { status: grpc.status.INVALID_ARGUMENT, message: "Bad LUN type" },
-  18990543: { status: grpc.status.RESOURCE_EXHAUSTED, message: "Maximum number of snapshots reached." },
-  18990635: { status: grpc.status.INVALID_ARGUMENT, message: "Invalid ioPolicy." }
-}
+  18990543: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "Maximum number of snapshots reached.",
+  },
+  18990635: {
+    status: grpc.status.INVALID_ARGUMENT,
+    message: "Invalid ioPolicy.",
+  },
+};
 
 class SynologyError extends GrpcError {
   constructor(code, httpCode = undefined) {
@@ -28,9 +57,11 @@ class SynologyError extends GrpcError {
     this.synoCode = code;
     this.httpCode = httpCode;
     if (code > 0) {
-      const error = SYNO_ERRORS[code]
+      const error = SYNO_ERRORS[code];
       this.code = error?.status ?? grpc.status.UNKNOWN;
-      this.message = error?.message ?? `An unknown error occurred when executing a synology command (code = ${code}).`;
+      this.message =
+        error?.message ??
+        `An unknown error occurred when executing a synology command (code = ${code}).`;
     } else {
       this.code = grpc.status.UNKNOWN;
       this.message = `The synology webserver returned a status code ${httpCode}`;
@@ -94,6 +125,15 @@ class SynologyHttpClient {
     if (val) {
       _.set(options, prop, "redacted");
     }
+
+    prop = "params._sid";
+    val = _.get(options, prop, false);
+    if (val) {
+      _.set(options, prop, "redacted");
+    }
+
+    delete options.httpAgent;
+    delete options.httpsAgent;
 
     this.logger.debug("SYNOLOGY HTTP REQUEST: " + stringify(options));
     this.logger.debug("SYNOLOGY HTTP ERROR: " + error);
@@ -179,7 +219,7 @@ class SynologyHttpClient {
           }
 
           if (response.statusCode > 299 || response.statusCode < 200) {
-            reject(new SynologyError(null, response.statusCode))
+            reject(new SynologyError(null, response.statusCode));
           }
 
           if (response.body.success === false) {
@@ -187,7 +227,9 @@ class SynologyHttpClient {
             if (response.body.error.code == 119 && sid == client.sid) {
               client.sid = null;
             }
-            reject(new SynologyError(response.body.error.code, response.statusCode));
+            reject(
+              new SynologyError(response.body.error.code, response.statusCode)
+            );
           }
 
           resolve(response);
@@ -602,7 +644,12 @@ class SynologyHttpClient {
     );
   }
 
-  async CreateClonedVolume(src_lun_uuid, dst_lun_name, dst_location, description) {
+  async CreateClonedVolume(
+    src_lun_uuid,
+    dst_lun_name,
+    dst_location,
+    description
+  ) {
     const create_cloned_volume = {
       api: "SYNO.Core.ISCSI.LUN",
       version: 1,
@@ -619,7 +666,12 @@ class SynologyHttpClient {
     return await this.do_request("GET", "entry.cgi", create_cloned_volume);
   }
 
-  async CreateVolumeFromSnapshot(src_lun_uuid, snapshot_uuid, cloned_lun_name, description) {
+  async CreateVolumeFromSnapshot(
+    src_lun_uuid,
+    snapshot_uuid,
+    cloned_lun_name,
+    description
+  ) {
     const create_volume_from_snapshot = {
       api: "SYNO.Core.ISCSI.LUN",
       version: 1,

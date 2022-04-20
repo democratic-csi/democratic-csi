@@ -1,42 +1,25 @@
 driver: synology-iscsi
 httpConnection:
   protocol: http
-  host: server address
-  port: 5000
-  username: admin
-  password: password
+  host: ${SYNOLOGY_HOST}
+  port: ${SYNOLOGY_PORT}
+  username: ${SYNOLOGY_USERNAME}
+  password: ${SYNOLOGY_PASSWORD}
   allowInsecure: true
-  # should be uniqe across all installs to the same nas
-  session: "democratic-csi"
+  session: "democratic-csi-${CI_BUILD_KEY}"
   serialize: true
 
-# Choose the DSM volume this driver operates on. The default value is /volume1.
-# synology:
-#   volume: /volume1
+synology:
+  volume: ${SYNOLOGY_VOLUME}
 
 iscsi:
-  targetPortal: "server[:port]"
-  # for multipath
-  targetPortals: [] # [ "server[:port]", "server[:port]", ... ]
-  # leave empty to omit usage of -I with iscsiadm
-  interface: ""
-  # can be whatever you would like
-  baseiqn: "iqn.2000-01.com.synology:csi."
+  targetPortal: ${SYNOLOGY_HOST}
+  targetPortals: []
+  baseiqn: "iqn.2000-01.com.synology:XpenoDsm62x."
+  namePrefix: "csi-${CI_BUILD_KEY}-"
+  nameSuffix: "-ci"
 
-  # MUST ensure uniqueness
-  # full iqn limit is 223 bytes, plan accordingly
-  namePrefix: ""
-  nameSuffix: ""
-
-  # documented below are several blocks
-  # pick the option appropriate for you based on what your backing fs is and desired features
-  # you do not need to alter dev_attribs under normal circumstances but they may be altered in advanced use-cases
-  # These options can also be configured per storage-class:
-  # See https://github.com/democratic-csi/democratic-csi/blob/master/docs/storage-class-parameters.md
   lunTemplate:
-    # can be static value or handlebars template
-    #description: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
-    
     # btrfs thin provisioning
     type: "BLUN"
     # tpws = Hardware-assisted zeroing
