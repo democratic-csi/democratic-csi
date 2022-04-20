@@ -270,13 +270,34 @@ Issues to review:
 - https://jira.ixsystems.com/browse/NAS-108522
 - https://jira.ixsystems.com/browse/NAS-107219
 
-### ZoL (zfs-generic-nfs, zfs-generic-iscsi)
+### ZoL (zfs-generic-nfs, zfs-generic-iscsi, zfs-generic-smb)
 
 Ensure ssh and zfs is installed on the nfs/iscsi server and that you have installed
 `targetcli`.
 
-- `sudo yum install targetcli -y`
-- `sudo apt-get -y install targetcli-fb`
+The driver executes many commands over an ssh connection. You may consider
+disabling all the `motd` details for the ssh user as it can spike the cpu
+unecessarily:
+
+- https://askubuntu.com/questions/318592/how-can-i-remove-the-landscape-canonical-com-greeting-from-motd
+- https://linuxconfig.org/disable-dynamic-motd-and-news-on-ubuntu-20-04-focal-fossa-linux
+
+```
+####### iscsi
+yum install targetcli -y
+apt-get -y install targetcli-fb
+
+####### smb
+apt-get install -y samba smbclient
+
+# create posix user
+groupadd -g 1001 smbroot
+useradd -u 1001 -g 1001 -M -N -s /sbin/nologin smbroot
+passwd smbroot (optional)
+
+# create smb user and set password
+smbpasswd -L -a smbroot
+```
 
 ### Synology (synology-iscsi)
 
