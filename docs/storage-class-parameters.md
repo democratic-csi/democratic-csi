@@ -15,44 +15,60 @@ metadata:
   name: synology-iscsi
 parameters:
     fsType: ext4
-    # The following options affect the LUN representing the volume
-    lunType: BLUN       # Btrfs thin provisioning
-    lunType: BLUN_THICK # Btrfs thick provisioning
-    lunType: THIN       # Ext4 thin provisioning
-    lunType: ADV        # Ext4 thin provisioning with legacy advanced feature set
-    lunType: FILE       # Ext4 thick provisioning
-    lunDescription: Some Description
-    hardwareAssistedZeroing: true
-    hardwareAssistedLocking: true
-    hardwareAssistedDataTransfer: true
-    spaceReclamation: true
-    allowSnapshots: true
-    enableFuaWrite: false
-    enableSyncCache: false
-    ioPolicy: Buffered  # or Direct
-    # The following options affect the iSCSI target
-    headerDigenst: false
-    dataDigest: false
-    maxSessions: 1 # Note that this option requires a compatible filesystem. Use 0 for unlimited sessions (default).
-    maxRecieveSegmentBytes: 262144
-    maxSendSegmentBytes: 262144
+    # The following options affect the LUN representing the volume. These options are passed directly to the Synology API.
+    # The following options are known.
     lunTemplate: |
-      # This inline yaml object will be passed to the Synology API when creating the LUN. Use this for custom options.
+      type: BLUN       # Btrfs thin provisioning
+      type: BLUN_THICK # Btrfs thick provisioning
+      type: THIN       # Ext4 thin provisioning
+      type: ADV        # Ext4 thin provisioning with legacy advanced feature set
+      type: FILE       # Ext4 thick provisioning
+      description: Some Description
+      
+      # Only for thick provisioned volumes. Known values:
+      # 0: Buffered Writes
+      # 3: Direct Write
+      direct_io_pattern: 0
+      
+      # Device Attributes. See below for more info
       dev_attribs:
-      - dev_attrib: emulate_caw
+      - dev_attrib: emulate_tpws
         enable: 1
+      - ...
+
+    # The following options affect the iSCSI target. These options will be passed directly to the Synology API.
+    # The following options are known.
     targetTemplate: |
-      # This inline yaml object will be passed to the Synology API when creating the target. Use this for custom
-      # options.
+      has_header_checksum: false
+      has_data_checksum: false
+      
+      # Note that this option requires a compatible filesystem. Use 0 for unlimited sessions.
       max_sessions: 0
+      multi_sessions: true
+      max_recv_seg_bytes: 262144
+      max_send_seg_bytes: 262144
+
+      # Use this to disable authentication. To configure authentication see below
+      auth_type: 0
 ```
 
-About extended features:
-- For `BLUN_THICK` volumes only hardware assisted zeroing and locking can be configured.
-- For `THIN` volumes none of the extended features can be configured.
-- For `ADV` volumes only space reclamation can be configured.
-- For `FILE` volumes only hardware assisted locking can be configured.
-- `ioPolicy` is only available for thick provisioned volumes.
+#### About LUN Types
+The availability of the different types of LUNs depends on the filesystem used on your Synology volume. For Btrfs volumes
+you can use `BLUN` and `BLUN_THICK` volumes. For Ext4 volumes you can use `THIN`, `ADV` or `FILE` volumes. These
+correspond to the options available in the UI.
+
+#### About `dev_attribs`
+Most of the LUN options are configured via the `dev_attribs` list. This list can be specified both in the `lunTemplate`
+of the global configuration and in the `lunTemplate` of the `StorageClass`. If both lists are present they will be merged
+(with the `StorageClass` taking precedence). The following  `dev_attribs` are known to work:
+
+- `emulate_tpws`: Hardware-assisted zeroing
+- `emulate_caw`: Hardware-assisted locking
+- `emulate_3pc`: Hardware-assisted data transfer
+- `emulate_tpu`: Space Reclamation
+- `emulate_fua_write`: Enable the FUA iSCSI command (DSM 7+)
+- `emulate_sync_cache`: Enable the Sync Cache iSCSI command (DSM 7+)
+- `can_snapshot`: Enable snapshots for this volume. Only works for thin provisioned volumes.
 
 ### Configure Snapshot Classes
 `synology-iscsi` can also configure different parameters on snapshot classes:
@@ -63,15 +79,14 @@ kind: VolumeSnapshotClass
 metadata:
   name: synology-iscsi-snapshot
 parameters:
-  isLocked: true
-  # https://kb.synology.com/en-me/DSM/tutorial/What_is_file_system_consistent_snapshot
-  # Note that AppConsistent snapshots require a working Synology Storage Console. Otherwise both values will have
-  # equivalent behavior.
-  consistency: AppConsistent # Or CrashConsistent
+  # This inline yaml object will be passed to the Synology API when creating the snapshot.
   lunSnapshotTemplate: |
-    # This inline yaml object will be passed to the Synology API when creating the snapshot. Use this for custom
-    # options.
     is_locked: true
+    
+    # https://kb.synology.com/en-me/DSM/tutorial/What_is_file_system_consistent_snapshot
+    # Note that app consistent snapshots require a working Synology Storage Console. Otherwise both values will have
+    # equivalent behavior.
+    is_app_consistent: true
 ...
 ```
 
@@ -90,8 +105,9 @@ metadata:
   name: synology-iscsi-chap
 parameters:
   fsType: ext4
-  lunType: BLUN
-  lunDescription: iSCSI volumes with CHAP Authentication
+  lunTemplate: |
+    type: BLUN
+    description: iSCSI volumes with CHAP Authentication
 secrets:
   # Use this to configure a single set of credentials for all volumes of this StorageClass
   csi.storage.k8s.io/provisioner-secret-name: chap-secret
@@ -112,7 +128,7 @@ stringData:
   password: MySecretPassword
   # Mutual CHAP Credentials. If these are specified mutual CHAP will be enabled.
   mutualUser: server
-  password: MyOtherPassword
+  mutualPassword: MyOtherPassword
 ```
 
 Note that CHAP authentication will only be enabled if the secret contains a username and password. If e.g. a password is

@@ -143,22 +143,21 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
   }
 
-  /**
-   * Parses a boolean value (e.g. from the value of a parameter. This recognizes
-   * strings containing boolean literals as well as the numbers 1 and 0.
-   *
-   * @param {String} value - The value to be parsed.
-   * @returns {boolean} The parsed boolean value.
-   */
-  parseBoolean(value) {
-    if (value === undefined) {
-      return undefined;
+  getObjectFromDevAttribs(list = []) {
+    if (!list) {
+      return {}
     }
-    const parsed = parseInt(value)
-    if (!isNaN(parsed)) {
-      return Boolean(parsed)
-    }
-    return "true".localeCompare(value, undefined, {sensitivity: "accent"}) === 0
+    return list.reduce(
+      (obj, item) => Object.assign(obj, {[item.dev_attrib]: item.enable}), {}
+    )
+  }
+
+  getDevAttribsFromObject(obj, keepNull = false) {
+    return Object.entries(obj).filter(
+      e => keepNull || (e[1] != null)
+    ).map(
+      e => ({dev_attrib: e[0], enable: e[1]})
+    );
   }
 
   buildIscsiName(name) {
@@ -366,6 +365,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         break;
       case "iscsi":
         let iscsiName = driver.buildIscsiName(name);
+        let storageClassTemplate;
         let data;
         let target;
         let lun_mapping;
@@ -491,106 +491,47 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
         } else {
           // create lun
-          data = Object.assign({}, driver.options.iscsi.lunTemplate, yaml.load(normalizedParameters.lunTemplate), {
-            name: iscsiName,
-            location: driver.getLocation(),
-            size: capacity_bytes
-          });
-          data.type = normalizedParameters.lunType ?? data.type;
-          if ('lunDescription' in normalizedParameters) {
-            data.description = normalizedParameters.lunDescription;
-          }
-          if (normalizedParameters.ioPolicy === "Direct") {
-            data.direct_io_pattern = 3;
-          } else if (normalizedParameters.ioPolicy === "Buffered") {
-            data.direct_io_pattern = 0;
-          } else if (normalizedParameters.ioPolicy !== undefined) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `snapshot consistency must be either CrashConsistent or AppConsistent`
-            );
-          }
+          try {
+            storageClassTemplate = yaml.load(normalizedParameters.lunTemplate ?? "")
+            const devAttribs = driver.getDevAttribsFromObject(Object.assign(
+              {},
+              driver.getObjectFromDevAttribs(driver.options.iscsi.lunTemplate?.dev_attribs),
+              driver.getObjectFromDevAttribs(storageClassTemplate?.dev_attribs)
+            ))
+            data = Object.assign({}, driver.options.iscsi.lunTemplate, storageClassTemplate, {
+              name: iscsiName,
+              location: driver.getLocation(),
+              size: capacity_bytes,
+              dev_attribs: devAttribs
+            });
 
-          const dev_attribs = (data.dev_attribs ?? []).reduce(
-            (obj, item) => Object.assign(obj, {[item.dev_attrib]: driver.parseBoolean(item.enable)}), {}
-          );
-          dev_attribs.emulate_tpws = driver.parseBoolean(normalizedParameters.hardwareAssistedZeroing) ?? dev_attribs.emulate_tpws;
-          dev_attribs.emulate_caw = driver.parseBoolean(normalizedParameters.hardwareAssistedLocking) ?? dev_attribs.emulate_caw;
-          dev_attribs.emulate_3pc = driver.parseBoolean(normalizedParameters.hardwareAssistedDataTransfer) ?? dev_attribs.emulate_3pc;
-          dev_attribs.emulate_tpu = driver.parseBoolean(normalizedParameters.spaceReclamation) ?? dev_attribs.emulate_tpu;
-          dev_attribs.emulate_fua_write = driver.parseBoolean(normalizedParameters.enableFuaWrite) ?? dev_attribs.emulate_fua_write;
-          dev_attribs.emulate_sync_cache = driver.parseBoolean(normalizedParameters.enableSyncCache) ?? dev_attribs.emulate_sync_cache;
-          dev_attribs.can_snapshot = driver.parseBoolean(normalizedParameters.allowSnapshots) ?? dev_attribs.can_snapshot;
-          data.dev_attribs = Object.entries(dev_attribs).filter(
-            e => e[1] !== undefined
-          ).map(
-            e => ({dev_attrib: e[0], enable: Number(e[1])})
-          );
-
-          if (["BLUN", "THIN", "ADV"].includes(data.type) && 'direct_io_pattern' in data) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `ioPolicy can only be used with thick provisioning.`
-            );
+            lun_uuid = await httpClient.CreateLun(data);
+          } catch (err) {
+            if (err instanceof yaml.YAMLException) {
+              throw new GrpcError(
+                grpc.status.INVALID_ARGUMENT,
+                `The lunTemplate on StorageClass is not a valid YAML document.`
+              );
+            } else {
+              throw err
+            }
           }
-          if (["BLUN_THICK", "FILE"].includes(data.type) && dev_attribs.emulate_tpu) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `spaceReclamation can only be used with thin provisioning.`
-            );
-          }
-          if (["BLUN_THICK", "FILE"].includes(data.type) && dev_attribs.can_snapshot) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `allowSnapshots can only be used with thin provisioning.`
-            );
-          }
-
-          lun_uuid = await httpClient.CreateLun(data);
         }
 
         // create target
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
-        data = Object.assign({}, driver.options.iscsi.targetTemplate, yaml.load(normalizedParameters.targetTemplate), {
+        try {
+          storageClassTemplate = yaml.load(normalizedParameters.targetTemplate ?? "")
+        } catch (err) {
+          throw new GrpcError(
+            grpc.status.INVALID_ARGUMENT,
+            `The targetTemplate on StorageClass is not a valid YAML document.`
+          );
+        }
+        data = Object.assign({}, driver.options.iscsi.targetTemplate, storageClassTemplate, {
           name: iscsiName,
           iqn,
         });
-        if ('headerChecksum' in normalizedParameters) {
-          data.has_data_checksum = normalizedParameters.headerChecksum;
-        }
-        if ('dataChecksum' in normalizedParameters) {
-          data.has_data_checksum = normalizedParameters.dataChecksum;
-        }
-        if ('maxSessions' in normalizedParameters) {
-          data.max_sessions = Number(normalizedParameters.maxSessions);
-          if (isNaN(data.max_sessions)) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `maxSessions must be a number.`
-            );
-          }
-        }
-        if (!('multi_sessions' in data) && 'max_sessions' in data) {
-          data.multi_sessions = data.max_sessions == 1;
-        }
-        if ('maxReceiveSegmentBytes' in normalizedParameters) {
-          data.max_recv_seg_bytes = Number(normalizedParameters.maxReceiveSegmentBytes);
-          if (isNaN(data.max_recv_seg_bytes)) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `maxReceiveSegmentBytes must be a number.`
-            );
-          }
-        }
-        if ('maxSendSegmentBytes' in normalizedParameters) {
-          data.max_send_seg_bytes = Number(normalizedParameters.maxSendSegmentBytes);
-          if (isNaN(data.max_send_seg_bytes)) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `maxSendSegmentBytes must be a number.`
-            );
-          }
-        }
 
         if ('user' in call.request.secrets && 'password' in call.request.secrets) {
           data.user = call.request.secrets.user;
@@ -605,9 +546,6 @@ class ControllerSynologyDriver extends CsiBaseDriver {
             data.auth_type = 1;
             data.mutual_chap = false;
           }
-        } else {
-          data.auth_type ??= 0;
-          data.chap ??= false;
         }
         let target_id = await httpClient.CreateTarget(data);
         //target = await httpClient.GetTargetByTargetID(target_id);
@@ -998,27 +936,23 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
     // check for already exists
     let snapshot;
+    let snapshotClassTemplate;
     snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);
     if (!snapshot) {
       const normalizedParameters = driver.getNormalizedParameters(call.request.parameters);
-      let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, yaml.load(normalizedParameters.lunSnapshotTemplate), {
+      try {
+        snapshotClassTemplate = yaml.load(normalizedParameters.lunSnapshotTemplate ?? "");
+      } catch (err) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `The snapshotTemplate on VolumeSnapshotClass is not a valid YAML document.`
+        );
+      }
+      let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, snapshotClassTemplate, {
         src_lun_uuid: lun.uuid,
         taken_by: "democratic-csi",
         description: name, //check
       });
-      if ('isLocked' in normalizedParameters) {
-        data.is_locked = driver.parseBoolean(normalizedParameters.isLocked);
-      }
-      if (normalizedParameters.consistency === "AppConsistent") {
-        data.is_app_consistent = true;
-      } else if (normalizedParameters.consistency === 'CrashConsistent') {
-        data.is_app_consistent = false;
-      } else if ('consistency' in normalizedParameters.consistency) {
-        throw new GrpcError(
-          grpc.status.INVALID_ARGUMENT,
-          `snapshot consistency must be either CrashConsistent or AppConsistent`
-        );
-      }
 
       await httpClient.CreateSnapshot(data);
       snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);

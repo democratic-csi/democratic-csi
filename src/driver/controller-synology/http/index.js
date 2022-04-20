@@ -11,6 +11,7 @@ const __REGISTRY_NS__ = "SynologyHttpClient";
 
 SYNO_ERRORS = {
   18990002: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The synology volume is out of disk space." },
+  18990318: { status: grpc.status.INVALID_ARGUMENT, message: "The requested lun type is incompatible with the Synology filesystem." },
   18990538: { status: grpc.status.ALREADY_EXISTS, message: "A LUN with this name already exists." },
   18990541: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The maximum number of LUNS has been reached." },
   18990542: { status: grpc.status.RESOURCE_EXHAUSTED, message: "The maximum number if iSCSI target has been reached." },
