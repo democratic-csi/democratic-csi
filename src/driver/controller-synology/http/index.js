@@ -12,7 +12,12 @@ const __REGISTRY_NS__ = "SynologyHttpClient";
 SYNO_ERRORS = {
   400: {
     status: grpc.status.UNAUTHENTICATED,
-    message: "Failed to authenticate to the Synology DSM",
+    message: "Failed to authenticate to the Synology DSM.",
+  },
+  407: {
+    status: grpc.status.UNAUTHENTICATED,
+    message:
+      "IP has been blocked to the Synology DSM due to too many failed attempts.",
   },
   18990002: {
     status: grpc.status.RESOURCE_EXHAUSTED,
@@ -34,6 +39,10 @@ SYNO_ERRORS = {
   18990542: {
     status: grpc.status.RESOURCE_EXHAUSTED,
     message: "The maximum number if iSCSI target has been reached.",
+  },
+  18990708: {
+    status: grpc.status.INVALID_ARGUMENT,
+    message: "Bad target auth info.",
   },
   18990744: {
     status: grpc.status.ALREADY_EXISTS,
@@ -109,38 +118,45 @@ class SynologyHttpClient {
     let prop;
     let val;
 
-    prop = "auth.username";
-    val = _.get(options, prop, false);
-    if (val) {
-      _.set(options, prop, "redacted");
+    const cleansedBody = JSON.parse(JSON.stringify(body));
+    const cleansedOptions = JSON.parse(JSON.stringify(options));
+    // This function handles arrays and objects
+    function recursiveCleanse(obj) {
+      for (const k in obj) {
+        if (typeof obj[k] == "object" && obj[k] !== null) {
+          recursiveCleanse(obj[k]);
+        } else {
+          if (
+            [
+              "account",
+              "passwd",
+              "username",
+              "password",
+              "_sid",
+              "sid",
+              "Authorization",
+              "authorization",
+              "user",
+              "mutual_user",
+              "mutual_password",
+            ].includes(k)
+          ) {
+            obj[k] = "redacted";
+          }
+        }
+      }
     }
+    recursiveCleanse(cleansedBody);
+    recursiveCleanse(cleansedOptions);
 
-    prop = "auth.password";
-    val = _.get(options, prop, false);
-    if (val) {
-      _.set(options, prop, "redacted");
-    }
+    delete cleansedOptions.httpAgent;
+    delete cleansedOptions.httpsAgent;
 
-    prop = "headers.Authorization";
-    val = _.get(options, prop, false);
-    if (val) {
-      _.set(options, prop, "redacted");
-    }
-
-    prop = "params._sid";
-    val = _.get(options, prop, false);
-    if (val) {
-      _.set(options, prop, "redacted");
-    }
-
-    delete options.httpAgent;
-    delete options.httpsAgent;
-
-    this.logger.debug("SYNOLOGY HTTP REQUEST: " + stringify(options));
+    this.logger.debug("SYNOLOGY HTTP REQUEST: " + stringify(cleansedOptions));
     this.logger.debug("SYNOLOGY HTTP ERROR: " + error);
     this.logger.debug("SYNOLOGY HTTP STATUS: " + response.statusCode);
     this.logger.debug("SYNOLOGY HTTP HEADERS: " + stringify(response.headers));
-    this.logger.debug("SYNOLOGY HTTP BODY: " + stringify(body));
+    this.logger.debug("SYNOLOGY HTTP BODY: " + stringify(cleansedBody));
   }
 
   async do_request(method, path, data = {}, options = {}) {
