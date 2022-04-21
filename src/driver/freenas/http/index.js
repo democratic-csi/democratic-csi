@@ -127,8 +127,12 @@ class Client {
 
     this.logger.debug("FREENAS HTTP REQUEST: " + stringify(options));
     this.logger.debug("FREENAS HTTP ERROR: " + error);
-    this.logger.debug("FREENAS HTTP STATUS: " + response.statusCode);
-    this.logger.debug("FREENAS HTTP HEADERS: " + stringify(response.headers));
+    this.logger.debug(
+      "FREENAS HTTP STATUS: " + _.get(response, "statusCode", "")
+    );
+    this.logger.debug(
+      "FREENAS HTTP HEADERS: " + stringify(_.get(response, "headers", ""))
+    );
     this.logger.debug("FREENAS HTTP BODY: " + stringify(body));
   }
 

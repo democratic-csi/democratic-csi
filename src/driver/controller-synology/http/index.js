@@ -115,9 +115,6 @@ class SynologyHttpClient {
   }
 
   log_response(error, response, body, options) {
-    let prop;
-    let val;
-
     const cleansedBody = JSON.parse(stringify(body));
     const cleansedOptions = JSON.parse(stringify(options));
     // This function handles arrays and objects
@@ -154,8 +151,12 @@ class SynologyHttpClient {
 
     this.logger.debug("SYNOLOGY HTTP REQUEST: " + stringify(cleansedOptions));
     this.logger.debug("SYNOLOGY HTTP ERROR: " + error);
-    this.logger.debug("SYNOLOGY HTTP STATUS: " + response.statusCode);
-    this.logger.debug("SYNOLOGY HTTP HEADERS: " + stringify(response.headers));
+    this.logger.debug(
+      "SYNOLOGY HTTP STATUS: " + _.get(response, "statusCode", "")
+    );
+    this.logger.debug(
+      "SYNOLOGY HTTP HEADERS: " + stringify(_.get(response, "headers", ""))
+    );
     this.logger.debug("SYNOLOGY HTTP BODY: " + stringify(cleansedBody));
   }
 
