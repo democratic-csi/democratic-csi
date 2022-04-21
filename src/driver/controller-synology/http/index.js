@@ -118,8 +118,8 @@ class SynologyHttpClient {
     let prop;
     let val;
 
-    const cleansedBody = JSON.parse(JSON.stringify(body));
-    const cleansedOptions = JSON.parse(JSON.stringify(options));
+    const cleansedBody = JSON.parse(stringify(body));
+    const cleansedOptions = JSON.parse(stringify(options));
     // This function handles arrays and objects
     function recursiveCleanse(obj) {
       for (const k in obj) {
