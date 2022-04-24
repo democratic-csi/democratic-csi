@@ -550,6 +550,7 @@ class CsiBaseDriver {
     const iscsi = driver.getDefaultISCSIInstance();
     let result;
     let device;
+    let block_device_info;
 
     const volume_id = call.request.volume_id;
     if (!volume_id) {
@@ -978,6 +979,27 @@ class CsiBaseDriver {
                 fs_type = "ext4";
               }
 
+              if (fs_type == "ntfs") {
+                block_device_info = await filesystem.getBlockDevice(device);
+                let partition_count =
+                  await filesystem.getBlockDevicePartitionCount(device);
+                if (partition_count > 0) {
+                  device = await filesystem.getBlockDeviceLargestPartition(
+                    device
+                  );
+                } else {
+                  // partion/gpt
+                  await filesystem.partitionDevice(
+                    device,
+                    "gpt",
+                    "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
+                  );
+                  device = await filesystem.getBlockDeviceLargestPartition(
+                    device
+                  );
+                }
+              }
+
               if (await filesystem.isBlockDevice(device)) {
                 // format
                 result = await filesystem.deviceIsFormatted(device);
@@ -1043,10 +1065,39 @@ class CsiBaseDriver {
               staging_target_path
             );
             if (!result) {
+              // expand fs if necessary
+              if (await filesystem.isBlockDevice(device)) {
+                // go ahead and expand fs (this covers cloned setups where expand is not explicitly invoked)
+                switch (fs_type) {
+                  case "exfat":
+                  case "ntfs":
+                  case "vfat":
+                    //await filesystem.checkFilesystem(device, fs_info.type);
+                    await filesystem.expandFilesystem(device, fs_type);
+                    break;
+                }
+              }
+
+              let mount_fs_type = fs_type;
+              if (mount_fs_type == "ntfs") {
+                mount_fs_type = "ntfs3";
+              }
+
+              // handle volume_mount_group where appropriate
+              if (volume_mount_group) {
+                switch (fs_type) {
+                  case "exfat":
+                  case "ntfs":
+                  case "vfat":
+                    mount_flags.push(`gid=${volume_mount_group}`);
+                    break;
+                }
+              }
+
               await mount.mount(
                 device,
                 staging_target_path,
-                ["-t", fs_type].concat(["-o", mount_flags.join(",")])
+                ["-t", mount_fs_type].concat(["-o", mount_flags.join(",")])
               );
             }
 
@@ -1054,8 +1105,8 @@ class CsiBaseDriver {
             if (await filesystem.isBlockDevice(device)) {
               // go ahead and expand fs (this covers cloned setups where expand is not explicitly invoked)
               switch (fs_type) {
-                case "ext4":
                 case "ext3":
+                case "ext4":
                 case "ext4dev":
                   //await filesystem.checkFilesystem(device, fs_info.type);
                   try {
@@ -1093,6 +1144,11 @@ class CsiBaseDriver {
                     staging_target_path,
                     fs_type
                   );
+                  break;
+                case "exfat":
+                case "ntfs":
+                case "vfat":
+                  // noop
                   break;
                 default:
                   // unsupported filesystem
@@ -1613,7 +1669,11 @@ class CsiBaseDriver {
 
           // TODO: this could be made async to detach all simultaneously
           for (const block_device_info_i of realBlockDeviceInfos) {
-            if (block_device_info_i.tran == "iscsi") {
+            if (await filesystem.deviceIsIscsi(block_device_info_i.path)) {
+              let parent_block_device = await filesystem.getBlockDeviceParent(
+                block_device_info_i.path
+              );
+
               // figure out which iscsi session this belongs to and logout
               // scan /dev/disk/by-path/ip-*?
               // device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
@@ -1632,7 +1692,7 @@ class CsiBaseDriver {
                     session.attached_scsi_devices.host.devices.some(
                       (device) => {
                         if (
-                          device.attached_scsi_disk == block_device_info_i.name
+                          device.attached_scsi_disk == parent_block_device.name
                         ) {
                           return true;
                         }
@@ -2439,8 +2499,8 @@ class CsiBaseDriver {
             fs_type = fs_info.type;
             if (fs_type) {
               switch (fs_type) {
-                case "ext4":
                 case "ext3":
+                case "ext4":
                 case "ext4dev":
                   //await filesystem.checkFilesystem(device, fs_info.type);
                   await filesystem.expandFilesystem(device, fs_type);
@@ -2452,6 +2512,13 @@ class CsiBaseDriver {
                     //await filesystem.checkFilesystem(device, fs_info.type);
                     await filesystem.expandFilesystem(device_path, fs_type);
                   }
+                  break;
+                case "exfat":
+                case "ntfs":
+                case "vfat":
+                  // TODO: return error here, cannot be expanded while online
+                  //await filesystem.checkFilesystem(device, fs_info.type);
+                  //await filesystem.expandFilesystem(device, fs_type);
                   break;
                 default:
                   // unsupported filesystem

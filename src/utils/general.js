@@ -170,7 +170,7 @@ function stringify(value) {
 }
 
 function default_supported_block_filesystems() {
-  return ["btrfs", "ext3", "ext4", "ext4dev", "xfs", "ntfs"];
+  return ["btrfs", "exfat", "ext3", "ext4", "ext4dev", "ntfs", "vfat", "xfs"];
 }
 
 function default_supported_file_filesystems() {

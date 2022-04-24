@@ -303,7 +303,7 @@ class Filesystem {
   async getBlockDevice(device) {
     const filesystem = this;
     device = await filesystem.realpath(device);
-    let args = ["-a", "-b", "-l", "-J", "-O"];
+    let args = ["-a", "-b", "-J", "-O"];
     args.push(device);
     let result;
 
@@ -317,30 +317,121 @@ class Filesystem {
   }
 
   /**
-   * blkid -p -o export <device>
+   *
+   * @param {*} device
+   * @returns
+   */
+  async getBlockDeviceLargestPartition(device) {
+    const filesystem = this;
+    let block_device_info = await filesystem.getBlockDevice(device);
+    if (block_device_info.children) {
+      let child;
+      for (const child_i of block_device_info.children) {
+        if (child_i.type == "part") {
+          if (!child) {
+            child = child_i;
+          } else {
+            if (child_i.size > child.size) {
+              child = child_i;
+            }
+          }
+        }
+      }
+      return `${child.path}`;
+    }
+  }
+
+  /**
+   *
+   * @param {*} device
+   * @returns
+   */
+  async getBlockDevicePartitionCount(device) {
+    const filesystem = this;
+    let count = 0;
+    let block_device_info = await filesystem.getBlockDevice(device);
+    if (block_device_info.children) {
+      for (const child_i of block_device_info.children) {
+        if (child_i.type == "part") {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  /**
+   * type=0FC63DAF-8483-4772-8E79-3D69D8477DE4 = linux
+   * type=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7 = ntfs
+   * type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B = EFI
+   *
+   * @param {*} device
+   * @param {*} label
+   * @param {*} type
+   */
+  async partitionDevice(
+    device,
+    label = "gpt",
+    type = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
+  ) {
+    const filesystem = this;
+    let args = [device];
+    let result;
+
+    try {
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `label: ${label}\n`,
+      });
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `type=${type}\n`,
+      });
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
    *
    * @param {*} device
    */
   async deviceIsFormatted(device) {
     const filesystem = this;
-    let args = ["-p", "-o", "export", device];
     let result;
 
     try {
-      result = await filesystem.exec("blkid", args);
+      result = await filesystem.getBlockDevice(device);
+      return result.fstype ? true : false;
     } catch (err) {
-      if (err.code == 2 && err.stderr.includes("No such device or address")) {
-        throw err;
-      }
-
-      if (err.code == 2) {
-        return false;
-      }
-
       throw err;
     }
+  }
 
-    return true;
+  async deviceIsIscsi(device) {
+    const filesystem = this;
+    let result;
+
+    do {
+      if (result) {
+        device = `/dev/${result.pkname}`;
+      }
+      result = await filesystem.getBlockDevice(device);
+    } while (result.pkname);
+
+    return result && result.tran == "iscsi";
+  }
+
+  async getBlockDeviceParent(device) {
+    const filesystem = this;
+    let result;
+
+    do {
+      if (result) {
+        device = `/dev/${result.pkname}`;
+      }
+      result = await filesystem.getBlockDevice(device);
+    } while (result.pkname);
+
+    return result;
   }
 
   /**
@@ -463,11 +554,21 @@ class Filesystem {
         args = args.concat(["filesystem", "resize", "max"]);
         args.push(device); // in this case should be a mounted path
         break;
+      case "exfat":
+        // https://github.com/exfatprogs/exfatprogs/issues/134
+        return;
       case "ext4":
       case "ext3":
       case "ext4dev":
         command = "resize2fs";
         args = args.concat(options);
+        args.push(device);
+        break;
+      case "ntfs":
+        // must be unmounted
+        command = "ntfsresize";
+        args = args.concat(options);
+        //args = args.concat(["-s", "max"]);
         args.push(device);
         break;
       case "xfs":
@@ -525,6 +626,14 @@ class Filesystem {
         args = args.concat(fsoptions);
         args.push("-f");
         args.push("-p");
+        break;
+      case "ntfs":
+        /**
+         * -b, --clear-bad-sectors Clear the bad sector list
+         * -d, --clear-dirty       Clear the volume dirty flag
+         */
+        command = "ntfsfix";
+        args.push(device);
         break;
       case "xfs":
         command = "xfs_repair";
@@ -612,6 +721,12 @@ class Filesystem {
       //options.timeout = DEFAULT_TIMEOUT;
     }
 
+    let stdin;
+    if (options.stdin) {
+      stdin = options.stdin;
+      delete options.stdin;
+    }
+
     const filesystem = this;
     args = args || [];
 
@@ -619,12 +734,26 @@ class Filesystem {
       args.unshift(command);
       command = filesystem.options.paths.sudo;
     }
-    console.log("executing filesystem command: %s %s", command, args.join(" "));
+    let command_log = `${command} ${args.join(" ")}`.trim();
+    if (stdin) {
+      command_log = `echo '${stdin}' | ${command_log}`
+        .trim()
+        .replace(/\n/, "\\n");
+    }
+    console.log("executing filesystem command: %s", command_log);
 
     return new Promise((resolve, reject) => {
       const child = filesystem.options.executor.spawn(command, args, options);
       let stdout = "";
       let stderr = "";
+
+      child.on("spawn", function () {
+        if (stdin) {
+          child.stdin.setEncoding("utf-8");
+          child.stdin.write(stdin);
+          child.stdin.end();
+        }
+      });
 
       child.stdout.on("data", function (data) {
         stdout = stdout + data;
