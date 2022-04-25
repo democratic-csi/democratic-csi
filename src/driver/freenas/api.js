@@ -2173,6 +2173,26 @@ class FreeNASApiDriver extends CsiBaseDriver {
      */
     const datasetName = datasetParentName + "/" + volume_id;
 
+    // Instead of templatizing the name, use the comment field to store details visible in the UI.
+    let datasetComment;
+    if (this.options.zfs.datasetCommentTemplate) {
+      datasetComment = Handlebars.compile(
+        this.options.zfs.datasetCommentTemplate
+      )({
+        name: call.request.name,
+        parameters: call.request.parameters,
+        csi: {
+          name: this.ctx.args.csiName,
+          version: this.ctx.args.csiVersion,
+        },
+        zfs: {
+          datasetName: datasetName,
+        },
+      });
+    } else {
+      datasetComment = "";
+    }
+
     // ensure volumes with the same name being requested a 2nd time but with a different size fails
     try {
       let properties = await httpApiClient.DatasetGet(datasetName, [
@@ -2399,6 +2419,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
+              volumeProperties.comments = datasetComment;
               response = await httpApiClient.DatasetSet(
                 datasetName,
                 volumeProperties
@@ -2437,6 +2458,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
               }
 
               throw err;
+            }
+
+            // CloneCreate doesn't support the comments field, so set it after the fact.
+            if (datasetComment) {
+              await httpApiClient.DatasetSet(datasetName, {
+                comments: datasetComment
+              });
             }
           }
 
@@ -2569,6 +2597,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               }
             }
 
+            volumeProperties.comments = datasetComment;
             response = await httpApiClient.DatasetSet(
               datasetName,
               volumeProperties
@@ -2605,6 +2634,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
               throw err;
             }
+
+            // CloneCreate doesn't support the comments field, so set it after the fact.
+            if (datasetComment) {
+              await httpApiClient.DatasetSet(datasetName, {
+                comments: datasetComment
+              });
+            }
           }
           break;
         default:
@@ -2629,6 +2665,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         share_type: driver.getDriverShareType().includes("smb")
           ? "SMB"
           : "GENERIC",
+        comments: datasetComment,
         user_properties: httpApiClient.getPropertiesKeyValueArray(
           httpApiClient.getUserProperties(volumeProperties)
         ),
