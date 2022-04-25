@@ -304,6 +304,13 @@ class CsiBaseDriver {
     //  throw new Error(`failed to retrieve volume_context for ${volume_id}`);
     //}
 
+    if (!volume_context) {
+      volume_context = _.get(
+        driver.options,
+        `_private.volume_context.${volume_id}`
+      );
+    }
+
     driver.ctx.logger.debug(
       "retrived derived volume_context %j",
       volume_context
@@ -979,21 +986,42 @@ class CsiBaseDriver {
                 fs_type = "ext4";
               }
 
+              let partition_count =
+                await filesystem.getBlockDevicePartitionCount(device);
+              if (partition_count > 0) {
+                // data partion MUST be the last partition on the drive
+                // to properly support expand/resize operations
+                device = await filesystem.getBlockDeviceLastPartition(device);
+                driver.ctx.logger.debug(
+                  `device has partitions, mount device is: ${device}`
+                );
+
+                await filesystem.expandPartition(device);
+              }
+
               if (fs_type == "ntfs") {
-                block_device_info = await filesystem.getBlockDevice(device);
-                let partition_count =
-                  await filesystem.getBlockDevicePartitionCount(device);
-                if (partition_count > 0) {
-                  device = await filesystem.getBlockDeviceLargestPartition(
-                    device
-                  );
-                } else {
-                  // partion/gpt
-                  await filesystem.partitionDevice(
-                    device,
-                    "gpt",
-                    "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
-                  );
+                if (partition_count < 1) {
+                  // dos is what csi-proxy uses by default
+                  let ntfs_partition_label = "dos";
+                  switch (ntfs_partition_label.toLowerCase()) {
+                    case "dos":
+                      // partion dos
+                      await filesystem.partitionDevice(device, "dos", "07");
+                      break;
+                    case "gpt":
+                      // partion gpt
+                      await filesystem.partitionDevice(
+                        device,
+                        "gpt",
+                        "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
+                      );
+                      break;
+                    default:
+                      throw new GrpcError(
+                        grpc.status.INVALID_ARGUMENT,
+                        `unknown/unsupported ntfs_partition_label: ${ntfs_partition_label}`
+                      );
+                  }
                   device = await filesystem.getBlockDeviceLargestPartition(
                     device
                   );

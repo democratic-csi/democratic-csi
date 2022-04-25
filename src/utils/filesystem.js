@@ -346,6 +346,33 @@ class Filesystem {
    * @param {*} device
    * @returns
    */
+  async getBlockDeviceLastPartition(device) {
+    const filesystem = this;
+    let block_device_info = await filesystem.getBlockDevice(device);
+    if (block_device_info.children) {
+      let child;
+      for (const child_i of block_device_info.children) {
+        if (child_i.type == "part") {
+          if (!child) {
+            child = child_i;
+          } else {
+            let minor = child["maj:min"].split(":")[1];
+            let minor_i = child_i["maj:min"].split(":")[1];
+            if (minor_i > minor) {
+              child = child_i;
+            }
+          }
+        }
+      }
+      return `${child.path}`;
+    }
+  }
+
+  /**
+   *
+   * @param {*} device
+   * @returns
+   */
   async getBlockDevicePartitionCount(device) {
     const filesystem = this;
     let count = 0;
@@ -360,10 +387,22 @@ class Filesystem {
     return count;
   }
 
+  async getBlockDeviceHasParitionTable(device) {
+    const filesystem = this;
+    let block_device_info = await filesystem.getBlockDevice(device);
+
+    return block_device_info.pttype ? true : false;
+  }
+
   /**
-   * type=0FC63DAF-8483-4772-8E79-3D69D8477DE4 = linux
-   * type=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7 = ntfs
-   * type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B = EFI
+   * DOS
+   * - type=83 = Linux
+   * - type=07 = HPFS/NTFS/exFAT
+   *
+   * GPT
+   * - type=0FC63DAF-8483-4772-8E79-3D69D8477DE4 = linux
+   * - type=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7 = ntfs
+   * - type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B = EFI
    *
    * @param {*} device
    * @param {*} label
@@ -530,6 +569,31 @@ class Filesystem {
       if (await filesystem.pathExists(sys_file)) {
         console.log(`executing filesystem command: echo 1 > ${sys_file}`);
         fs.writeFileSync(sys_file, "1");
+      }
+    }
+  }
+
+  async expandPartition(device) {
+    const filesystem = this;
+    const command = "growpart";
+    const args = [];
+
+    let block_device_info = await filesystem.getBlockDevice(device);
+    let device_fs_info = await filesystem.getDeviceFilesystemInfo(device);
+    let growpart_partition = device_fs_info["part_entry_number"];
+    let parent_block_device = await filesystem.getBlockDeviceParent(device);
+
+    args.push(parent_block_device.path, growpart_partition);
+
+    try {
+      await filesystem.exec(command, args);
+    } catch (err) {
+      if (
+        err.code == 1 &&
+        err.stdout &&
+        err.stdout.includes("could only be grown by")
+      ) {
+        return;
       }
     }
   }
