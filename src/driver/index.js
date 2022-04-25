@@ -1001,8 +1001,8 @@ class CsiBaseDriver {
 
               if (fs_type == "ntfs") {
                 if (partition_count < 1) {
-                  // dos is what csi-proxy uses by default
-                  let ntfs_partition_label = "dos";
+                  // gpt is what csi-proxy uses by default
+                  let ntfs_partition_label = "gpt";
                   switch (ntfs_partition_label.toLowerCase()) {
                     case "dos":
                       // partion dos
@@ -1010,11 +1010,7 @@ class CsiBaseDriver {
                       break;
                     case "gpt":
                       // partion gpt
-                      await filesystem.partitionDevice(
-                        device,
-                        "gpt",
-                        "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
-                      );
+                      await filesystem.partitionDeviceWindows(device);
                       break;
                     default:
                       throw new GrpcError(

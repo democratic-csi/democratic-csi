@@ -430,6 +430,60 @@ class Filesystem {
   }
 
   /**
+   * mimic the behavior of partitioning a new data drive in windows directly
+   *
+   * https://en.wikipedia.org/wiki/Microsoft_Reserved_Partition
+   *
+   * @param {*} device
+   */
+  async partitionDeviceWindows(device) {
+    const filesystem = this;
+    let args = [device];
+    let result;
+    let block_device_info = await filesystem.getBlockDevice(device);
+
+    //let sixteen_megabytes = 16777216;
+    //let thirtytwo_megabytes = 33554432;
+    //let onehundredtwentyeight_megabytes = 134217728;
+
+    let msr_partition_size = "16M";
+    let label = "gpt";
+    let msr_guid = "E3C9E316-0B5C-4DB8-817D-F92DF00215AE";
+    let ntfs_guid = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7";
+
+    if (block_device_info.type != "disk") {
+      throw new Error(
+        `cannot partition device of type: ${block_device_info.type}`
+      );
+    }
+
+    /**
+     * On drives less than 16GB in size, the MSR is 32MB.
+     * On drives greater than or equal two 16GB, the MSR is 128 MB.
+     * It is only 128 MB for Win 7/8 ( On drives less than 16GB in size, the MSR is 32MB ) & 16 MB for win 10!
+     */
+    let msr_partition_size_break = 17179869184; // 16GB
+
+    // TODO: this size may be sectors so not really disk size in terms of GB
+    if (block_device_info.size >= msr_partition_size_break) {
+      // ignoring for now, appears windows 10+ use 16MB always
+      //msr_partition_size = "128M";
+    }
+
+    try {
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `label: ${label}\n`,
+      });
+      // must send ALL partitions at once (newline separated), cannot send them 1 at a time
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `size=${msr_partition_size},type=${msr_guid}\ntype=${ntfs_guid}\n`,
+      });
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
    *
    * @param {*} device
    */
@@ -631,6 +685,9 @@ class Filesystem {
       case "ntfs":
         // must be unmounted
         command = "ntfsresize";
+        await filesystem.exec(command, ["-c", device]);
+        await filesystem.exec(command, ["-n", device]);
+        args = args.concat("-P", "-f");
         args = args.concat(options);
         //args = args.concat(["-s", "max"]);
         args.push(device);
@@ -651,6 +708,10 @@ class Filesystem {
 
     try {
       result = await filesystem.exec(command, args);
+      // must clear the dirty bit after resize
+      if (fstype.toLowerCase() == "ntfs") {
+        await filesystem.exec("ntfsfix", ["-d", device]);
+      }
       return result;
     } catch (err) {
       throw err;
@@ -697,6 +758,7 @@ class Filesystem {
          * -d, --clear-dirty       Clear the volume dirty flag
          */
         command = "ntfsfix";
+        args.puuh("-d");
         args.push(device);
         break;
       case "xfs":
