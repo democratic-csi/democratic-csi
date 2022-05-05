@@ -21,4 +21,5 @@ nfs:
   shareStrategy: "setDatasetProperties"
   shareStrategySetDatasetProperties:
     properties:
-      sharenfs: "on"
+      #sharenfs: "on"
+      sharenfs: "rw,no_subtree_check,no_root_squash"

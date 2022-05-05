@@ -6,5 +6,9 @@ smb:
   # shareHost:shareBasePath should be mounted at this location in the controller container
   controllerBasePath: "/mnt/client/smb/${CI_BUILD_KEY}"
   dirPermissionsMode: "0777"
-  dirPermissionsUser: root
-  dirPermissionsGroup: wheel
+  dirPermissionsUser: 0
+  dirPermissionsGroup: 0
+
+node:
+  mount:
+    mount_flags: "username=smbroot,password=smbroot"
