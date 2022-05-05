@@ -17,10 +17,12 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-  build-npm:
+  build-npm-linux-amd64:
     name: build-npm
     runs-on:
       - self-hosted
+      - Linux
+      - X64
     steps:
       - uses: actions/checkout@v2
       - shell: bash
@@ -30,14 +32,14 @@ jobs:
       - name: upload build
         uses: actions/upload-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
           #path: node_modules/
-          path: node_modules.tar.gz
+          path: node_modules-linux-amd64.tar.gz
           retention-days: 7
 
   csi-sanity-synology-dsm6:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -45,12 +47,14 @@ jobs:
           - synlogy/dsm6/iscsi.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-synology
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -65,7 +69,7 @@ jobs:
 
   csi-sanity-synology-dsm7:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -73,12 +77,14 @@ jobs:
           - synlogy/dsm7/iscsi.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-synology
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -95,7 +101,7 @@ jobs:
   # api-based drivers
   csi-sanity-truenas-scale-22_02:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -106,13 +112,15 @@ jobs:
           - truenas/scale/22.02/scale-smb.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-zfs-local
       #- csi-sanity-truenas-scale
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -126,7 +134,7 @@ jobs:
   # ssh-based drivers
   csi-sanity-truenas-core-12_0:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -138,13 +146,15 @@ jobs:
           - truenas/core/12.0/core-smb.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-zfs-local
       #- csi-sanity-truenas-core
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -158,7 +168,7 @@ jobs:
   # ssh-based drivers
   csi-sanity-truenas-core-13_0:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -169,13 +179,15 @@ jobs:
           - truenas/core/13.0/core-smb.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-zfs-local
       #- csi-sanity-truenas-core
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -189,7 +201,7 @@ jobs:
   # ssh-based drivers
   csi-sanity-zfs-generic:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -199,12 +211,14 @@ jobs:
           - zfs-generic/smb.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -218,7 +232,7 @@ jobs:
   # zfs-local drivers
   csi-sanity-zfs-local:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -227,12 +241,14 @@ jobs:
           - zfs-local/dataset.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-zfs-local
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -243,7 +259,7 @@ jobs:
   # local-hostpath driver
   csi-sanity-local-hostpath:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -251,11 +267,14 @@ jobs:
           - local-hostpath/basic.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
+      - csi-sanity-zfs-local
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
