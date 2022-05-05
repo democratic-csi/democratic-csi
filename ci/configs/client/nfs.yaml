@@ -1,0 +1,10 @@
+driver: nfs-client
+instance_id:
+nfs:
+  shareHost: ${SERVER_HOST}
+  shareBasePath: "/mnt/tank/client/nfs/${CI_BUILD_KEY}"
+  # shareHost:shareBasePath should be mounted at this location in the controller container
+  controllerBasePath: "/mnt/client/nfs/${CI_BUILD_KEY}"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: root
+  dirPermissionsGroup: wheel

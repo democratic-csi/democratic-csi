@@ -1,0 +1,10 @@
+driver: smb-client
+instance_id:
+smb:
+  shareHost: ${SERVER_HOST}
+  shareBasePath: "${SHARE_NAME}/${CI_BUILD_KEY}"
+  # shareHost:shareBasePath should be mounted at this location in the controller container
+  controllerBasePath: "/mnt/client/smb/${CI_BUILD_KEY}"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: root
+  dirPermissionsGroup: wheel

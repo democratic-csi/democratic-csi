@@ -245,6 +245,35 @@ jobs:
           SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
           SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
 
+  # client drivers
+  csi-sanity-client:
+    needs:
+      - build-npm-linux-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - client/nfs.yaml
+          - client/smb.yaml
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - csi-sanity-zfs-generic
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules-linux-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
+          SHARE_NAME: tank_client_smb
+
   # zfs-local drivers
   csi-sanity-zfs-local:
     needs:
