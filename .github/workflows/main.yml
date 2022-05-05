@@ -18,7 +18,6 @@ jobs:
           access_token: ${{ github.token }}
 
   build-npm-linux-amd64:
-    name: build-npm
     runs-on:
       - self-hosted
       - Linux
@@ -33,8 +32,25 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: node-modules-linux-amd64
-          #path: node_modules/
           path: node_modules-linux-amd64.tar.gz
+          retention-days: 7
+
+  build-npm-windows-amd64:
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+    steps:
+      - uses: actions/checkout@v2
+      - shell: pwsh
+        name: npm install
+        run: |
+          ci\bin\build.ps1
+      - name: upload build
+        uses: actions/upload-artifact@v2
+        with:
+          name: node-modules-windows-amd64
+          path: node_modules-windows-amd64.tar.gz
           retention-days: 7
 
   csi-sanity-synology-dsm6:
@@ -283,7 +299,35 @@ jobs:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
           CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
 
-  build-docker:
+  csi-sanity-windows-node:
+    needs:
+      - build-npm-windows-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - windows\iscsi.yaml
+          - windows\smb.yaml
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules-windows-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci\bin\run.ps1
+        env:
+          TEMPLATE_CONFIG_FILE: ".\\ci\\configs\\${{ matrix.config }}"
+          SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
+          SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
+          SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
+
+  build-docker-linux:
     needs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
@@ -293,6 +337,7 @@ jobs:
       - csi-sanity-zfs-generic
       - csi-sanity-zfs-local
       - csi-sanity-local-hostpath
+      - csi-sanity-windows-node
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

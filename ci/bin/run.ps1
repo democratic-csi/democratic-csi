@@ -19,9 +19,9 @@ function Job-Cleanup() {
 Job-Cleanup
 
 # install from artifacts
-if (Test-Path "node_modules.tar.gz") {
-  Write-Output "extracting node_modules.tar.gz"
-  tar -zxf node_modules.tar.gz
+if (Test-Path "node_modules-windows-amd64.tar.gz") {
+  Write-Output "extracting node_modules-windows-amd64.tar.gz"
+  tar -zxf node_modules-windows-amd64.tar.gz
 }
 
 # setup env
