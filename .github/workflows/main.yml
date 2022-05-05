@@ -273,6 +273,7 @@ jobs:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
           SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
           SHARE_NAME: tank_client_smb
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
 
   # zfs-local drivers
   csi-sanity-zfs-local:

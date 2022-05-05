@@ -1242,6 +1242,10 @@ class CsiBaseDriver {
 
         switch (node_attach_driver) {
           case "smb":
+            let win_staging_target_path =
+              filesystem.covertUnixSeparatorToWindowsSeparator(
+                staging_target_path
+              );
             device = `//${volume_context.server}/${volume_context.share}`;
             const username = driver.getMountFlagValue(mount_flags, "username");
             const password = driver.getMountFlagValue(mount_flags, "password");
@@ -1257,7 +1261,7 @@ class CsiBaseDriver {
              * if path exists but is NOT symlink delete it
              */
             try {
-              fs.statSync(staging_target_path);
+              fs.statSync(win_staging_target_path);
               result = true;
             } catch (err) {
               if (err.code === "ENOENT") {
@@ -1268,11 +1272,11 @@ class CsiBaseDriver {
             }
 
             if (result) {
-              result = fs.lstatSync(staging_target_path);
+              result = fs.lstatSync(win_staging_target_path);
               if (!result.isSymbolicLink()) {
-                fs.rmdirSync(staging_target_path);
+                fs.rmdirSync(win_staging_target_path);
               } else {
-                result = await wutils.GetItem(staging_target_path);
+                result = await wutils.GetItem(win_staging_target_path);
                 // UNC\172.29.0.111\tank_k8s_test_PVC_111\
                 let target = _.get(result, "Target.[0]", "");
                 let parts = target.split("\\");
@@ -1281,7 +1285,7 @@ class CsiBaseDriver {
                   parts[2] != volume_context.share
                 ) {
                   throw new Error(
-                    `${target} mounted already at ${staging_target_path}`
+                    `${target} mounted already at ${win_staging_target_path}`
                   );
                 } else {
                   // finish early, assured we have what we need
@@ -1310,14 +1314,14 @@ class CsiBaseDriver {
             try {
               await wutils.NewSmbLink(
                 filesystem.covertUnixSeparatorToWindowsSeparator(device),
-                staging_target_path
+                win_staging_target_path
               );
             } catch (e) {
               let details = _.get(e, "stderr", "");
               if (!details.includes("ResourceExists")) {
                 throw e;
               } else {
-                result = fs.lstatSync(staging_target_path);
+                result = fs.lstatSync(win_staging_target_path);
                 if (!result.isSymbolicLink()) {
                   throw new Error("staging path exists but is not symlink");
                 }
@@ -1565,20 +1569,20 @@ class CsiBaseDriver {
                   await wutils.FormatVolume(volume.UniqueId);
                 }
 
-                result = await wutils.GetItem(staging_target_path);
+                result = await wutils.GetItem(win_staging_target_path);
                 if (!result) {
-                  fs.mkdirSync(staging_target_path, {
+                  fs.mkdirSync(win_staging_target_path, {
                     recursive: true,
                     mode: "755",
                   });
-                  result = await wutils.GetItem(staging_target_path);
+                  result = await wutils.GetItem(win_staging_target_path);
                 }
 
                 if (!volume.UniqueId.includes(result.Target[0])) {
                   // mount up!
                   await wutils.MountVolume(
                     volume.UniqueId,
-                    staging_target_path
+                    win_staging_target_path
                   );
                 }
                 break;
@@ -2182,6 +2186,11 @@ class CsiBaseDriver {
         const WindowsUtils = require("../utils/windows").Windows;
         const wutils = new WindowsUtils();
 
+        let win_normalized_staging_path =
+          filesystem.covertUnixSeparatorToWindowsSeparator(
+            normalized_staging_path
+          );
+
         async function removePath(p) {
           // remove staging path
           try {
@@ -2196,7 +2205,7 @@ class CsiBaseDriver {
         let node_attach_driver;
         let win_volume_id;
 
-        result = await wutils.GetItem(normalized_staging_path);
+        result = await wutils.GetItem(win_normalized_staging_path);
         if (result) {
           let target = _.get(result, "Target.[0]", "");
           if (target.startsWith("UNC")) {
@@ -2229,7 +2238,7 @@ class CsiBaseDriver {
               // unmount volume
               await wutils.UnmountVolume(
                 win_volume_id,
-                normalized_staging_path
+                win_normalized_staging_path
               );
 
               // find sessions associated with volume/disks
@@ -2258,7 +2267,7 @@ class CsiBaseDriver {
         }
 
         // remove staging path
-        await removePath(normalized_staging_path);
+        await removePath(win_normalized_staging_path);
         break;
       }
       case NODE_OS_DRIVER_CSI_PROXY:
@@ -2578,6 +2587,11 @@ class CsiBaseDriver {
                 normalized_staging_path = staging_target_path;
               }
 
+              normalized_staging_path =
+                filesystem.covertUnixSeparatorToWindowsSeparator(
+                  normalized_staging_path
+                );
+
               // source path
               result = await wutils.GetItem(normalized_staging_path);
               if (!result) {
@@ -2786,8 +2800,10 @@ class CsiBaseDriver {
       case NODE_OS_DRIVER_WINDOWS:
         const WindowsUtils = require("../utils/windows").Windows;
         const wutils = new WindowsUtils();
+        let win_target_path =
+          filesystem.covertUnixSeparatorToWindowsSeparator(target_path);
 
-        result = await wutils.GetItem(target_path);
+        result = await wutils.GetItem(win_target_path);
         if (!result) {
           return {};
         }
@@ -2795,11 +2811,11 @@ class CsiBaseDriver {
         if (_.get(result, "LinkType") != "SymbolicLink") {
           throw new GrpcError(
             grpc.status.FAILED_PRECONDITION,
-            `target path is not a symlink ${target_path}`
+            `target path is not a symlink ${win_target_path}`
           );
         }
 
-        fs.rmdirSync(target_path);
+        fs.rmdirSync(win_target_path);
         break;
       case NODE_OS_DRIVER_CSI_PROXY:
         const csiProxyClient = driver.getDefaultCsiProxyClientInstance();
@@ -2929,19 +2945,20 @@ class CsiBaseDriver {
       case NODE_OS_DRIVER_WINDOWS: {
         const WindowsUtils = require("../utils/windows").Windows;
         const wutils = new WindowsUtils();
-
+        let win_volume_path =
+          filesystem.covertUnixSeparatorToWindowsSeparator(volume_path);
         // ensure path is mounted
-        result = await wutils.GetItem(volume_path);
+        result = await wutils.GetItem(win_volume_path);
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `volume_path ${volume_path} is not currently mounted`
+            `volume_path ${win_volume_path} is not currently mounted`
           );
         }
 
         let node_attach_driver;
 
-        let target = await wutils.GetRealTarget(volume_path);
+        let target = await wutils.GetRealTarget(win_volume_path);
         if (target.startsWith("\\\\")) {
           node_attach_driver = "smb";
         }
@@ -3180,17 +3197,19 @@ class CsiBaseDriver {
         const wutils = new WindowsUtils();
 
         let node_attach_driver;
+        let win_volume_path =
+          filesystem.covertUnixSeparatorToWindowsSeparator(volume_path);
 
         // ensure path is mounted
-        result = await wutils.GetItem(volume_path);
+        result = await wutils.GetItem(win_volume_path);
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `volume_path ${volume_path} is not currently mounted`
+            `volume_path ${win_volume_path} is not currently mounted`
           );
         }
 
-        let target = await wutils.GetRealTarget(volume_path);
+        let target = await wutils.GetRealTarget(win_volume_path);
         if (target.startsWith("\\\\")) {
           node_attach_driver = "smb";
         }
