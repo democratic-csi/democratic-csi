@@ -1327,7 +1327,10 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           await zb.zfs.destroy(datasetName, { recurse: true, force: true });
           success = true;
         } catch (err) {
-          if (err.toString().includes("dataset is busy")) {
+          if (
+            err.toString().includes("dataset is busy") ||
+            err.toString().includes("target is busy")
+          ) {
             current_try++;
             if (current_try > max_tries) {
               throw err;

@@ -1,8 +1,10 @@
 const _ = require("lodash");
 const grpc = require("./grpc").grpc;
+const path = require("path");
 const protoLoader = require("@grpc/proto-loader");
 
-const PROTO_BASE_PATH = __dirname + "/../../csi_proxy_proto";
+const PROTO_BASE_PATH =
+  path.dirname(path.dirname(__dirname)) + path.sep + "csi_proxy_proto";
 
 /**
  * leave connection null as by default the named pipe is derrived
@@ -38,10 +40,20 @@ class CsiProxyClient {
       const serviceVersion =
         service.version || DEFAULT_SERVICES[serviceName].version;
       const serviceConnection =
+        // HANGS
+        // Http2Session client (38) nghttp2 has 13 bytes to send directly
+        // Http2Session client (38) wants read? 1
+        // Then pipe closes after 60 seconds-ish
         service.connection ||
-        `\\\\.\\\\pipe\\\\${pipePrefix}-${serviceName}-${serviceVersion}`;
+        `unix:////./pipe/${pipePrefix}-${serviceName}-${serviceVersion}`;
+      // EACCESS
+      //service.connection ||
+      //`unix:///csi/${pipePrefix}-${serviceName}-${serviceVersion}`;
+      //service.connection ||
+      //`unix:///csi/csi.sock.internal`;
 
-      const PROTO_PATH = `/${PROTO_BASE_PATH}/${serviceName}/${serviceVersion}/api.proto`;
+      const PROTO_PATH = `${PROTO_BASE_PATH}\\${serviceName}\\${serviceVersion}\\api.proto`;
+
       const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
         keepCase: true,
         longs: String,

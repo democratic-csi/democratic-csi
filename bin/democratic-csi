@@ -183,6 +183,7 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
 
     // for testing purposes
     //await GeneralUtils.sleep(10000);
+    //throw new Error("fake error");
 
     // for CI/testing purposes
     if (["NodePublishVolume", "NodeStageVolume"].includes(serviceMethodName)) {

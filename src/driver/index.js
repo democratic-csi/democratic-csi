@@ -18,6 +18,7 @@ const __REGISTRY_NS__ = "CsiBaseDriver";
 
 const NODE_OS_DRIVER_CSI_PROXY = "csi-proxy";
 const NODE_OS_DRIVER_POSIX = "posix";
+const NODE_OS_DRIVER_WINDOWS = "windows";
 
 /**
  * common code shared between all drivers
@@ -199,9 +200,13 @@ class CsiBaseDriver {
   }
 
   __getNodeOsDriver() {
-    if (this.getNodeIsWindows() || this.getCsiProxyEnabled()) {
-      return NODE_OS_DRIVER_CSI_PROXY;
+    if (this.getNodeIsWindows()) {
+      return NODE_OS_DRIVER_WINDOWS;
     }
+
+    //if (this.getNodeIsWindows() || this.getCsiProxyEnabled()) {
+    //  return NODE_OS_DRIVER_CSI_PROXY;
+    //}
 
     return NODE_OS_DRIVER_POSIX;
   }
@@ -1215,6 +1220,383 @@ class CsiBaseDriver {
             );
         }
         break;
+      case NODE_OS_DRIVER_WINDOWS:
+        // sanity check node_attach_driver
+        if (!["smb", "iscsi"].includes(node_attach_driver)) {
+          throw new GrpcError(
+            grpc.status.UNIMPLEMENTED,
+            `csi-proxy does not work with node_attach_driver: ${node_attach_driver}`
+          );
+        }
+
+        // sanity check fs_type
+        if (fs_type && !["ntfs", "cifs"].includes(fs_type)) {
+          throw new GrpcError(
+            grpc.status.UNIMPLEMENTED,
+            `csi-proxy does not work with fs_type: ${fs_type}`
+          );
+        }
+
+        const WindowsUtils = require("../utils/windows").Windows;
+        const wutils = new WindowsUtils();
+
+        switch (node_attach_driver) {
+          case "smb":
+            device = `//${volume_context.server}/${volume_context.share}`;
+            const username = driver.getMountFlagValue(mount_flags, "username");
+            const password = driver.getMountFlagValue(mount_flags, "password");
+
+            if (!username || !password) {
+              throw new Error("username and password required");
+            }
+
+            /**
+             * smb mount creates a link at this location and if the dir already exists
+             * it explodes
+             *
+             * if path exists but is NOT symlink delete it
+             */
+            try {
+              fs.statSync(staging_target_path);
+              result = true;
+            } catch (err) {
+              if (err.code === "ENOENT") {
+                result = false;
+              } else {
+                throw err;
+              }
+            }
+
+            if (result) {
+              result = fs.lstatSync(staging_target_path);
+              if (!result.isSymbolicLink()) {
+                fs.rmdirSync(staging_target_path);
+              } else {
+                result = await wutils.GetItem(staging_target_path);
+                // UNC\172.29.0.111\tank_k8s_test_PVC_111\
+                let target = _.get(result, "Target.[0]", "");
+                let parts = target.split("\\");
+                if (
+                  parts[1] != volume_context.server &&
+                  parts[2] != volume_context.share
+                ) {
+                  throw new Error(
+                    `${target} mounted already at ${staging_target_path}`
+                  );
+                } else {
+                  // finish early, assured we have what we need
+                  return {};
+                }
+              }
+            }
+
+            try {
+              result = await wutils.GetSmbGlobalMapping(
+                filesystem.covertUnixSeparatorToWindowsSeparator(device)
+              );
+              if (!result) {
+                await wutils.NewSmbGlobalMapping(
+                  filesystem.covertUnixSeparatorToWindowsSeparator(device),
+                  `${volume_context.server}\\${username}`,
+                  password
+                );
+              }
+            } catch (e) {
+              let details = _.get(e, "stderr", "");
+              if (!details.includes("0x80041001")) {
+                throw e;
+              }
+            }
+            try {
+              await wutils.NewSmbLink(
+                filesystem.covertUnixSeparatorToWindowsSeparator(device),
+                staging_target_path
+              );
+            } catch (e) {
+              let details = _.get(e, "stderr", "");
+              if (!details.includes("ResourceExists")) {
+                throw e;
+              } else {
+                result = fs.lstatSync(staging_target_path);
+                if (!result.isSymbolicLink()) {
+                  throw new Error("staging path exists but is not symlink");
+                }
+              }
+            }
+            break;
+          case "iscsi":
+            switch (access_type) {
+              case "mount":
+                let portals = [];
+                if (volume_context.portal) {
+                  portals.push(volume_context.portal.trim());
+                }
+
+                if (volume_context.portals) {
+                  volume_context.portals.split(",").forEach((portal) => {
+                    portals.push(portal.trim());
+                  });
+                }
+
+                // ensure full portal value
+                portals = portals.map((value) => {
+                  if (!value.includes(":")) {
+                    value += ":3260";
+                  }
+
+                  return value.trim();
+                });
+
+                // ensure unique entries only
+                portals = [...new Set(portals)];
+
+                // stores configuration of targets/iqn/luns to connect to
+                let iscsiConnections = [];
+                for (let portal of portals) {
+                  iscsiConnections.push({
+                    portal,
+                    iqn: volume_context.iqn,
+                    lun: volume_context.lun,
+                  });
+                }
+
+                let successful_logins = 0;
+                let multipath = iscsiConnections.length > 1;
+
+                // no multipath support yet
+                // https://github.com/kubernetes-csi/csi-proxy/pull/99
+                for (let iscsiConnection of iscsiConnections) {
+                  // add target portal
+                  let parts = iscsiConnection.portal.split(":");
+                  let target_address = parts[0];
+                  let target_port = parts[1] || "3260";
+
+                  // this is idempotent
+                  try {
+                    await wutils.NewIscsiTargetPortal(
+                      target_address,
+                      target_port
+                    );
+                  } catch (e) {
+                    driver.ctx.logger.warn(
+                      `failed adding target portal: ${JSON.stringify(
+                        iscsiConnection
+                      )}: ${e.stderr}`
+                    );
+                    if (!multipath) {
+                      throw e;
+                    } else {
+                      continue;
+                    }
+                  }
+
+                  // login
+                  try {
+                    let auth_type = "NONE";
+                    let chap_username = "";
+                    let chap_secret = "";
+                    if (
+                      normalizedSecrets[
+                        "node-db.node.session.auth.authmethod"
+                      ] == "CHAP"
+                    ) {
+                      // set auth_type
+                      if (
+                        normalizedSecrets[
+                          "node-db.node.session.auth.username"
+                        ] &&
+                        normalizedSecrets[
+                          "node-db.node.session.auth.password"
+                        ] &&
+                        normalizedSecrets[
+                          "node-db.node.session.auth.username_in"
+                        ] &&
+                        normalizedSecrets[
+                          "node-db.node.session.auth.password_in"
+                        ]
+                      ) {
+                        auth_type = "MUTUAL_CHAP";
+                      } else if (
+                        normalizedSecrets[
+                          "node-db.node.session.auth.username"
+                        ] &&
+                        normalizedSecrets["node-db.node.session.auth.password"]
+                      ) {
+                        auth_type = "ONE_WAY_CHAP";
+                      }
+
+                      // set credentials
+                      if (
+                        normalizedSecrets[
+                          "node-db.node.session.auth.username"
+                        ] &&
+                        normalizedSecrets["node-db.node.session.auth.password"]
+                      ) {
+                        chap_username =
+                          normalizedSecrets[
+                            "node-db.node.session.auth.username"
+                          ];
+
+                        chap_secret =
+                          normalizedSecrets[
+                            "node-db.node.session.auth.password"
+                          ];
+                      }
+                    }
+                    await wutils.ConnectIscsiTarget(
+                      target_address,
+                      target_port,
+                      iscsiConnection.iqn,
+                      auth_type,
+                      chap_username,
+                      chap_secret,
+                      multipath
+                    );
+                  } catch (e) {
+                    let details = _.get(e, "stderr", "");
+                    if (
+                      !details.includes(
+                        "The target has already been logged in via an iSCSI session"
+                      )
+                    ) {
+                      driver.ctx.logger.warn(
+                        `failed connection to ${JSON.stringify(
+                          iscsiConnection
+                        )}: ${e.stderr}`
+                      );
+                      if (!multipath) {
+                        throw e;
+                      }
+                    }
+                  }
+
+                  // discover?
+                  //await csiProxyClient.executeRPC("iscsi", "DiscoverTargetPortal", {
+                  //  target_portal,
+                  //});
+                  successful_logins++;
+                }
+
+                if (iscsiConnections.length != successful_logins) {
+                  driver.ctx.logger.warn(
+                    `failed to login to all portals: total - ${iscsiConnections.length}, logins - ${successful_logins}`
+                  );
+                }
+
+                // let things settle
+                // this will help in dm scenarios
+                await GeneralUtils.sleep(2000);
+
+                // rescan
+                await wutils.UpdateHostStorageCache();
+
+                // get device
+                let disks = await wutils.GetTargetDisksByIqnLun(
+                  volume_context.iqn,
+                  volume_context.lun
+                );
+                let disk;
+
+                if (disks.length == 0) {
+                  throw new GrpcError(
+                    grpc.status.UNAVAILABLE,
+                    `0 disks created by ${successful_logins} successful logins`
+                  );
+                }
+
+                if (disks.length > 1) {
+                  if (multipath) {
+                    let disk_number_set = new Set();
+                    disks.forEach((i_disk) => {
+                      disk_number_set.add(i_disk.DiskNumber);
+                    });
+                    if (disk_number_set.length > 1) {
+                      throw new GrpcError(
+                        grpc.status.FAILED_PRECONDITION,
+                        "using multipath but mpio is not properly configured (multiple disk numbers with same iqn/lun)"
+                      );
+                    }
+                    // find first disk that is online
+                    disk = disks.find((i_disk) => {
+                      return i_disk.OperationalStatus == "Online";
+                    });
+
+                    if (!disk) {
+                      throw new GrpcError(
+                        grpc.status.FAILED_PRECONDITION,
+                        "using multipath but mpio is not properly configured (failed to detect an online disk)"
+                      );
+                    }
+                  } else {
+                    throw new GrpcError(
+                      grpc.status.FAILED_PRECONDITION,
+                      `not using multipath but discovered ${disks.length} disks (multiple disks with same iqn/lun)`
+                    );
+                  }
+                } else {
+                  disk = disks[0];
+                }
+
+                if (multipath && !disk.Path.startsWith("\\\\?\\mpio#")) {
+                  throw new GrpcError(
+                    grpc.status.FAILED_PRECONDITION,
+                    "using multipath but mpio is not properly configured (discover disk is not an mpio disk)"
+                  );
+                }
+
+                // needs to be initialized
+                await wutils.PartitionDisk(disk.DiskNumber);
+
+                let partition = await wutils.GetLastPartitionByDiskNumber(
+                  disk.DiskNumber
+                );
+
+                let volume = await wutils.GetVolumeByDiskNumberPartitionNumber(
+                  disk.DiskNumber,
+                  partition.PartitionNumber
+                );
+                if (!volume) {
+                  throw new Error("failed to create/discover volume for disk");
+                }
+
+                result = await wutils.VolumeIsFormatted(volume.UniqueId);
+                if (!result) {
+                  // format device
+                  await wutils.FormatVolume(volume.UniqueId);
+                }
+
+                result = await wutils.GetItem(staging_target_path);
+                if (!result) {
+                  fs.mkdirSync(staging_target_path, {
+                    recursive: true,
+                    mode: "755",
+                  });
+                  result = await wutils.GetItem(staging_target_path);
+                }
+
+                if (!volume.UniqueId.includes(result.Target[0])) {
+                  // mount up!
+                  await wutils.MountVolume(
+                    volume.UniqueId,
+                    staging_target_path
+                  );
+                }
+                break;
+              case "block":
+              default:
+                throw new GrpcError(
+                  grpc.status.UNIMPLEMENTED,
+                  `access_type ${access_type} unsupported`
+                );
+            }
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+            );
+        }
+        break;
       case NODE_OS_DRIVER_CSI_PROXY:
         // sanity check node_attach_driver
         if (!["smb", "iscsi"].includes(node_attach_driver)) {
@@ -1546,9 +1928,7 @@ class CsiBaseDriver {
               grpc.status.INVALID_ARGUMENT,
               `unknown/unsupported node_attach_driver: ${node_attach_driver}`
             );
-            break;
         }
-
         break;
       default:
         throw new GrpcError(
@@ -1798,6 +2178,89 @@ class CsiBaseDriver {
           result = await filesystem.rmdir(staging_target_path);
         }
         break;
+      case NODE_OS_DRIVER_WINDOWS: {
+        const WindowsUtils = require("../utils/windows").Windows;
+        const wutils = new WindowsUtils();
+
+        async function removePath(p) {
+          // remove staging path
+          try {
+            fs.rmdirSync(p);
+          } catch (e) {
+            if (e.code !== "ENOENT") {
+              throw e;
+            }
+          }
+        }
+
+        let node_attach_driver;
+        let win_volume_id;
+
+        result = await wutils.GetItem(normalized_staging_path);
+        if (result) {
+          let target = _.get(result, "Target.[0]", "");
+          if (target.startsWith("UNC")) {
+            node_attach_driver = "smb";
+          }
+          if (target.startsWith("Volume")) {
+            win_volume_id = `\\\\?\\${target}`;
+            if (await wutils.VolumeIsIscsi(win_volume_id)) {
+              node_attach_driver = "iscsi";
+            }
+          }
+
+          if (!node_attach_driver) {
+            // nothing we care about
+            node_attach_driver = "bypass";
+          }
+
+          switch (node_attach_driver) {
+            case "smb":
+              let parts = target.split("\\");
+              await wutils.RemoveSmbGlobalMapping(
+                `\\\\${parts[1]}\\${parts[2]}`
+              );
+
+              break;
+            case "iscsi":
+              // write volume cache
+              await wutils.WriteVolumeCache(win_volume_id);
+
+              // unmount volume
+              await wutils.UnmountVolume(
+                win_volume_id,
+                normalized_staging_path
+              );
+
+              // find sessions associated with volume/disks
+              let sessions = await wutils.GetIscsiSessionsByVolumeId(
+                win_volume_id
+              );
+
+              // logout of sessions
+              for (let session of sessions) {
+                await wutils.DisconnectIscsiTargetByNodeAddress(
+                  session.TargetNodeAddress
+                );
+              }
+
+              // delete target/target portal/etc
+              // do NOT do this now as removing the portal will remove all targets associated with it
+              break;
+            case "bypass":
+              break;
+            default:
+              throw new GrpcError(
+                grpc.status.INVALID_ARGUMENT,
+                `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              );
+          }
+        }
+
+        // remove staging path
+        await removePath(normalized_staging_path);
+        break;
+      }
       case NODE_OS_DRIVER_CSI_PROXY:
         // load up the client instance
         const csiProxyClient = driver.getDefaultCsiProxyClientInstance();
@@ -1891,6 +2354,9 @@ class CsiBaseDriver {
               }
             }
 
+            // do NOT remove target portal etc, windows handles this quite differently than
+            // linux and removing the portal would remove all the targets/etc
+            /*
             try {
               await csiProxyClient.executeRPC("iscsi", "RemoveTargetPortal", {
                 target_portal,
@@ -1901,6 +2367,7 @@ class CsiBaseDriver {
                 throw e;
               }
             }
+            */
 
             break;
           default:
@@ -2062,6 +2529,79 @@ class CsiBaseDriver {
                 }
               }
 
+              return {};
+            }
+
+            // unsupported filesystem
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `only staged configurations are valid`
+            );
+          default:
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+            );
+        }
+        break;
+      case NODE_OS_DRIVER_WINDOWS:
+        const WindowsUtils = require("../utils/windows").Windows;
+        const wutils = new WindowsUtils();
+
+        switch (node_attach_driver) {
+          //case "nfs":
+          case "smb":
+          //case "lustre":
+          //case "oneclient":
+          //case "hostpath":
+          case "iscsi":
+            //case "zfs-local":
+            // ensure appropriate directories/files
+            switch (access_type) {
+              case "mount":
+                break;
+              case "block":
+              default:
+                throw new GrpcError(
+                  grpc.status.INVALID_ARGUMENT,
+                  `unsupported/unknown access_type ${access_type}`
+                );
+            }
+
+            // ensure bind mount
+            if (staging_target_path) {
+              let normalized_staging_path;
+
+              if (access_type == "block") {
+                normalized_staging_path = staging_target_path + "/block_device";
+              } else {
+                normalized_staging_path = staging_target_path;
+              }
+
+              // source path
+              result = await wutils.GetItem(normalized_staging_path);
+              if (!result) {
+                throw new GrpcError(
+                  grpc.status.FAILED_PRECONDITION,
+                  `staging path is not mounted: ${normalized_staging_path}`
+                );
+              }
+
+              // target path
+              result = await wutils.GetItem(target_path);
+              // already published
+              if (result) {
+                if (_.get(result, "LinkType") != "SymbolicLink") {
+                  throw new GrpcError(
+                    grpc.status.FAILED_PRECONDITION,
+                    `target path exists but is not a symlink as it should be: ${target_path}`
+                  );
+                }
+                return {};
+              }
+
+              // create symlink
+              fs.symlinkSync(normalized_staging_path, target_path);
               return {};
             }
 
@@ -2243,6 +2783,24 @@ class CsiBaseDriver {
         }
 
         break;
+      case NODE_OS_DRIVER_WINDOWS:
+        const WindowsUtils = require("../utils/windows").Windows;
+        const wutils = new WindowsUtils();
+
+        result = await wutils.GetItem(target_path);
+        if (!result) {
+          return {};
+        }
+
+        if (_.get(result, "LinkType") != "SymbolicLink") {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `target path is not a symlink ${target_path}`
+          );
+        }
+
+        fs.rmdirSync(target_path);
+        break;
       case NODE_OS_DRIVER_CSI_PROXY:
         const csiProxyClient = driver.getDefaultCsiProxyClientInstance();
 
@@ -2368,6 +2926,61 @@ class CsiBaseDriver {
         }
 
         break;
+      case NODE_OS_DRIVER_WINDOWS: {
+        const WindowsUtils = require("../utils/windows").Windows;
+        const wutils = new WindowsUtils();
+
+        // ensure path is mounted
+        result = await wutils.GetItem(volume_path);
+        if (!result) {
+          throw new GrpcError(
+            grpc.status.NOT_FOUND,
+            `volume_path ${volume_path} is not currently mounted`
+          );
+        }
+
+        let node_attach_driver;
+
+        let target = await wutils.GetRealTarget(volume_path);
+        if (target.startsWith("\\\\")) {
+          node_attach_driver = "smb";
+        }
+        if (target.startsWith("\\\\?\\Volume")) {
+          if (await wutils.VolumeIsIscsi(target)) {
+            node_attach_driver = "iscsi";
+          }
+        }
+
+        if (!node_attach_driver) {
+          // nothing we care about
+          node_attach_driver = "bypass";
+        }
+
+        switch (node_attach_driver) {
+          case "smb":
+            res.usage = [{ total: 0, unit: "BYTES" }];
+            break;
+          case "iscsi":
+            let node_volume = await wutils.GetVolumeByVolumeId(target);
+            res.usage = [
+              {
+                available: node_volume.SizeRemaining,
+                total: node_volume.Size,
+                used: node_volume.Size - node_volume.SizeRemaining,
+                unit: "BYTES",
+              },
+            ];
+            break;
+          case "bypass":
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+            );
+        }
+        break;
+      }
       case NODE_OS_DRIVER_CSI_PROXY:
         const csiProxyClient = driver.getDefaultCsiProxyClientInstance();
         const volume_context = await driver.getDerivedVolumeContext(call);
@@ -2562,6 +3175,56 @@ class CsiBaseDriver {
         }
 
         break;
+      case NODE_OS_DRIVER_WINDOWS: {
+        const WindowsUtils = require("../utils/windows").Windows;
+        const wutils = new WindowsUtils();
+
+        let node_attach_driver;
+
+        // ensure path is mounted
+        result = await wutils.GetItem(volume_path);
+        if (!result) {
+          throw new GrpcError(
+            grpc.status.NOT_FOUND,
+            `volume_path ${volume_path} is not currently mounted`
+          );
+        }
+
+        let target = await wutils.GetRealTarget(volume_path);
+        if (target.startsWith("\\\\")) {
+          node_attach_driver = "smb";
+        }
+        if (target.startsWith("\\\\?\\Volume")) {
+          if (await wutils.VolumeIsIscsi(target)) {
+            node_attach_driver = "iscsi";
+          }
+        }
+
+        if (!node_attach_driver) {
+          // nothing we care about
+          node_attach_driver = "bypass";
+        }
+
+        switch (node_attach_driver) {
+          case "smb":
+            // noop
+            break;
+          case "iscsi":
+            // rescan devices
+            await wutils.UpdateHostStorageCache();
+            await wutils.ResizeVolume(target);
+            break;
+          case "bypass":
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+            );
+        }
+
+        break;
+      }
       case NODE_OS_DRIVER_CSI_PROXY:
         const csiProxyClient = driver.getDefaultCsiProxyClientInstance();
         const volume_context = await driver.getDerivedVolumeContext(call);
@@ -2606,7 +3269,7 @@ class CsiBaseDriver {
                 try {
                   await csiProxyClient.executeRPC("volume", "ResizeVolume", {
                     volume_id: node_volume_id,
-                    resize_bytes: required_bytes,
+                    resize_bytes: 0,
                   });
                 } catch (e) {
                   let details = _.get(e, "details", "");
