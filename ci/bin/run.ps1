@@ -10,6 +10,13 @@
 
 . "${PSScriptRoot}\helper.ps1"
 
+Write-Output "current user"
+whoami
+Write-Output "current working directory"
+(Get-Location).Path
+Write-Output "current PATH"
+$Env:PATH
+
 function Job-Cleanup() {
   Get-Job | Stop-Job
   Get-Job | Remove-Job
