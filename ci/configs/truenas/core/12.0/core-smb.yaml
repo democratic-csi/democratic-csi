@@ -39,7 +39,7 @@ zfs:
 smb:
   shareHost: ${TRUENAS_HOST}
   #nameTemplate: ""
-  namePrefix: "csi-ci-${CI_BUILD_KEY}"
+  namePrefix: "csi-ci-${CI_BUILD_KEY}-"
   nameSuffix: ""
   shareAuxiliaryConfigurationTemplate: |
     #guest ok = yes
@@ -51,7 +51,7 @@ smb:
   shareGuestOk: false
   #shareGuestOnly: true
   #shareShowHiddenFiles: true
-  shareRecycleBin: true
+  shareRecycleBin: false
   shareBrowsable: false
   shareAccessBasedEnumeration: true
   shareTimeMachine: false

@@ -18,7 +18,7 @@ zfs:
 iscsi:
   targetPortal: ${SERVER_HOST}
   interface: ""
-  namePrefix: "csi-ci-${CI_BUILD_KEY}"
+  namePrefix: "csi-ci-${CI_BUILD_KEY}-"
   nameSuffix: ""
   shareStrategy: "targetCli"
   shareStrategyTargetCli:

@@ -3,6 +3,8 @@ const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const cp = require("child_process");
 const fs = require("fs");
+const fse = require("fs-extra");
+const path = require("path");
 const semver = require("semver");
 
 /**
@@ -230,9 +232,14 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   }
 
   async getDirectoryUsage(path) {
-    let result = await this.exec("du", ["-s", "--block-size=1", path]);
-    let size = result.stdout.split("\t", 1)[0];
-    return size;
+    if (this.getNodeIsWindows()) {
+      this.ctx.logger.warn("du not implemented on windows");
+      return 0;
+    } else {
+      let result = await this.exec("du", ["-s", "--block-size=1", path]);
+      let size = result.stdout.split("\t", 1)[0];
+      return size;
+    }
   }
 
   exec(command, args, options = {}) {
@@ -297,20 +304,39 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   }
 
   async cloneDir(source_path, target_path) {
-    await this.exec("mkdir", ["-p", target_path]);
+    if (this.getNodeIsWindows()) {
+      fse.copySync(
+        this.stripTrailingSlash(source_path),
+        this.stripTrailingSlash(target_path),
+        {
+          overwrite: true,
+          dereference: true,
+          preserveTimestamps: true,
+          //errorOnExist: true,
+        }
+      );
+    } else {
+      await this.createDir(target_path);
 
-    /**
-     * trailing / is important
-     * rsync -a /mnt/storage/s/foo/ /mnt/storage/v/PVC-111/
-     */
-    await this.exec("rsync", [
-      "-a",
-      this.stripTrailingSlash(source_path) + "/",
-      this.stripTrailingSlash(target_path) + "/",
-    ]);
+      /**
+       * trailing / is important
+       * rsync -a /mnt/storage/s/foo/ /mnt/storage/v/PVC-111/
+       */
+      await this.exec("rsync", [
+        "-a",
+        this.stripTrailingSlash(source_path) + "/",
+        this.stripTrailingSlash(target_path) + "/",
+      ]);
+    }
   }
 
   async getAvailableSpaceAtPath(path) {
+    // https://www.npmjs.com/package/diskusage
+    // https://www.npmjs.com/package/check-disk-space
+    if (this.getNodeIsWindows()) {
+      this.ctx.logger.warn("df not implemented on windows");
+      return 0;
+    }
     //df --block-size=1 --output=avail /mnt/storage/
     //     Avail
     //1481334328
@@ -325,11 +351,14 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   }
 
   async createDir(path) {
-    await this.exec("mkdir", ["-p", path]);
+    fs.mkdirSync(path, {
+      recursive: true,
+      mode: "755",
+    });
   }
 
   async deleteDir(path) {
-    await this.exec("rm", ["-rf", path]);
+    fs.rmSync(path, { recursive: true, force: true });
 
     return;
 
@@ -346,7 +375,40 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   }
 
   async directoryExists(path) {
-    return fs.existsSync(path);
+    let r;
+    r = fs.existsSync(path);
+    if (!r) {
+      return r;
+    }
+
+    if (!fs.statSync(path).isDirectory()) {
+      throw new Error(`path [${path}] exists but is not a directory`);
+    }
+
+    return true;
+  }
+
+  /**
+   * Have to be careful with the logic here as the controller could be running
+   * on win32 for *-client vs local-hostpath
+   *
+   * @param {*} path
+   * @returns
+   */
+  async normalizePath(path) {
+    if (process.platform == "win32") {
+      return await this.noramlizePathWin32(path);
+    } else {
+      return await this.normalizePathPosix(path);
+    }
+  }
+
+  async normalizePathPosix(p) {
+    return p.replaceAll(path.win32.sep, path.posix.sep);
+  }
+
+  async noramlizePathWin32(p) {
+    return p.replaceAll(path.posix.sep, path.win32.sep);
   }
 
   /**
@@ -441,7 +503,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     //let volume_content_source_volume_id;
 
     // create target dir
-    response = await driver.exec("mkdir", ["-p", volume_path]);
+    await driver.createDir(target_path);
 
     // create dataset
     if (volume_content_source) {
@@ -476,7 +538,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       }
 
       driver.ctx.logger.debug("controller source path: %s", source_path);
-      response = await driver.cloneDir(source_path, volume_path);
+      await driver.cloneDir(source_path, volume_path);
     }
 
     // set mode
@@ -486,10 +548,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
         this.options[config_key].dirPermissionsMode,
         volume_path
       );
-      response = await driver.exec("chmod", [
-        this.options[config_key].dirPermissionsMode,
-        volume_path,
-      ]);
+      fs.chmodSync(volume_path, this.options[config_key].dirPermissionsMode);
     }
 
     // set ownership
@@ -503,16 +562,20 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
         this.options[config_key].dirPermissionsGroup,
         volume_path
       );
-      response = await driver.exec("chown", [
-        (this.options[config_key].dirPermissionsUser
-          ? this.options[config_key].dirPermissionsUser
-          : "") +
-          ":" +
-          (this.options[config_key].dirPermissionsGroup
-            ? this.options[config_key].dirPermissionsGroup
-            : ""),
-        volume_path,
-      ]);
+      if (this.getNodeIsWindows()) {
+        driver.ctx.logger.warn("chown not implemented on windows");
+      } else {
+        await driver.exec("chown", [
+          (this.options[config_key].dirPermissionsUser
+            ? this.options[config_key].dirPermissionsUser
+            : "") +
+            ":" +
+            (this.options[config_key].dirPermissionsGroup
+              ? this.options[config_key].dirPermissionsGroup
+              : ""),
+          volume_path,
+        ]);
+      }
     }
 
     let volume_context = driver.getVolumeContext(name);
