@@ -306,6 +306,7 @@ jobs:
   csi-sanity-local-hostpath:
     needs:
       - build-npm-linux-amd64
+      - build-npm-windows-amd64
     strategy:
       fail-fast: false
       matrix:
