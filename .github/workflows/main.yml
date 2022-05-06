@@ -313,11 +313,13 @@ jobs:
         os: [Linux, Windows]
         include:
         - os: Linux
+          npmartifact: node-modules-linux-amd64
           template: "./ci/configs/local-hostpath/basic.yaml"
           run: |
             # run tests
             ci/bin/run.sh
         - os: Windows
+          npmartifact: node-modules-windows-amd64
           template: ".\\ci\\configs\\local-hostpath/basic.yaml"
           run: |
             # run tests
@@ -330,7 +332,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules-linux-amd64
+          name: ${{ matrix.npmartifact }}
       - name: csi-sanity
         run: ${{ matrix.run }}
         env:

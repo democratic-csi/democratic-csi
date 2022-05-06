@@ -3,6 +3,8 @@
 set -e
 set -x
 
+echo "current PATH: ${PATH}"
+
 : ${CI_BUILD_KEY:="local"}
 : ${TEMPLATE_CONFIG_FILE:=${1}}
 : ${CSI_MODE:=""}
