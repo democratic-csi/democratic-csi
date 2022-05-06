@@ -503,7 +503,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     //let volume_content_source_volume_id;
 
     // create target dir
-    await driver.createDir(target_path);
+    await driver.createDir(volume_path);
 
     // create dataset
     if (volume_content_source) {

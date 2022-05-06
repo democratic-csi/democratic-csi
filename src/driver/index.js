@@ -1222,10 +1222,10 @@ class CsiBaseDriver {
         break;
       case NODE_OS_DRIVER_WINDOWS:
         // sanity check node_attach_driver
-        if (!["smb", "iscsi"].includes(node_attach_driver)) {
+        if (!["smb", "iscsi", "hostpath"].includes(node_attach_driver)) {
           throw new GrpcError(
             grpc.status.UNIMPLEMENTED,
-            `csi-proxy does not work with node_attach_driver: ${node_attach_driver}`
+            `windows does not work with node_attach_driver: ${node_attach_driver}`
           );
         }
 
@@ -1233,7 +1233,7 @@ class CsiBaseDriver {
         if (fs_type && !["ntfs", "cifs"].includes(fs_type)) {
           throw new GrpcError(
             grpc.status.UNIMPLEMENTED,
-            `csi-proxy does not work with fs_type: ${fs_type}`
+            `windows does not work with fs_type: ${fs_type}`
           );
         }
 
@@ -1591,6 +1591,39 @@ class CsiBaseDriver {
                   `access_type ${access_type} unsupported`
                 );
             }
+            break;
+          case "hostpath":
+            try {
+              fs.statSync(win_staging_target_path);
+              result = true;
+            } catch (err) {
+              if (err.code === "ENOENT") {
+                result = false;
+              } else {
+                throw err;
+              }
+            }
+
+            // if exists already delete if folder, return if symlink
+            if (result) {
+              result = fs.lstatSync(win_staging_target_path);
+              // remove pre-created dir by CO
+              if (!result.isSymbolicLink()) {
+                fs.rmdirSync(win_staging_target_path);
+              } else {
+                // assume symlink points to the correct location
+                return {};
+              }
+            }
+
+            // create symlink
+            fs.symlinkSync(
+              filesystem.covertUnixSeparatorToWindowsSeparator(
+                volume_context.path
+              ),
+              win_staging_target_path
+            );
+            return {};
             break;
           default:
             throw new GrpcError(
@@ -2254,6 +2287,9 @@ class CsiBaseDriver {
               // delete target/target portal/etc
               // do NOT do this now as removing the portal will remove all targets associated with it
               break;
+            case "hostpath":
+              // allow below code to remove symlink
+              break;
             case "bypass":
               break;
             default:
@@ -2560,7 +2596,7 @@ class CsiBaseDriver {
           case "smb":
           //case "lustre":
           //case "oneclient":
-          //case "hostpath":
+          case "hostpath":
           case "iscsi":
             //case "zfs-local":
             // ensure appropriate directories/files
@@ -2956,7 +2992,7 @@ class CsiBaseDriver {
 
         let node_attach_driver;
 
-        let target = await wutils.GetRealTarget(win_volume_path);
+        let target = await wutils.GetRealTarget(win_volume_path) || "";
         if (target.startsWith("\\\\")) {
           node_attach_driver = "smb";
         }
@@ -2987,6 +3023,7 @@ class CsiBaseDriver {
             ];
             break;
           case "bypass":
+            res.usage = [{ total: 0, unit: "BYTES" }];
             break;
           default:
             throw new GrpcError(
