@@ -1239,13 +1239,11 @@ class CsiBaseDriver {
 
         const WindowsUtils = require("../utils/windows").Windows;
         const wutils = new WindowsUtils();
+        let win_staging_target_path =
+          filesystem.covertUnixSeparatorToWindowsSeparator(staging_target_path);
 
         switch (node_attach_driver) {
           case "smb":
-            let win_staging_target_path =
-              filesystem.covertUnixSeparatorToWindowsSeparator(
-                staging_target_path
-              );
             device = `//${volume_context.server}/${volume_context.share}`;
             const username = driver.getMountFlagValue(mount_flags, "username");
             const password = driver.getMountFlagValue(mount_flags, "password");
