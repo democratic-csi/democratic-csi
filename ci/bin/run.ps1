@@ -77,7 +77,7 @@ $iter = 0
 while ($csi_sanity_job -and ($csi_sanity_job.State -eq "Running" -or $csi_sanity_job.State -eq "NotStarted")) {
   $iter++
   foreach ($job in Get-Job) {
-    if ($job -eq $csi_grpc_proxy_job -and $iter -gt 20) {
+    if (($job -eq $csi_grpc_proxy_job) -and ($iter -gt 20)) {
       continue
     }
     try {
@@ -85,6 +85,9 @@ while ($csi_sanity_job -and ($csi_sanity_job.State -eq "Running" -or $csi_sanity
     }
     catch {
       if ($job.State -ne "Failed") {
+        Write-Output "failure receiving job data"
+        $job | ConvertTo-Json | Write-Output
+        Write-Output $_
         throw $_
       }
     }
