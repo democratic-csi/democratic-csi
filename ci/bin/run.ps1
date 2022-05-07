@@ -26,7 +26,7 @@ function Job-Cleanup() {
 Job-Cleanup
 
 # install from artifacts
-if (Test-Path "node_modules-windows-amd64.tar.gz") {
+if ((Test-Path "node_modules-windows-amd64.tar.gz") -and !(Test-Path "node_modules")) {
   Write-Output "extracting node_modules-windows-amd64.tar.gz"
   tar -zxf node_modules-windows-amd64.tar.gz
 }
@@ -71,8 +71,13 @@ if ($started -eq 1) {
 
 # https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/get-job?view=powershell-7.2
 # -ChildJobState
+$iter = 0
 while ($csi_sanity_job -and ($csi_sanity_job.State -eq "Running" -or $csi_sanity_job.State -eq "NotStarted")) {
+  $iter++
   foreach ($job in Get-Job) {
+    if ($job -eq $csi_grpc_proxy_job -and $iter -gt 20) {
+      continue
+    }
     try {
       $job | Receive-Job
     }
@@ -86,6 +91,9 @@ while ($csi_sanity_job -and ($csi_sanity_job.State -eq "Running" -or $csi_sanity
 
 # spew any remaining job output to the console
 foreach ($job in Get-Job) {
+  if ($job -eq $csi_grpc_proxy_job) {
+    continue
+  }
   try {
     $job | Receive-Job
   }
