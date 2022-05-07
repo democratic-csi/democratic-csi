@@ -58,7 +58,9 @@ while (!(Test-Path "${env:CSI_ENDPOINT}")) {
   $iter++
   Write-Output "Waiting for ${env:CSI_ENDPOINT} to appear"
   Start-Sleep 1
-  Get-Job | Receive-Job
+  try {
+    Get-Job | Receive-Job
+  } catch {}
   if ($iter -gt $max_iter) {
     Write-Output "${env:CSI_ENDPOINT} failed to appear"
     $started = 0
@@ -80,13 +82,18 @@ while ($csi_sanity_job -and ($csi_sanity_job.State -eq "Running" -or $csi_sanity
     if (($job -eq $csi_grpc_proxy_job) -and ($iter -gt 20)) {
       continue
     }
+    if (!$job.HasMoreData) {
+      continue
+    }
     try {
       $job | Receive-Job
     }
     catch {
       if ($job.State -ne "Failed") {
-        Write-Output "failure receiving job data: " + $_
-        $job | fl
+        Write-Output "failure receiving job data: ${_}"
+        # just swallow the errors as it seems there are various reasons errors
+        # may show up (perhaps no data currently, etc)
+        #$job | fl
         #throw $_
       }
     }

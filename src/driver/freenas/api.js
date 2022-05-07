@@ -261,7 +261,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
-              response = await httpClient.post("/sharing/nfs", share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post("/sharing/nfs", share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201
@@ -482,7 +502,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
-              response = await httpClient.post(endpoint, share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post(endpoint, share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201

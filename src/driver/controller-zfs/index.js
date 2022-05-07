@@ -1318,30 +1318,24 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
     try {
-      let max_tries = 12;
-      let sleep_time = 5000;
-      let current_try = 1;
-      let success = false;
-      while (!success && current_try <= max_tries) {
-        try {
+      await GeneralUtils.retry(
+        12,
+        5000,
+        async () => {
           await zb.zfs.destroy(datasetName, { recurse: true, force: true });
-          success = true;
-        } catch (err) {
-          if (
-            err.toString().includes("dataset is busy") ||
-            err.toString().includes("target is busy")
-          ) {
-            current_try++;
-            if (current_try > max_tries) {
-              throw err;
-            } else {
-              await GeneralUtils.sleep(sleep_time);
+        },
+        {
+          retryCondition: (err) => {
+            if (
+              err.toString().includes("dataset is busy") ||
+              err.toString().includes("target is busy")
+            ) {
+              return true;
             }
-          } else {
-            throw err;
-          }
+            return false;
+          },
         }
-      }
+      );
     } catch (err) {
       if (err.toString().includes("filesystem has dependent clones")) {
         throw new GrpcError(

@@ -759,16 +759,21 @@ class CsiBaseDriver {
               }
 
               // create 'DB' entry
-              await iscsi.iscsiadm.createNodeDBEntry(
-                iscsiConnection.iqn,
-                iscsiConnection.portal,
-                nodeDB
-              );
+              await GeneralUtils.retry(5, 2000, async () => {
+                await iscsi.iscsiadm.createNodeDBEntry(
+                  iscsiConnection.iqn,
+                  iscsiConnection.portal,
+                  nodeDB
+                );
+              });
+
               // login
-              await iscsi.iscsiadm.login(
-                iscsiConnection.iqn,
-                iscsiConnection.portal
-              );
+              await GeneralUtils.retry(15, 2000, async () => {
+                await iscsi.iscsiadm.login(
+                  iscsiConnection.iqn,
+                  iscsiConnection.portal
+                );
+              });
 
               // get associated session
               let session = await iscsi.iscsiadm.getSession(

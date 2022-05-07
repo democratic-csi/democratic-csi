@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const axios = require("axios");
 const crypto = require("crypto");
 
@@ -177,6 +178,45 @@ function default_supported_file_filesystems() {
   return ["nfs", "cifs"];
 }
 
+async function retry(retries, retriesDelay, code, options = {}) {
+  let current_try = 0;
+  let maxwait = _.get(options, "maxwait");
+  let logerrors = _.get(options, "logerrors", false);
+  let retryCondition = options.retryCondition;
+  do {
+    current_try++;
+    try {
+      return await code();
+    } catch (err) {
+      if (current_try >= retries) {
+        throw err;
+      }
+      if (retryCondition) {
+        let retry = retryCondition(err);
+        if (!retry) {
+          console.log(`retry - failed condition, not trying again`);
+          throw err;
+        }
+      }
+      if (logerrors === true) {
+        console.log(`retry - err:`, err);
+      }
+    }
+    let sleep_time = retriesDelay;
+    if (_.get(options, "exponential", false) === true) {
+      sleep_time = retriesDelay * current_try;
+    }
+
+    if (maxwait) {
+      if (sleep_time > maxwait) {
+        sleep_time = maxwait;
+      }
+    }
+    console.log(`retry - waiting ${sleep_time}ms before trying again`);
+    await sleep(sleep_time);
+  } while (true);
+}
+
 module.exports.sleep = sleep;
 module.exports.md5 = md5;
 module.exports.crc32 = crc32;
@@ -189,3 +229,4 @@ module.exports.default_supported_block_filesystems =
   default_supported_block_filesystems;
 module.exports.default_supported_file_filesystems =
   default_supported_file_filesystems;
+module.exports.retry = retry;

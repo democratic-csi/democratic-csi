@@ -1,9 +1,9 @@
 const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const GeneralUtils = require("../../utils/general");
 const registry = require("../../utils/registry");
 const SshClient = require("../../utils/ssh").SshClient;
-const sleep = require("../../utils/general").sleep;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 const Handlebars = require("handlebars");
@@ -231,8 +231,12 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
               }
             }
 
-            response = await this.targetCliCommand(
-              `
+            await GeneralUtils.retry(
+              3,
+              2000,
+              async () => {
+                await this.targetCliCommand(
+                  `
 # create target
 cd /iscsi
 create ${basename}:${iscsiName}
@@ -250,6 +254,16 @@ create ${iscsiName} /dev/${extentDiskName}
 cd /iscsi/${basename}:${iscsiName}/tpg1/luns
 create /backstores/block/${iscsiName}
 `
+                );
+              },
+              {
+                retryCondition: (err) => {
+                  if (err.stdout && err.stdout.includes("Ran out of input")) {
+                    return true;
+                  }
+                  return false;
+                },
+              }
             );
             break;
           default:
@@ -313,7 +327,7 @@ create /backstores/block/${iscsiName}
                 }
               }
             }
-            await sleep(2000); // let things settle
+            await GeneralUtils.sleep(2000); // let things settle
             break;
           default:
             throw new GrpcError(
@@ -343,7 +357,7 @@ create /backstores/block/${iscsiName}
                 }
               }
             }
-            await sleep(2000); // let things settle
+            await GeneralUtils.sleep(2000); // let things settle
             break;
           default:
             throw new GrpcError(
@@ -392,8 +406,12 @@ create /backstores/block/${iscsiName}
         switch (this.options.iscsi.shareStrategy) {
           case "targetCli":
             basename = this.options.iscsi.shareStrategyTargetCli.basename;
-            response = await this.targetCliCommand(
-              `
+            await GeneralUtils.retry(
+              3,
+              2000,
+              async () => {
+                await this.targetCliCommand(
+                  `
 # delete target
 cd /iscsi
 delete ${basename}:${iscsiName}
@@ -402,7 +420,18 @@ delete ${basename}:${iscsiName}
 cd /backstores/block
 delete ${iscsiName}
 `
+                );
+              },
+              {
+                retryCondition: (err) => {
+                  if (err.stdout && err.stdout.includes("Ran out of input")) {
+                    return true;
+                  }
+                  return false;
+                },
+              }
             );
+
             break;
           default:
             break;

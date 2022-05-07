@@ -6,7 +6,7 @@ const SshClient = require("../../utils/ssh").SshClient;
 const HttpClient = require("./http").Client;
 const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
-const { sleep, stringify } = require("../../utils/general");
+const GeneralUtils = require("../../utils/general");
 
 const Handlebars = require("handlebars");
 
@@ -308,7 +308,27 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   break;
               }
 
-              response = await httpClient.post("/sharing/nfs", share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post("/sharing/nfs", share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201
@@ -529,7 +549,27 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   break;
               }
 
-              response = await httpClient.post(endpoint, share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post(endpoint, share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201
@@ -1614,7 +1654,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                       targetId,
                       retries
                     );
-                    await sleep(retryWait);
+                    await GeneralUtils.sleep(retryWait);
                     response = await httpClient.delete(endpoint);
                   }
 
@@ -2134,7 +2174,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     // likely bad creds/url
     throw new GrpcError(
       grpc.status.UNKNOWN,
-      `FreeNAS error getting system version info: ${stringify({
+      `FreeNAS error getting system version info: ${GeneralUtils.stringify({
         errors: versionErrors,
         responses: versionResponses,
       })}`
