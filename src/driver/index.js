@@ -1258,16 +1258,7 @@ class CsiBaseDriver {
              *
              * if path exists but is NOT symlink delete it
              */
-            try {
-              fs.statSync(win_staging_target_path);
-              result = true;
-            } catch (err) {
-              if (err.code === "ENOENT") {
-                result = false;
-              } else {
-                throw err;
-              }
-            }
+            result = await filesystem.pathExists(win_staging_target_path);
 
             if (result) {
               result = fs.lstatSync(win_staging_target_path);
@@ -1593,22 +1584,10 @@ class CsiBaseDriver {
             }
             break;
           case "hostpath":
-            try {
-              fs.statSync(win_staging_target_path);
-              result = true;
-            } catch (err) {
-              if (err.code === "ENOENT") {
-                result = false;
-              } else {
-                throw err;
-              }
-            }
-
             // if exists already delete if folder, return if symlink
-            if (result) {
-              result = fs.lstatSync(win_staging_target_path);
+            if (await filesystem.pathExists(win_staging_target_path)) {
               // remove pre-created dir by CO
-              if (!result.isSymbolicLink()) {
+              if (!(await filesystem.isSymbolicLink(win_staging_target_path))) {
                 fs.rmdirSync(win_staging_target_path);
               } else {
                 // assume symlink points to the correct location
@@ -2627,7 +2606,7 @@ class CsiBaseDriver {
                 );
 
               // source path
-              result = await wutils.GetItem(normalized_staging_path);
+              result = await filesystem.pathExists(normalized_staging_path);
               if (!result) {
                 throw new GrpcError(
                   grpc.status.FAILED_PRECONDITION,
@@ -2982,7 +2961,7 @@ class CsiBaseDriver {
         let win_volume_path =
           filesystem.covertUnixSeparatorToWindowsSeparator(volume_path);
         // ensure path is mounted
-        result = await wutils.GetItem(win_volume_path);
+        result = await filesystem.pathExists(win_volume_path);
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
@@ -2992,7 +2971,7 @@ class CsiBaseDriver {
 
         let node_attach_driver;
 
-        let target = await wutils.GetRealTarget(win_volume_path) || "";
+        let target = (await wutils.GetRealTarget(win_volume_path)) || "";
         if (target.startsWith("\\\\")) {
           node_attach_driver = "smb";
         }
@@ -3236,7 +3215,7 @@ class CsiBaseDriver {
           filesystem.covertUnixSeparatorToWindowsSeparator(volume_path);
 
         // ensure path is mounted
-        result = await wutils.GetItem(win_volume_path);
+        result = filesystem.pathExists(win_volume_path);
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,

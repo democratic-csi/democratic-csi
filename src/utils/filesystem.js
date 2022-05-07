@@ -228,8 +228,12 @@ class Filesystem {
     }
   }
 
+  async isSymboliclink(path) {
+    return fs.lstatSync(path).isSymbolicLink();
+  }
+
   /**
-   * create symlink
+   * remove file
    *
    * @param {*} device
    */
@@ -829,16 +833,17 @@ class Filesystem {
    * @param {*} path
    */
   async pathExists(path) {
-    const filesystem = this;
-    let args = [];
-    args.push(path);
-
+    let result = false;
     try {
-      await filesystem.exec("stat", args);
+      fs.statSync(path);
+      result = true;
     } catch (err) {
-      return false;
+      if (err.code !== "ENOENT") {
+        throw err;
+      }
     }
-    return true;
+
+    return result;
   }
 
   exec(command, args, options = {}) {

@@ -15,7 +15,7 @@ export PATH="/usr/local/lib/nodejs/bin:${PATH}"
 # install deps
 #npm i
 # install from artifacts
-if [[ -f "node_modules-linux-amd64.tar.gz" ]];then
+if [[ -f "node_modules-linux-amd64.tar.gz" && ! -d "node_modules" ]];then
   tar -zxf node_modules-linux-amd64.tar.gz
 fi
 

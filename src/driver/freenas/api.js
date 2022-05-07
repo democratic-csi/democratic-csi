@@ -1476,7 +1476,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         break;
       case "iscsi":
         // Delete target
-        // NOTE: deletting a target inherently deletes associated targetgroup(s) and targettoextent(s)
+        // NOTE: deleting a target inherently deletes associated targetgroup(s) and targettoextent(s)
 
         // Delete extent
         try {

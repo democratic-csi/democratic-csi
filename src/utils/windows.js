@@ -60,6 +60,7 @@ class Windows {
       }
     } while (path);
   }
+
   async GetItem(localPath) {
     let command;
     let result;
@@ -201,7 +202,12 @@ class Windows {
     chapSecret,
     multipath = false
   ) {
-    let is_connected = await this.IscsiTargetIsConnectedByPortalAddressPortalPort(address, port, iqn);
+    let is_connected =
+      await this.IscsiTargetIsConnectedByPortalAddressPortalPort(
+        address,
+        port,
+        iqn
+      );
     if (is_connected) {
       return;
     }
