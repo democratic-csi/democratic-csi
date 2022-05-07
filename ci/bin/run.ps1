@@ -10,6 +10,8 @@
 
 . "${PSScriptRoot}\helper.ps1"
 
+Set-PSDebug -Trace 2
+
 Write-Output "current user"
 whoami
 Write-Output "current working directory"
