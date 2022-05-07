@@ -1261,8 +1261,7 @@ class CsiBaseDriver {
             result = await filesystem.pathExists(win_staging_target_path);
 
             if (result) {
-              result = fs.lstatSync(win_staging_target_path);
-              if (!result.isSymbolicLink()) {
+              if (!(await filesystem.isSymbolicLink(win_staging_target_path))) {
                 fs.rmdirSync(win_staging_target_path);
               } else {
                 result = await wutils.GetItem(win_staging_target_path);
@@ -1310,8 +1309,9 @@ class CsiBaseDriver {
               if (!details.includes("ResourceExists")) {
                 throw e;
               } else {
-                result = fs.lstatSync(win_staging_target_path);
-                if (!result.isSymbolicLink()) {
+                if (
+                  !(await filesystem.isSymbolicLink(win_staging_target_path))
+                ) {
                   throw new Error("staging path exists but is not symlink");
                 }
               }
@@ -3215,7 +3215,7 @@ class CsiBaseDriver {
           filesystem.covertUnixSeparatorToWindowsSeparator(volume_path);
 
         // ensure path is mounted
-        result = filesystem.pathExists(win_volume_path);
+        result = await filesystem.pathExists(win_volume_path);
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
@@ -3223,7 +3223,7 @@ class CsiBaseDriver {
           );
         }
 
-        let target = await wutils.GetRealTarget(win_volume_path);
+        let target = (await wutils.GetRealTarget(win_volume_path)) || "";
         if (target.startsWith("\\\\")) {
           node_attach_driver = "smb";
         }

@@ -1318,8 +1318,8 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
     try {
-      let max_tries = 5;
-      let sleep_time = 3000;
+      let max_tries = 12;
+      let sleep_time = 5000;
       let current_try = 1;
       let success = false;
       while (!success && current_try <= max_tries) {

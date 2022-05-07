@@ -228,7 +228,7 @@ class Filesystem {
     }
   }
 
-  async isSymboliclink(path) {
+  async isSymbolicLink(path) {
     return fs.lstatSync(path).isSymbolicLink();
   }
 
