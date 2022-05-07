@@ -10,7 +10,7 @@
 
 . "${PSScriptRoot}\helper.ps1"
 
-Set-PSDebug -Trace 2
+#Set-PSDebug -Trace 2
 
 Write-Output "current user"
 whoami
@@ -85,10 +85,9 @@ while ($csi_sanity_job -and ($csi_sanity_job.State -eq "Running" -or $csi_sanity
     }
     catch {
       if ($job.State -ne "Failed") {
-        Write-Output "failure receiving job data"
-        $job | ConvertTo-Json | Write-Output
-        Write-Output $_
-        throw $_
+        Write-Output "failure receiving job data: " + $_
+        $job | fl
+        #throw $_
       }
     }
   }
