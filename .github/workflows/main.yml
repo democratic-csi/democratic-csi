@@ -18,12 +18,12 @@ jobs:
           access_token: ${{ github.token }}
 
   build-npm-linux-amd64:
-    runs-on:
-      - self-hosted
-      - Linux
-      - X64
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
       - shell: bash
         name: npm install
         run: |
@@ -36,12 +36,12 @@ jobs:
           retention-days: 7
 
   build-npm-windows-amd64:
-    runs-on:
-      - self-hosted
-      - Windows
-      - X64
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
       - shell: pwsh
         name: npm install
         run: |
