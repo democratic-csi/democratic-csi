@@ -519,12 +519,12 @@ delete ${iscsiName}
       execClient.buildCommand(command, args),
       options
     );
-    if (response.code != 0) {
-      throw new Error(response);
-    }
     driver.ctx.logger.verbose(
       "TargetCLI response: " + JSON.stringify(response)
     );
+    if (response.code != 0) {
+      throw response;
+    }
     return response;
   }
 }

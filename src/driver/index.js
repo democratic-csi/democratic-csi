@@ -2203,7 +2203,7 @@ class CsiBaseDriver {
           result = await filesystem.pathExists(block_path);
           if (result) {
             result = await GeneralUtils.retry(
-              10,
+              30,
               0,
               async () => {
                 return await filesystem.rm(block_path);
@@ -2223,7 +2223,7 @@ class CsiBaseDriver {
         result = await filesystem.pathExists(staging_target_path);
         if (result) {
           result = await GeneralUtils.retry(
-            10,
+            30,
             0,
             async () => {
               return await filesystem.rmdir(staging_target_path);
@@ -2865,7 +2865,7 @@ class CsiBaseDriver {
         if (result) {
           if (fs.lstatSync(target_path).isDirectory()) {
             result = await GeneralUtils.retry(
-              10,
+              30,
               0,
               async () => {
                 return await filesystem.rmdir(target_path);
@@ -2881,7 +2881,7 @@ class CsiBaseDriver {
             );
           } else {
             result = await GeneralUtils.retry(
-              10,
+              30,
               0,
               async () => {
                 return await filesystem.rm([target_path]);

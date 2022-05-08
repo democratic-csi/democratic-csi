@@ -1,5 +1,6 @@
 const cp = require("child_process");
 const fs = require("fs");
+const GeneralUtils = require("./general");
 const path = require("path");
 
 const DEFAULT_TIMEOUT = process.env.FILESYSTEM_DEFAULT_TIMEOUT || 30000;
@@ -835,7 +836,21 @@ class Filesystem {
   async pathExists(path) {
     let result = false;
     try {
-      fs.statSync(path);
+      await GeneralUtils.retry(
+        10,
+        200,
+        () => {
+          fs.statSync(path);
+        },
+        {
+          retryCondition: (err) => {
+            if (err.code == "UNKNOWN") {
+              return true;
+            }
+            return false;
+          },
+        }
+      );
       result = true;
     } catch (err) {
       if (err.code !== "ENOENT") {
