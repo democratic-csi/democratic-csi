@@ -86,6 +86,12 @@ class Client {
       httpAgent: this.getHttpAgent(),
       httpsAgent: this.getHttpsAgent(),
       timeout: 60 * 1000,
+      validateStatus: function (status) {
+        if (status >= 500) {
+          return false;
+        }
+        return true;
+      },
     };
 
     if (client.options.apiKey) {

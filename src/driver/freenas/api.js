@@ -1402,7 +1402,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 });
 
                 if (deleteAsset) {
-                  response = await httpClient.delete(endpoint);
+                  response = await GeneralUtils.retry(
+                    3,
+                    1000,
+                    async () => {
+                      return await httpClient.delete(endpoint);
+                    },
+                    {
+                      retryCondition: (err) => {
+                        if (err.code == "ECONNRESET") {
+                          return true;
+                        }
+                        if (err.code == "ECONNABORTED") {
+                          return true;
+                        }
+                        if (err.response && err.response.statusCode == 504) {
+                          return true;
+                        }
+                        return false;
+                      },
+                    }
+                  );
 
                   // returns a 500 if does not exist
                   // v1 = 204
@@ -1483,7 +1503,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 });
 
                 if (deleteAsset) {
-                  response = await httpClient.delete(endpoint);
+                  response = await GeneralUtils.retry(
+                    3,
+                    1000,
+                    async () => {
+                      return await httpClient.delete(endpoint);
+                    },
+                    {
+                      retryCondition: (err) => {
+                        if (err.code == "ECONNRESET") {
+                          return true;
+                        }
+                        if (err.code == "ECONNABORTED") {
+                          return true;
+                        }
+                        if (err.response && err.response.statusCode == 504) {
+                          return true;
+                        }
+                        return false;
+                      },
+                    }
+                  );
 
                   // returns a 500 if does not exist
                   // v1 = 204

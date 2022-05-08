@@ -140,7 +140,16 @@ function axios_request(options, callback = function () {}) {
         // The request was made and the server responded with a status code
         // that falls out of the range of 2xx
         let res = prep_response(err.response);
-        callback(null, res, res.body);
+        let senderr = false;
+        if (
+          options.validateStatus &&
+          typeof options.validateStatus == "function"
+        ) {
+          if (!options.validateStatus(res.statusCode)) {
+            senderr = true;
+          }
+        }
+        callback(senderr ? err : null, res, res.body);
       } else if (err.request) {
         // The request was made but no response was received
         // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
@@ -183,9 +192,12 @@ async function retry(retries, retriesDelay, code, options = {}) {
   let maxwait = _.get(options, "maxwait");
   let logerrors = _.get(options, "logerrors", false);
   let retryCondition = options.retryCondition;
+  let executeStartTime;
+
   do {
     current_try++;
     try {
+      executeStartTime = Date.now();
       return await code();
     } catch (err) {
       if (current_try >= retries) {
@@ -202,6 +214,16 @@ async function retry(retries, retriesDelay, code, options = {}) {
         console.log(`retry - err:`, err);
       }
     }
+    // handle minExecutionTime
+    if (options.minExecutionTime > 0) {
+      let minDelayTime =
+        options.minExecutionTime - (Date.now() - executeStartTime);
+      if (minDelayTime > 0) {
+        await sleep(minDelayTime);
+      }
+    }
+
+    // handle delay
     let sleep_time = retriesDelay;
     if (_.get(options, "exponential", false) === true) {
       sleep_time = retriesDelay * current_try;
