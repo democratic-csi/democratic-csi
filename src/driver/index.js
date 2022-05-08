@@ -2662,10 +2662,10 @@ class CsiBaseDriver {
               }
 
               // target path
-              result = await wutils.GetItem(target_path);
+              result = await filesystem.pathExists(target_path);
               // already published
               if (result) {
-                if (_.get(result, "LinkType") != "SymbolicLink") {
+                if (!(await filesystem.isSymbolicLink(target_path))) {
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
                     `target path exists but is not a symlink as it should be: ${target_path}`
@@ -2898,12 +2898,12 @@ class CsiBaseDriver {
         let win_target_path =
           filesystem.covertUnixSeparatorToWindowsSeparator(target_path);
 
-        result = await wutils.GetItem(win_target_path);
+        result = await filesystem.pathExists(win_target_path);
         if (!result) {
           return {};
         }
 
-        if (_.get(result, "LinkType") != "SymbolicLink") {
+        if (!(await filesystem.isSymbolicLink(win_target_path))) {
           throw new GrpcError(
             grpc.status.FAILED_PRECONDITION,
             `target path is not a symlink ${win_target_path}`
