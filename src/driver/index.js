@@ -2043,7 +2043,21 @@ class CsiBaseDriver {
         result = await mount.pathIsMounted(normalized_staging_path);
         if (result) {
           try {
-            result = await mount.umount(normalized_staging_path, umount_args);
+            result = await GeneralUtils.retry(
+              10,
+              0,
+              async () => {
+                return await mount.umount(normalized_staging_path, umount_args);
+              },
+              {
+                minExecutionTime: 1000,
+                retryCondition: (err) => {
+                  if (_.get(err, "stderr", "").includes("busy")) {
+                    return true;
+                  }
+                },
+              }
+            );
           } catch (err) {
             if (err.timeout) {
               driver.ctx.logger.warn(
@@ -2188,13 +2202,41 @@ class CsiBaseDriver {
           // remove touched file
           result = await filesystem.pathExists(block_path);
           if (result) {
-            result = await filesystem.rm(block_path);
+            result = await GeneralUtils.retry(
+              10,
+              0,
+              async () => {
+                return await filesystem.rm(block_path);
+              },
+              {
+                minExecutionTime: 1000,
+                retryCondition: (err) => {
+                  if (_.get(err, "stderr", "").includes("busy")) {
+                    return true;
+                  }
+                },
+              }
+            );
           }
         }
 
         result = await filesystem.pathExists(staging_target_path);
         if (result) {
-          result = await filesystem.rmdir(staging_target_path);
+          result = await GeneralUtils.retry(
+            10,
+            0,
+            async () => {
+              return await filesystem.rmdir(staging_target_path);
+            },
+            {
+              minExecutionTime: 1000,
+              retryCondition: (err) => {
+                if (_.get(err, "stderr", "").includes("busy")) {
+                  return true;
+                }
+              },
+            }
+          );
         }
         break;
       case NODE_OS_DRIVER_WINDOWS: {
@@ -2777,7 +2819,21 @@ class CsiBaseDriver {
 
         if (result) {
           try {
-            result = await mount.umount(target_path, umount_args);
+            result = await GeneralUtils.retry(
+              10,
+              0,
+              async () => {
+                return await mount.umount(target_path, umount_args);
+              },
+              {
+                minExecutionTime: 1000,
+                retryCondition: (err) => {
+                  if (_.get(err, "stderr", "").includes("busy")) {
+                    return true;
+                  }
+                },
+              }
+            );
           } catch (err) {
             if (err.timeout) {
               driver.ctx.logger.warn(
@@ -2808,9 +2864,30 @@ class CsiBaseDriver {
         result = await filesystem.pathExists(target_path);
         if (result) {
           if (fs.lstatSync(target_path).isDirectory()) {
-            result = await filesystem.rmdir(target_path);
+            result = await GeneralUtils.retry(
+              10,
+              0,
+              async () => {
+                return await filesystem.rmdir(target_path);
+              },
+              {
+                minExecutionTime: 1000,
+                retryCondition: (err) => {
+                  if (_.get(err, "stderr", "").includes("busy")) {
+                    return true;
+                  }
+                },
+              }
+            );
           } else {
-            result = await filesystem.rm([target_path]);
+            result = await GeneralUtils.retry(
+              10,
+              0,
+              async () => {
+                return await filesystem.rm([target_path]);
+              },
+              { minExecutionTime: 1000 }
+            );
           }
         }
 

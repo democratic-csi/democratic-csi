@@ -145,9 +145,7 @@ function axios_request(options, callback = function () {}) {
           options.validateStatus &&
           typeof options.validateStatus == "function"
         ) {
-          if (!options.validateStatus(res.statusCode)) {
-            senderr = true;
-          }
+          senderr = true;
         }
         callback(senderr ? err : null, res, res.body);
       } else if (err.request) {
@@ -214,12 +212,14 @@ async function retry(retries, retriesDelay, code, options = {}) {
         console.log(`retry - err:`, err);
       }
     }
+
     // handle minExecutionTime
     if (options.minExecutionTime > 0) {
-      let minDelayTime =
-        options.minExecutionTime - (Date.now() - executeStartTime);
-      if (minDelayTime > 0) {
-        await sleep(minDelayTime);
+      let executionElapsedTIme = Date.now() - executeStartTime;
+      let minExecutionDelayTime =
+        options.minExecutionTime - executionElapsedTIme;
+      if (minExecutionDelayTime > 0) {
+        await sleep(minExecutionDelayTime);
       }
     }
 
@@ -234,8 +234,10 @@ async function retry(retries, retriesDelay, code, options = {}) {
         sleep_time = maxwait;
       }
     }
-    console.log(`retry - waiting ${sleep_time}ms before trying again`);
-    await sleep(sleep_time);
+    if (sleep_time > 0) {
+      console.log(`retry - waiting ${sleep_time}ms before trying again`);
+      await sleep(sleep_time);
+    }
   } while (true);
 }
 

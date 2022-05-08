@@ -113,7 +113,6 @@ jobs:
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
-
   # api-based drivers
   csi-sanity-truenas-scale-22_02:
     needs:
@@ -312,18 +311,18 @@ jobs:
       matrix:
         os: [Linux, Windows]
         include:
-        - os: Linux
-          npmartifact: node-modules-linux-amd64
-          template: "./ci/configs/local-hostpath/basic.yaml"
-          run: |
-            # run tests
-            ci/bin/run.sh
-        - os: Windows
-          npmartifact: node-modules-windows-amd64
-          template: ".\\ci\\configs\\local-hostpath/basic.yaml"
-          run: |
-            # run tests
-            ci\bin\run.ps1
+          - os: Linux
+            npmartifact: node-modules-linux-amd64
+            template: "./ci/configs/local-hostpath/basic.yaml"
+            run: |
+              # run tests
+              ci/bin/run.sh
+          - os: Windows
+            npmartifact: node-modules-windows-amd64
+            template: ".\\ci\\configs\\local-hostpath/basic.yaml"
+            run: |
+              # run tests
+              ci\bin\run.ps1
     runs-on:
       - self-hosted
       - ${{ matrix.os }}
@@ -376,6 +375,7 @@ jobs:
       - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
+      - csi-sanity-client
       - csi-sanity-zfs-local
       - csi-sanity-local-hostpath
       - csi-sanity-windows-node
