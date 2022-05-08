@@ -1577,7 +1577,10 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   // returns a 500 if does not exist
                   // v1 = 204
                   // v2 = 200
-                  if (![200, 204].includes(response.statusCode)) {
+                  if (
+                    ![200, 204].includes(response.statusCode) &&
+                    !JSON.stringify(response.body).includes("does not exist")
+                  ) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `received error deleting smb share - share: ${shareId} code: ${

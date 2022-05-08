@@ -520,7 +520,7 @@ delete ${iscsiName}
       options
     );
     if (response.code != 0) {
-      throw new Error(JSON.stringify(response));
+      throw new Error(response);
     }
     driver.ctx.logger.verbose(
       "TargetCLI response: " + JSON.stringify(response)
