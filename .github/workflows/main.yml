@@ -403,3 +403,42 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
           DOCKER_CLI_EXPERIMENTAL: enabled
           DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le
+
+  build-docker-windows:
+    needs:
+      - csi-sanity-synology-dsm6
+      - csi-sanity-synology-dsm7
+      - csi-sanity-truenas-scale-22_02
+      - csi-sanity-truenas-core-12_0
+      - csi-sanity-truenas-core-13_0
+      - csi-sanity-zfs-generic
+      - csi-sanity-client
+      - csi-sanity-zfs-local
+      - csi-sanity-local-hostpath
+      - csi-sanity-windows-node
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2019, windows-2022]
+        include:
+        - os: windows-2019
+          base_tag: ltsc2019
+          file: Dockerfile.Windows
+        - os: windows-2022
+          base_tag: ltsc2022
+          file: Dockerfile.Windows
+    steps:
+      - uses: actions/checkout@v2
+      - name: docker build
+        shell: bash
+        run: |
+          docker info
+          docker build --pull -f ${{ matrix.file }} --build-arg BASE_TAG=${{ matrix.base_tag }} -t windows:${{ matrix.base_tag }} .
+          docker inspect windows:${{ matrix.base_tag }}
+          docker save windows:${{ matrix.base_tag }} -o windows-${{ matrix.base_tag }}.tar
+      - name: upload image tar
+        uses: actions/upload-artifact@v2
+        with:
+          name: windows-${{ matrix.base_tag }}.tar
+          path: windows-${{ matrix.base_tag }}.tar
+          retention-days: 7
