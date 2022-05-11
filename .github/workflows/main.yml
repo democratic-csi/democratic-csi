@@ -33,7 +33,7 @@ jobs:
         with:
           name: node-modules-linux-amd64
           path: node_modules-linux-amd64.tar.gz
-          retention-days: 7
+          retention-days: 1
 
   build-npm-windows-amd64:
     runs-on: windows-2022
@@ -51,7 +51,7 @@ jobs:
         with:
           name: node-modules-windows-amd64
           path: node_modules-windows-amd64.tar.gz
-          retention-days: 7
+          retention-days: 1
 
   csi-sanity-synology-dsm6:
     needs:
@@ -258,7 +258,7 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-zfs-generic
+      - csi-sanity-client
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -327,6 +327,7 @@ jobs:
       - self-hosted
       - ${{ matrix.os }}
       - X64
+      - csi-sanity-local-hostpath
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -460,14 +461,14 @@ jobs:
         run: |
           docker info
           docker build --pull -f ${{ matrix.file }} --build-arg BASE_TAG=${{ matrix.base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }} .
-          docker inspect windows:${{ matrix.base_tag }}
+          docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }}
           docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }} -o democratic-csi-windows-${{ matrix.base_tag }}.tar
       - name: upload image tar
         uses: actions/upload-artifact@v2
         with:
           name: democratic-csi-windows-${{ matrix.base_tag }}.tar
           path: democratic-csi-windows-${{ matrix.base_tag }}.tar
-          retention-days: 7
+          retention-days: 1
 
   push-docker-windows:
     needs:
