@@ -129,8 +129,7 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-zfs-local
-      #- csi-sanity-truenas-scale
+      - csi-sanity-truenas
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -163,8 +162,7 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-zfs-local
-      #- csi-sanity-truenas-core
+      - csi-sanity-truenas
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -196,8 +194,7 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-zfs-local
-      #- csi-sanity-truenas-core
+      - csi-sanity-truenas
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -449,10 +446,12 @@ jobs:
         os: [windows-2019, windows-2022]
         include:
           - os: windows-2019
-            base_tag: ltsc2019
+            core_base_tag: ltsc2019
+            nano_base_tag: "1809"
             file: Dockerfile.Windows
           - os: windows-2022
-            base_tag: ltsc2022
+            core_base_tag: ltsc2022
+            nano_base_tag: ltsc2022
             file: Dockerfile.Windows
     steps:
       - uses: actions/checkout@v2
@@ -460,14 +459,14 @@ jobs:
         shell: bash
         run: |
           docker info
-          docker build --pull -f ${{ matrix.file }} --build-arg BASE_TAG=${{ matrix.base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }} .
-          docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }}
-          docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }} -o democratic-csi-windows-${{ matrix.base_tag }}.tar
+          docker build --pull -f ${{ matrix.file }} --build-arg NANO_BASE_TAG=${{ matrix.nano_base_tag }} --build-arg CORE_BASE_TAG=${{ matrix.core_base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} .
+          docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }}
+          docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} -o democratic-csi-windows-${{ matrix.core_base_tag }}.tar
       - name: upload image tar
         uses: actions/upload-artifact@v2
         with:
-          name: democratic-csi-windows-${{ matrix.base_tag }}.tar
-          path: democratic-csi-windows-${{ matrix.base_tag }}.tar
+          name: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
+          path: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
           retention-days: 1
 
   push-docker-windows:

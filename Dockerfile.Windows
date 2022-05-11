@@ -1,13 +1,34 @@
-# docker build --build-arg BASE_TAG=ltsc2019 -t foobar -f Dockerfile.Windows .
+#
+# https://github.com/kubernetes/kubernetes/blob/master/test/images/windows/powershell-helper/Dockerfile_windows
+# https://github.com/kubernetes/kubernetes/blob/master/test/images/busybox/Dockerfile_windows
+# https://github.com/kubernetes/kubernetes/tree/master/test/images#windows-test-images-considerations
+# https://stefanscherer.github.io/find-dependencies-in-windows-containers/
+# 
+# docker build --build-arg NANO_BASE_TAG=1809 --build-arg CORE_BASE_TAG=ltsc2019 -t foobar -f Dockerfile.Windows .
 # docker run --rm -ti --entrypoint powershell foobar
-
+# docker run --rm foobar
+# docker save foobar -o foobar.tar
+# buildah pull docker-archive:foobar.tar
 
 # mcr.microsoft.com/windows/servercore:ltsc2019
 # mcr.microsoft.com/windows/nanoserver:1809
 
-ARG BASE_TAG
+ARG NANO_BASE_TAG
+ARG CORE_BASE_TAG
 
-FROM mcr.microsoft.com/windows/servercore:${BASE_TAG} as build
+FROM mcr.microsoft.com/windows/servercore:${CORE_BASE_TAG} as powershell
+
+# install powershell
+ENV PS_VERSION=6.2.7
+ADD https://github.com/PowerShell/PowerShell/releases/download/v$PS_VERSION/PowerShell-$PS_VERSION-win-x64.zip /PowerShell/powershell.zip
+
+RUN cd C:\PowerShell &\
+    tar.exe -xf powershell.zip &\
+    del powershell.zip &\
+    mklink powershell.exe pwsh.exe
+
+
+FROM mcr.microsoft.com/windows/servercore:${CORE_BASE_TAG} as build
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
@@ -61,9 +82,12 @@ COPY package*.json ./
 RUN npm install --only=production; ls /
 COPY . .
 
-FROM mcr.microsoft.com/windows/servercore:${BASE_TAG}
+FROM mcr.microsoft.com/windows/nanoserver:${NANO_BASE_TAG}
 
 LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
+
+# if additional dlls are required can copy like this
+#COPY --from=build /Windows/System32/nltest.exe /Windows/System32/nltest.exe
 
 COPY --from=build /nodejs/node.exe /Windows/system32
 COPY --from=build /app /app
