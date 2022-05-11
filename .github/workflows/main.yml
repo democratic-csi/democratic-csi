@@ -367,8 +367,33 @@ jobs:
           SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
           CSI_SANITY_FOCUS: "Node Service"
 
+  determine-image-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            export GIT_TAG=${GITHUB_REF#refs/tags/}
+          else
+            export GIT_BRANCH=${GITHUB_REF#refs/heads/}
+          fi
+          if [[ -n "${GIT_TAG}" ]]; then
+            echo "::set-output name=tag::${GIT_TAG}"
+          elif [[ -n "${GIT_BRANCH}" ]]; then
+            if [[ "${GIT_BRANCH}" == "master" ]]; then
+              echo "::set-output name=tag::latest"
+            else
+              echo "::set-output name=tag::${GIT_BRANCH}"
+            fi
+          else
+            :
+          fi
+
   build-docker-linux:
     needs:
+      - determine-image-tag
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
       - csi-sanity-truenas-scale-22_02
@@ -403,6 +428,7 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
           DOCKER_CLI_EXPERIMENTAL: enabled
           DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le
+          IMAGE_TAG: ${{needs.determine-image-tag.outputs.tag}}
 
   build-docker-windows:
     needs:
@@ -421,24 +447,53 @@ jobs:
       matrix:
         os: [windows-2019, windows-2022]
         include:
-        - os: windows-2019
-          base_tag: ltsc2019
-          file: Dockerfile.Windows
-        - os: windows-2022
-          base_tag: ltsc2022
-          file: Dockerfile.Windows
+          - os: windows-2019
+            base_tag: ltsc2019
+            file: Dockerfile.Windows
+          - os: windows-2022
+            base_tag: ltsc2022
+            file: Dockerfile.Windows
     steps:
       - uses: actions/checkout@v2
       - name: docker build
         shell: bash
         run: |
           docker info
-          docker build --pull -f ${{ matrix.file }} --build-arg BASE_TAG=${{ matrix.base_tag }} -t windows:${{ matrix.base_tag }} .
+          docker build --pull -f ${{ matrix.file }} --build-arg BASE_TAG=${{ matrix.base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }} .
           docker inspect windows:${{ matrix.base_tag }}
-          docker save windows:${{ matrix.base_tag }} -o windows-${{ matrix.base_tag }}.tar
+          docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.base_tag }} -o democratic-csi-windows-${{ matrix.base_tag }}.tar
       - name: upload image tar
         uses: actions/upload-artifact@v2
         with:
-          name: windows-${{ matrix.base_tag }}.tar
-          path: windows-${{ matrix.base_tag }}.tar
+          name: democratic-csi-windows-${{ matrix.base_tag }}.tar
+          path: democratic-csi-windows-${{ matrix.base_tag }}.tar
           retention-days: 7
+
+  push-docker-windows:
+    needs:
+      - build-docker-linux
+      - build-docker-windows
+      - determine-image-tag
+    runs-on:
+      - self-hosted
+      - buildah
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v3
+        with:
+          name: democratic-csi-windows-ltsc2019.tar
+      - uses: actions/download-artifact@v3
+        with:
+          name: democratic-csi-windows-ltsc2022.tar
+      - name: push windows images with buildah
+        run: |
+          #.github/bin/install_latest_buildah.sh
+          buildah version
+          .github/bin/docker-release-windows.sh
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
+          DOCKER_CLI_EXPERIMENTAL: enabled
+          IMAGE_TAG: ${{needs.determine-image-tag.outputs.tag}}

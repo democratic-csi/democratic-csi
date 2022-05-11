@@ -31,7 +31,7 @@ while getopts "t:" opt; do
 done
 
 if [[ ${USE_HOST_MOUNT_TOOLS} -eq 1 ]]; then
-  chroot /host /usr/bin/env -i PATH="/sbin:/bin:/usr/bin:/usr/sbin" umount "${@:1}"
+  chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" umount "${@:1}"
 else
-  /usr/bin/env -i PATH="/sbin:/bin:/usr/bin:/usr/sbin" umount "${@:1}"
+  /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" umount "${@:1}"
 fi

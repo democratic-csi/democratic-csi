@@ -1128,6 +1128,14 @@ class CsiBaseDriver {
                 }
               }
 
+              switch (fs_type) {
+                case "xfs":
+                  // https://github.com/democratic-csi/democratic-csi/issues/191
+                  // to avoid issues with cloned volumes
+                  mount_flags.push(`nouuid`);
+                  break;
+              }
+
               await mount.mount(
                 device,
                 staging_target_path,
