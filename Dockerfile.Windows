@@ -89,9 +89,11 @@ LABEL org.opencontainers.image.source https://github.com/democratic-csi/democrat
 # if additional dlls are required can copy like this
 #COPY --from=build /Windows/System32/nltest.exe /Windows/System32/nltest.exe
 
-COPY --from=build /nodejs/node.exe /Windows/system32
 COPY --from=build /app /app
-
 WORKDIR /app
+
+# this works for both host-process and non-host-process container semantics
+COPY --from=build /nodejs/node.exe .
+
 
 ENTRYPOINT [ "node.exe", "--expose-gc", "bin/democratic-csi" ]
