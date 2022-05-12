@@ -298,7 +298,7 @@ class Mount {
       return false;
     }
     const mount_info = await mount.getMountDetails(path);
-    const is_block = filesystem.isBlockDevice(path);
+    const is_block = await filesystem.isBlockDevice(path);
     if (mount_info.fstype == "devtmpfs" && is_block) {
       return true;
     }

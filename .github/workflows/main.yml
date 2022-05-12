@@ -129,7 +129,8 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-truenas
+      #- csi-sanity-truenas
+      - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -162,7 +163,8 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-truenas
+      #- csi-sanity-truenas
+      - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -194,7 +196,8 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-truenas
+      #- csi-sanity-truenas
+      - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2

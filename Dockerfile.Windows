@@ -93,7 +93,6 @@ COPY --from=build /app /app
 WORKDIR /app
 
 # this works for both host-process and non-host-process container semantics
-COPY --from=build /nodejs/node.exe .
+COPY --from=build /nodejs/node.exe ./bin
 
-
-ENTRYPOINT [ "node.exe", "--expose-gc", "bin/democratic-csi" ]
+ENTRYPOINT [ "bin/node.exe", "--expose-gc", "bin/democratic-csi" ]
