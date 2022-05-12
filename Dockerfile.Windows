@@ -85,6 +85,8 @@ COPY . .
 FROM mcr.microsoft.com/windows/nanoserver:${NANO_BASE_TAG}
 
 LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
+LABEL org.opencontainers.image.url https://github.com/democratic-csi/democratic-csi
+LABEL org.opencontainers.image.licenses MIT
 
 # if additional dlls are required can copy like this
 #COPY --from=build /Windows/System32/nltest.exe /Windows/System32/nltest.exe

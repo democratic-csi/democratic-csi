@@ -12,7 +12,10 @@ export GHCR_PROJECT="democratic-csi"
 export GHCR_REPO="ghcr.io/${GHCR_ORG}/${GHCR_PROJECT}"
 
 if [[ -n "${IMAGE_TAG}" ]]; then
-  docker buildx build --progress plain --pull --push --platform "${DOCKER_BUILD_PLATFORM}" -t ${DOCKER_REPO}:${IMAGE_TAG} -t ${GHCR_REPO}:${IMAGE_TAG} .
+  docker buildx build --progress plain --pull --push --platform "${DOCKER_BUILD_PLATFORM}" -t ${DOCKER_REPO}:${IMAGE_TAG} -t ${GHCR_REPO}:${IMAGE_TAG} \
+  --label "org.opencontainers.image.created=$(date -u --iso-8601=seconds)" \
+  --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" \
+  .
 else
   :
 fi

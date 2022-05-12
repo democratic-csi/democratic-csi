@@ -274,6 +274,36 @@ jobs:
           SHARE_NAME: tank_client_smb
           CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
 
+  csi-sanity-client-windows:
+    needs:
+      - build-npm-windows-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - client\smb.yaml
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - csi-sanity-client
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules-windows-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci\bin\run.ps1
+        env:
+          TEMPLATE_CONFIG_FILE: ".\\ci\\configs\\${{ matrix.config }}"
+          SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
+          SHARE_NAME: tank_client_smb
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
+
+
+
   # zfs-local drivers
   csi-sanity-zfs-local:
     needs:
@@ -319,7 +349,7 @@ jobs:
               ci/bin/run.sh
           - os: Windows
             npmartifact: node-modules-windows-amd64
-            template: ".\\ci\\configs\\local-hostpath/basic.yaml"
+            template: ".\\ci\\configs\\local-hostpath\\basic.yaml"
             run: |
               # run tests
               ci\bin\run.ps1
@@ -402,6 +432,7 @@ jobs:
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-client
+      - csi-sanity-client-windows
       - csi-sanity-zfs-local
       - csi-sanity-local-hostpath
       - csi-sanity-windows-node
@@ -440,6 +471,7 @@ jobs:
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-client
+      - csi-sanity-client-windows
       - csi-sanity-zfs-local
       - csi-sanity-local-hostpath
       - csi-sanity-windows-node
@@ -462,7 +494,10 @@ jobs:
         shell: bash
         run: |
           docker info
-          docker build --pull -f ${{ matrix.file }} --build-arg NANO_BASE_TAG=${{ matrix.nano_base_tag }} --build-arg CORE_BASE_TAG=${{ matrix.core_base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} .
+          docker build --pull -f ${{ matrix.file }} --build-arg NANO_BASE_TAG=${{ matrix.nano_base_tag }} --build-arg CORE_BASE_TAG=${{ matrix.core_base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} \
+          --label "org.opencontainers.image.created=$(date -u --iso-8601=seconds)" \
+          --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" \
+          .
           docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }}
           docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} -o democratic-csi-windows-${{ matrix.core_base_tag }}.tar
       - name: upload image tar

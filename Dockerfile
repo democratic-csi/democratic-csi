@@ -43,6 +43,8 @@ RUN rm -rf docker
 FROM debian:11-slim
 
 LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
+LABEL org.opencontainers.image.url https://github.com/democratic-csi/democratic-csi
+LABEL org.opencontainers.image.licenses MIT
 
 ENV DEBIAN_FRONTEND=noninteractive
 
