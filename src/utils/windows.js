@@ -41,6 +41,20 @@ class Windows {
     }
   }
 
+  uncPathToShare(path) {
+    // UNC\<server>\<share>[\<path>\]
+    if (path.startsWith("UNC")) {
+      path = path.replace("UNC", "\\");
+    }
+
+    if (!path.startsWith("\\\\")) {
+      path = `\\\\${path}`;
+    }
+
+    let parts = path.split("\\");
+    return `\\\\${parts[2]}\\${parts[3]}`;
+  }
+
   async GetRealTarget(path) {
     let item;
     let target;
@@ -77,6 +91,9 @@ class Windows {
 
   async GetSmbGlobalMapping(remotePath) {
     let command;
+    // cannot have trailing slash nor a path
+    // must be \\<server>\<share>
+    remotePath = this.uncPathToShare(remotePath);
     command =
       "Get-SmbGlobalMapping -RemotePath $Env:smbremotepath | ConvertTo-Json";
     try {
@@ -88,23 +105,41 @@ class Windows {
     } catch (err) {}
   }
 
+  /**
+   * Global in this context is allowed access by all users
+   *
+   * @param {*} remotePath
+   * @param {*} username
+   * @param {*} password
+   */
   async NewSmbGlobalMapping(remotePath, username, password) {
+    let result;
     let command;
+    // -UseWriteThrough $true
+    // cannot have trailing slash nor a path
+    // must be \\<server>\<share>
+    remotePath = this.uncPathToShare(remotePath);
     command =
       "$PWord = ConvertTo-SecureString -String $Env:smbpassword -AsPlainText -Force;$Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $Env:smbuser, $PWord;New-SmbGlobalMapping -RemotePath $Env:smbremotepath -Credential $Credential -RequirePrivacy $true";
 
-    await this.ps.exec(command, {
-      env: {
-        smbuser: username,
-        smbpassword: password,
-        smbremotepath: remotePath,
-      },
-    });
+    result = await this.GetSmbGlobalMapping(remotePath);
+    if (!result) {
+      await this.ps.exec(command, {
+        env: {
+          smbuser: username,
+          smbpassword: password,
+          smbremotepath: remotePath,
+        },
+      });
+    }
   }
 
   async RemoveSmbGlobalMapping(remotePath) {
     let result;
     let command;
+    // cannot have trailing slash nor a path
+    // must be \\<server>\<share>
+    remotePath = this.uncPathToShare(remotePath);
     command = "Remove-SmbGlobalMapping -RemotePath $Env:smbremotepath -Force";
 
     do {
@@ -121,6 +156,8 @@ class Windows {
 
   async NewSmbLink(remotePath, localPath) {
     let command;
+    // trailing slash required
+    // may include subdirectories on the share if desired
     if (!remotePath.endsWith("\\")) {
       remotePath = `${remotePath}\\`;
     }

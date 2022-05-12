@@ -1300,6 +1300,7 @@ class CsiBaseDriver {
                 filesystem.covertUnixSeparatorToWindowsSeparator(device)
               );
               if (!result) {
+                // check for mount option cache=none and set -UseWriteThrough $true
                 await wutils.NewSmbGlobalMapping(
                   filesystem.covertUnixSeparatorToWindowsSeparator(device),
                   `${volume_context.server}\\${username}`,
@@ -2290,11 +2291,16 @@ class CsiBaseDriver {
 
           switch (node_attach_driver) {
             case "smb":
+              // remove symlink *before* disconnecting
+              await removePath(win_normalized_staging_path);
               let parts = target.split("\\");
-              await wutils.RemoveSmbGlobalMapping(
-                `\\\\${parts[1]}\\${parts[2]}`
-              );
-
+              // only remove global mapping if we certain there may not be other
+              // consumers of the mapping/share (ie: smb-client scenarios, etc)
+              if (!parts[3]) {
+                await wutils.RemoveSmbGlobalMapping(
+                  `\\\\${parts[1]}\\${parts[2]}`
+                );
+              }
               break;
             case "iscsi":
               // write volume cache
