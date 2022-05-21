@@ -496,7 +496,7 @@ jobs:
           docker info
           docker build --pull -f ${{ matrix.file }} --build-arg NANO_BASE_TAG=${{ matrix.nano_base_tag }} --build-arg CORE_BASE_TAG=${{ matrix.core_base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} \
           --label "org.opencontainers.image.created=$(date -u --iso-8601=seconds)" \
-          --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" \
+          --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
           .
           docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }}
           docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} -o democratic-csi-windows-${{ matrix.core_base_tag }}.tar

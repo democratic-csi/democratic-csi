@@ -317,6 +317,7 @@ class Windows {
   async DisconnectIscsiTargetByNodeAddress(nodeAddress) {
     let command;
 
+    // https://github.com/PowerShell/PowerShell/issues/17306
     command = `Disconnect-IscsiTarget -NodeAddress ${nodeAddress.toLowerCase()} -Confirm:$false`;
     await this.ps.exec(command);
   }
