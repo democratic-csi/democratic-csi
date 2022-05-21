@@ -12,6 +12,7 @@ const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
 const { stringify, stripWindowsDriveLetter } = require("../src/utils/general");
 
+let driverConfigFile;
 let options;
 const args = require("yargs")
   .env("DEMOCRATIC_CSI")
@@ -32,11 +33,13 @@ const args = require("yargs")
 
       try {
         options = JSON.parse(fs.readFileSync(path, "utf-8"));
+        driverConfigFile = fs.realpathSync(path);
         return true;
       } catch (e) {}
 
       try {
         options = yaml.load(fs.readFileSync(path, "utf8"));
+        driverConfigFile = fs.realpathSync(path);
         return true;
       } catch (e) {}
 
@@ -384,7 +387,7 @@ logger.info(
   "starting csi server - node version: %s, package version: %s, config file: %s, csi-name: %s, csi-driver: %s, csi-mode: %s, csi-version: %s, address: %s, socket: %s",
   process.version,
   args.version,
-  fs.realpathSync(args.driverConfigFile),
+  driverConfigFile,
   args.csiName,
   options.driver,
   args.csiMode.join(","),
