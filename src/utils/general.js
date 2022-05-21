@@ -113,6 +113,10 @@ function getLargestNumber() {
   return number;
 }
 
+function stripWindowsDriveLetter(path) {
+  return path.replace(/^[a-zA-Z]:/, "");
+}
+
 /**
  * transition function to replicate `request` style requests using axios
  *
@@ -248,6 +252,7 @@ module.exports.crc16 = crc16;
 module.exports.lockKeysFromRequest = lockKeysFromRequest;
 module.exports.getLargestNumber = getLargestNumber;
 module.exports.stringify = stringify;
+module.exports.stripWindowsDriveLetter = stripWindowsDriveLetter;
 module.exports.axios_request = axios_request;
 module.exports.default_supported_block_filesystems =
   default_supported_block_filesystems;

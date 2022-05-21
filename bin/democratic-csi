@@ -10,7 +10,7 @@ require("../src/utils/polyfills");
 const yaml = require("js-yaml");
 const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
-const { stringify } = require("../src/utils/general");
+const { stringify, stripWindowsDriveLetter } = require("../src/utils/general");
 
 let options;
 const args = require("yargs")
@@ -21,6 +21,15 @@ const args = require("yargs")
     describe: "provide a path to driver config file",
     config: true,
     configParser: (path) => {
+      // normalize path for host-process containers
+      // CONTAINER_SANDBOX_MOUNT_POINT  C:\C\0eac9a8da76f6d7119c5d9f86c8b3106d67dbbf01dbeb22fdc0192476b7e31cb\
+      // path is injected as C:\config\driver-config-file.yaml
+      if (process.env.CONTAINER_SANDBOX_MOUNT_POINT) {
+        path = `${
+          process.env.CONTAINER_SANDBOX_MOUNT_POINT
+        }${stripWindowsDriveLetter(path)}`;
+      }
+
       try {
         options = JSON.parse(fs.readFileSync(path, "utf-8"));
         return true;
@@ -30,29 +39,6 @@ const args = require("yargs")
         options = yaml.load(fs.readFileSync(path, "utf8"));
         return true;
       } catch (e) {}
-
-      // CONTAINER_SANDBOX_MOUNT_POINT  C:\C\0eac9a8da76f6d7119c5d9f86c8b3106d67dbbf01dbeb22fdc0192476b7e31cb\
-      if (process.env.CONTAINER_SANDBOX_MOUNTPOINT) {
-        try {
-          options = JSON.parse(
-            fs.readFileSync(
-              `${process.env.CONTAINER_SANDBOX_MOUNTPOINT}${path}`,
-              "utf-8"
-            )
-          );
-          return true;
-        } catch (e) {}
-
-        try {
-          options = yaml.load(
-            fs.readFileSync(
-              `${process.env.CONTAINER_SANDBOX_MOUNTPOINT}${path}`,
-              "utf8"
-            )
-          );
-          return true;
-        } catch (e) {}
-      }
 
       throw new Error("failed parsing config file: " + path);
     },
