@@ -32,18 +32,19 @@ const args = require("yargs")
       }
 
       try {
-        options = JSON.parse(fs.readFileSync(path, "utf-8"));
-        driverConfigFile = fs.realpathSync(path);
-        return true;
-      } catch (e) {}
-
-      try {
         options = yaml.load(fs.readFileSync(path, "utf8"));
-        driverConfigFile = fs.realpathSync(path);
-        return true;
-      } catch (e) {}
+        try {
+          driverConfigFile = fs.realpathSync(path);
+        } catch (e) {
+          console.log("failed finding config file realpath: " + e.toString());
+          driverConfigFile = path;
+        }
 
-      throw new Error("failed parsing config file: " + path);
+        return true;
+      } catch (e) {
+        console.log("failed parsing config file: " + path);
+        throw e;
+      }
     },
   })
   .demandOption(["driver-config-file"], "driver-config-file is required")
