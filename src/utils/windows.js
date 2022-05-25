@@ -1,5 +1,5 @@
-const { result } = require("lodash");
 const _ = require("lodash");
+const GeneralUtils = require("./general");
 const Powershell = require("./powershell").Powershell;
 
 /**
@@ -757,6 +757,16 @@ class Windows {
 
   async UnmountVolume(volumeId, path) {
     let command;
+
+    // this errors if it does not have a drive letter
+    if (!GeneralUtils.hasWindowsDriveLetter(path)) {
+      let item = await this.GetItem(path);
+      if (!item) {
+        return;
+      }
+      path = item.FullName;
+    }
+
     command = `Get-Volume -UniqueId \"${volumeId}\" | Get-Partition | Remove-PartitionAccessPath -AccessPath ${path}`;
 
     await this.ps.exec(command);
