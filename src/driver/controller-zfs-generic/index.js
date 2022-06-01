@@ -476,19 +476,19 @@ delete ${iscsiName}
 
     let command = "sh";
     let args = ["-c"];
-    let taregetCliCommand = [];
-    taregetCliCommand.push(`echo "${data}"`.trim());
-    taregetCliCommand.push("|");
-    taregetCliCommand.push("targetcli");
 
+    let targetCliArgs = ["targetcli"];
     if (
       _.get(this.options, "iscsi.shareStrategyTargetCli.sudoEnabled", false)
     ) {
-      command = "sudo";
-      args.unshift("sh");
+      targetCliArgs.unshift("sudo");
     }
 
-    args.push("'" + taregetCliCommand.join(" ") + "'");
+    let targetCliCommand = [];
+    targetCliCommand.push(`echo "${data}"`.trim());
+    targetCliCommand.push("|");
+    targetCliCommand.push(targetCliArgs.join(" "));
+    args.push("'" + targetCliCommand.join(" ") + "'");
 
     let logCommandTmp = command + " " + args.join(" ");
     let logCommand = "";
