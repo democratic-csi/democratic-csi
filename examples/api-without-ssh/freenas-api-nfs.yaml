@@ -26,7 +26,7 @@ zfs:
   #    zpool: /usr/local/sbin/zpool
   #    sudo: /usr/local/bin/sudo
   #    chroot: /usr/sbin/chroot
-  
+
   # can be used to set arbitrary values on the dataset/zvol
   # can use handlebars templates with the parameters from the storage class/CO
   #datasetProperties:
@@ -43,6 +43,8 @@ zfs:
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: 0
   datasetPermissionsGroup: 0
+
+  # not supported yet
   #datasetPermissionsAcls:
   #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"

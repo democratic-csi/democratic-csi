@@ -26,7 +26,7 @@ zfs:
   #    zpool: /usr/local/sbin/zpool
   #    sudo: /usr/local/bin/sudo
   #    chroot: /usr/sbin/chroot
-  
+
   # can be used to set arbitrary values on the dataset/zvol
   # can use handlebars templates with the parameters from the storage class/CO
   #datasetProperties:
@@ -34,9 +34,10 @@ zfs:
   #  "org.freenas:test": "{{ parameters.foo }}"
   #  "org.freenas:test2": "some value"
 
-  datasetProperties:
-    aclmode: restricted
-    casesensitivity: mixed
+  # these are managed automatically via the volume creation process when flagged as an smb volume
+  #datasetProperties:
+  #  aclmode: restricted
+  #  casesensitivity: mixed
 
   datasetParentName: tank/k8s/a/vols
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
@@ -47,8 +48,10 @@ zfs:
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: 0
   datasetPermissionsGroup: 0
-  datasetPermissionsAcls:
-  - "-m everyone@:full_set:allow"
+
+  # not supported yet in api
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"
 
 smb:
@@ -56,7 +59,7 @@ smb:
   nameTemplate: ""
   namePrefix: ""
   nameSuffix: ""
-  
+
   # if any of the shareFoo parameters do not work with your version of FreeNAS
   # simply comment the param (and use the configuration template if necessary)
 

@@ -36,7 +36,7 @@ zfs:
   #    zpool: /usr/local/sbin/zpool
   #    sudo: /usr/local/bin/sudo
   #    chroot: /usr/sbin/chroot
-  
+
   # can be used to set arbitrary values on the dataset/zvol
   # can use handlebars templates with the parameters from the storage class/CO
   #datasetProperties:
@@ -46,7 +46,9 @@ zfs:
 
   datasetProperties:
     aclmode: restricted
-    casesensitivity: mixed
+    aclinherit: passthrough
+    acltype: nfsv4
+    casesensitivity: insensitive
 
   datasetParentName: tank/k8s/a/vols
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
@@ -54,19 +56,48 @@ zfs:
   detachedSnapshotsDatasetParentName: tank/k8s/a/snaps
   datasetEnableQuotas: true
   datasetEnableReservation: false
-  datasetPermissionsMode: "0777"
-  datasetPermissionsUser: nobody
-  datasetPermissionsGroup: nobody
+  datasetPermissionsMode: "0770"
+
+  # as appropriate create a dedicated user for smb connections
+  # and set this
+  datasetPermissionsUser: 65534
+  datasetPermissionsGroup: 65534
+
+  # CORE
+  #datasetPermissionsAclsBinary: setfacl
+
+  # SCALE
+  #datasetPermissionsAclsBinary: nfs4xdr_setfacl
+
+  # if using a user other than guest/nobody comment the 'everyone@' acl
+  # and uncomment the appropriate block below
   datasetPermissionsAcls:
-  - "-m everyone@:full_set:allow"
-  #- "-m u:kube:full_set:allow"
+    - "-m everyone@:full_set:fd:allow"
+
+  # CORE
+  # in CORE you cannot have multiple entries for the same principle
+  # or said differently, they are declarative so using -m will replace
+  # whatever the current value is for the principle rather than adding a
+  # entry in the acl list
+  #- "-m g:builtin_users:full_set:fd:allow"
+  #- "-m group@:modify_set:fd:allow"
+  #- "-m owner@:full_set:fd:allow"
+
+  # SCALE
+  # https://www.truenas.com/community/threads/get-setfacl-on-scale-with-nfsv4-acls.95231/
+  # -s replaces everything
+  # so we put this in specific order to mimic the defaults of SCALE when using the api
+  #- -s group:builtin_users:full_set:fd:allow
+  #- -a group:builtin_users:modify_set:fd:allow
+  #- -a group@:modify_set:fd:allow
+  #- -a owner@:full_set:fd:allow
 
 smb:
   shareHost: server address
   nameTemplate: ""
   namePrefix: ""
   nameSuffix: ""
-  
+
   # if any of the shareFoo parameters do not work with your version of FreeNAS
   # simply comment the param (and use the configuration template if necessary)
 
@@ -77,7 +108,7 @@ smb:
   shareAllowedHosts: []
   shareDeniedHosts: []
   #shareDefaultPermissions: true
-  shareGuestOk: true
+  shareGuestOk: false
   #shareGuestOnly: true
   #shareShowHiddenFiles: true
   shareRecycleBin: true
