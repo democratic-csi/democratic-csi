@@ -1,4 +1,4 @@
-driver: freenas-api-iscsi
+driver: freenas-iscsi
 instance_id:
 httpConnection:
   protocol: http
@@ -14,6 +14,16 @@ httpConnection:
   # use apiVersion 2 for TrueNAS-12 and up (will work on 11.x in some scenarios as well)
   # leave unset for auto-detection
   #apiVersion: 2
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
 zfs:
   # can be used to override defaults if necessary
   # the example below is useful for TrueNAS 12
@@ -37,8 +47,7 @@ zfs:
   # total volume name (zvol/<datasetParentName>/<pvc name>) length cannot exceed 63 chars
   # https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
   # standard volume naming overhead is 46 chars
-  # datasetParentName should therefore be 17 chars or less when using TrueNAS 12 or below (SCALE and 13+ do not have the same limits)
-  # for work-arounds see https://github.com/democratic-csi/democratic-csi/issues/54
+  # datasetParentName should therefore be 17 chars or less when using TrueNAS 12 or below
   datasetParentName: tank/k8s/b/vols
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
   # they may be siblings, but neither should be nested in the other 
@@ -63,7 +72,6 @@ iscsi:
   #nameTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   namePrefix: csi-
   nameSuffix: "-clustera"
-
   # add as many as needed
   targetGroups:
     # get the correct ID from the "portal" section in the UI
@@ -76,7 +84,6 @@ iscsi:
       # only required if using Chap
       targetGroupAuthGroup:
 
-  #extentCommentTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   extentInsecureTpc: true
   extentXenCompat: false
   extentDisablePhysicalBlocksize: true

@@ -43,8 +43,6 @@ zfs:
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: 0
   datasetPermissionsGroup: 0
-
-  # not supported yet
   #datasetPermissionsAcls:
   #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"
