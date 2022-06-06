@@ -1147,14 +1147,23 @@ class Zetabyte {
         if (arguments.length < 4) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
+          // specially handle sudo here to avoid the need for using sudo on the whole script
+          // but rather limit sudo access to only the zfs command
+          let use_sudo = zb.options.sudo;
           let args = ["-c"];
           let command = [];
+          if (use_sudo) {
+            command = command.concat(zb.options.paths.sudo);
+          }
           command = command.concat(["zfs", "send"]);
           command = command.concat(send_options);
           command.push(source);
 
           command.push("|");
 
+          if (use_sudo) {
+            command = command.concat(zb.options.paths.sudo);
+          }
           command = command.concat(["zfs", "receive"]);
           command = command.concat(receive_options);
           command.push(target);
@@ -1164,7 +1173,7 @@ class Zetabyte {
           zb.exec(
             "/bin/sh",
             args,
-            { timeout: zb.options.timeout },
+            { timeout: zb.options.timeout, sudo: false },
             function (error, stdout, stderr) {
               if (error) return reject(zb.helpers.zfsError(error, stderr));
               return resolve(stdout);
@@ -1550,7 +1559,12 @@ class Zetabyte {
       command = zb.options.paths.chroot;
     }
 
-    if (zb.options.sudo) {
+    let use_sudo = zb.options.sudo;
+    if (options && options.hasOwnProperty("sudo")) {
+      use_sudo = options.sudo;
+    }
+
+    if (use_sudo) {
       args = args || [];
       args.unshift(command);
       command = zb.options.paths.sudo;
@@ -1558,11 +1572,13 @@ class Zetabyte {
 
     if (zb.options.log_commands) {
       if (typeof zb.options.logger.verbose != "function") {
-        zb.options.logger.verbose = function() {
+        zb.options.logger.verbose = function () {
           console.debug(...arguments);
-        }  
+        };
       }
-      zb.options.logger.verbose(`executing zfs command: ${command} ${args.join(" ")}`);
+      zb.options.logger.verbose(
+        `executing zfs command: ${command} ${args.join(" ")}`
+      );
     }
 
     const child = zb.options.executor.spawn(command, args, options);

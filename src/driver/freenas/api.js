@@ -2107,6 +2107,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    */
   async Probe(call) {
     const driver = this;
+    const httpApiClient = await driver.getTrueNASHttpApiClient();
 
     if (driver.ctx.args.csiMode.includes("controller")) {
       let datasetParentName = this.getVolumeParentDatasetName() + "/";
@@ -2121,6 +2122,14 @@ class FreeNASApiDriver extends CsiBaseDriver {
           `datasetParentName and detachedSnapshotsDatasetParentName must not overlap`
         );
       }
+
+      if (!(await httpApiClient.getIsScale())) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `driver is only availalbe with TrueNAS SCALE`
+        );
+      }
+
       return { ready: { value: true } };
     } else {
       return { ready: { value: true } };
