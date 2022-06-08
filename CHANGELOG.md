@@ -1,6 +1,6 @@
 # v1.7.0
 
-Released 2022-06-06
+Released 2022-06-08
 
 The windows release.
 
