@@ -4,9 +4,80 @@ const https = require("https");
 const { axios_request, stringify } = require("../../../utils/general");
 const Mutex = require("async-mutex").Mutex;
 const registry = require("../../../utils/registry");
+const { GrpcError, grpc } = require("../../../utils/grpc");
 
 const USER_AGENT = "democratic-csi";
 const __REGISTRY_NS__ = "SynologyHttpClient";
+
+SYNO_ERRORS = {
+  400: {
+    status: grpc.status.UNAUTHENTICATED,
+    message: "Failed to authenticate to the Synology DSM.",
+  },
+  407: {
+    status: grpc.status.UNAUTHENTICATED,
+    message:
+      "IP has been blocked to the Synology DSM due to too many failed attempts.",
+  },
+  18990002: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "The synology volume is out of disk space.",
+  },
+  18990318: {
+    status: grpc.status.INVALID_ARGUMENT,
+    message:
+      "The requested lun type is incompatible with the Synology filesystem.",
+  },
+  18990538: {
+    status: grpc.status.ALREADY_EXISTS,
+    message: "A LUN with this name already exists.",
+  },
+  18990541: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "The maximum number of LUNS has been reached.",
+  },
+  18990542: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "The maximum number if iSCSI target has been reached.",
+  },
+  18990708: {
+    status: grpc.status.INVALID_ARGUMENT,
+    message: "Bad target auth info.",
+  },
+  18990744: {
+    status: grpc.status.ALREADY_EXISTS,
+    message: "An iSCSI target with this name already exists.",
+  },
+  18990532: { status: grpc.status.NOT_FOUND, message: "No such snapshot." },
+  18990500: { status: grpc.status.INVALID_ARGUMENT, message: "Bad LUN type" },
+  18990543: {
+    status: grpc.status.RESOURCE_EXHAUSTED,
+    message: "Maximum number of snapshots reached.",
+  },
+  18990635: {
+    status: grpc.status.INVALID_ARGUMENT,
+    message: "Invalid ioPolicy.",
+  },
+};
+
+class SynologyError extends GrpcError {
+  constructor(code, httpCode = undefined) {
+    super(0, "");
+    this.synoCode = code;
+    this.httpCode = httpCode;
+    if (code > 0) {
+      const error = SYNO_ERRORS[code];
+      this.code = error && error.status ? error.status : grpc.status.UNKNOWN;
+      this.message =
+        error && error.message
+          ? error.message
+          : `An unknown error occurred when executing a synology command (code = ${code}).`;
+    } else {
+      this.code = grpc.status.UNKNOWN;
+      this.message = `The synology webserver returned a status code ${httpCode}`;
+    }
+  }
+}
 
 class SynologyHttpClient {
   constructor(options = {}) {
@@ -44,32 +115,49 @@ class SynologyHttpClient {
   }
 
   log_response(error, response, body, options) {
-    let prop;
-    let val;
-
-    prop = "auth.username";
-    val = _.get(options, prop, false);
-    if (val) {
-      _.set(options, prop, "redacted");
+    const cleansedBody = JSON.parse(stringify(body));
+    const cleansedOptions = JSON.parse(stringify(options));
+    // This function handles arrays and objects
+    function recursiveCleanse(obj) {
+      for (const k in obj) {
+        if (typeof obj[k] == "object" && obj[k] !== null) {
+          recursiveCleanse(obj[k]);
+        } else {
+          if (
+            [
+              "account",
+              "passwd",
+              "username",
+              "password",
+              "_sid",
+              "sid",
+              "Authorization",
+              "authorization",
+              "user",
+              "mutual_user",
+              "mutual_password",
+            ].includes(k)
+          ) {
+            obj[k] = "redacted";
+          }
+        }
+      }
     }
+    recursiveCleanse(cleansedBody);
+    recursiveCleanse(cleansedOptions);
 
-    prop = "auth.password";
-    val = _.get(options, prop, false);
-    if (val) {
-      _.set(options, prop, "redacted");
-    }
+    delete cleansedOptions.httpAgent;
+    delete cleansedOptions.httpsAgent;
 
-    prop = "headers.Authorization";
-    val = _.get(options, prop, false);
-    if (val) {
-      _.set(options, prop, "redacted");
-    }
-
-    this.logger.debug("SYNOLOGY HTTP REQUEST: " + stringify(options));
+    this.logger.debug("SYNOLOGY HTTP REQUEST: " + stringify(cleansedOptions));
     this.logger.debug("SYNOLOGY HTTP ERROR: " + error);
-    this.logger.debug("SYNOLOGY HTTP STATUS: " + response.statusCode);
-    this.logger.debug("SYNOLOGY HTTP HEADERS: " + stringify(response.headers));
-    this.logger.debug("SYNOLOGY HTTP BODY: " + stringify(body));
+    this.logger.debug(
+      "SYNOLOGY HTTP STATUS: " + _.get(response, "statusCode", "")
+    );
+    this.logger.debug(
+      "SYNOLOGY HTTP HEADERS: " + stringify(_.get(response, "headers", ""))
+    );
+    this.logger.debug("SYNOLOGY HTTP BODY: " + stringify(cleansedBody));
   }
 
   async do_request(method, path, data = {}, options = {}) {
@@ -149,7 +237,7 @@ class SynologyHttpClient {
           }
 
           if (response.statusCode > 299 || response.statusCode < 200) {
-            reject(response);
+            reject(new SynologyError(null, response.statusCode));
           }
 
           if (response.body.success === false) {
@@ -157,7 +245,9 @@ class SynologyHttpClient {
             if (response.body.error.code == 119 && sid == client.sid) {
               client.sid = null;
             }
-            reject(response);
+            reject(
+              new SynologyError(response.body.error.code, response.statusCode)
+            );
           }
 
           resolve(response);
@@ -293,19 +383,19 @@ class SynologyHttpClient {
     return snapshots;
   }
 
-  async GetSnapshotByLunIDAndName(lun_id, name) {
+  async GetSnapshotByLunUUIDAndName(lun_uuid, name) {
     const get_snapshot_info = {
-      lid: lun_id, //check?
-      api: "SYNO.Core.Storage.iSCSILUN",
-      method: "load_snapshot",
+      api: "SYNO.Core.ISCSI.LUN",
+      method: "list_snapshot",
       version: 1,
+      src_lun_uuid: JSON.stringify(lun_uuid),
     };
 
     let response = await this.do_request("GET", "entry.cgi", get_snapshot_info);
 
-    if (response.body.data) {
-      let snapshot = response.body.data.find((i) => {
-        return i.desc == name;
+    if (response.body.data.snapshots) {
+      let snapshot = response.body.data.snapshots.find((i) => {
+        return i.description == name;
       });
 
       if (snapshot) {
@@ -314,18 +404,18 @@ class SynologyHttpClient {
     }
   }
 
-  async GetSnapshotByLunIDAndSnapshotUUID(lun_id, snapshot_uuid) {
+  async GetSnapshotByLunUUIDAndSnapshotUUID(lun_uuid, snapshot_uuid) {
     const get_snapshot_info = {
-      lid: lun_id, //check?
-      api: "SYNO.Core.Storage.iSCSILUN",
-      method: "load_snapshot",
+      api: "SYNO.Core.ISCSI.LUN",
+      method: "list_snapshot",
       version: 1,
+      src_lun_uuid: JSON.stringify(lun_uuid),
     };
 
     let response = await this.do_request("GET", "entry.cgi", get_snapshot_info);
 
-    if (response.body.data) {
-      let snapshot = response.body.data.find((i) => {
+    if (response.body.data.snapshots) {
+      let snapshot = response.body.data.snapshots.find((i) => {
         return i.uuid == snapshot_uuid;
       });
 
@@ -412,7 +502,7 @@ class SynologyHttpClient {
       response = await this.do_request("GET", "entry.cgi", iscsi_lun_create);
       return response.body.data.uuid;
     } catch (err) {
-      if ([18990538].includes(err.body.error.code)) {
+      if (err.synoCode === 18990538) {
         response = await this.do_request("GET", "entry.cgi", lun_list);
         let lun = response.body.data.luns.find((i) => {
           return i.name == iscsi_lun_create.name;
@@ -503,7 +593,7 @@ class SynologyHttpClient {
 
       return response.body.data.target_id;
     } catch (err) {
-      if ([18990744].includes(err.body.error.code)) {
+      if (err.synoCode === 18990744) {
         //do lookup
         const iscsi_target_list = {
           api: "SYNO.Core.ISCSI.Target",
@@ -549,7 +639,7 @@ class SynologyHttpClient {
       /**
        * 18990710 = non-existant
        */
-      //if (![18990710].includes(err.body.error.code)) {
+      //if (err.synoCode !== 18990710) {
       throw err;
       //}
     }
@@ -572,20 +662,34 @@ class SynologyHttpClient {
     );
   }
 
-  async CreateClonedVolume(src_lun_uuid, dst_lun_name) {
+  async CreateClonedVolume(
+    src_lun_uuid,
+    dst_lun_name,
+    dst_location,
+    description
+  ) {
     const create_cloned_volume = {
       api: "SYNO.Core.ISCSI.LUN",
       version: 1,
       method: "clone",
       src_lun_uuid: JSON.stringify(src_lun_uuid), // src lun uuid
       dst_lun_name: dst_lun_name, // dst lun name
+      dst_location: dst_location,
       is_same_pool: true, // always true? string?
       clone_type: "democratic-csi", // check
     };
+    if (description) {
+      create_cloned_volume.description = description;
+    }
     return await this.do_request("GET", "entry.cgi", create_cloned_volume);
   }
 
-  async CreateVolumeFromSnapshot(src_lun_uuid, snapshot_uuid, cloned_lun_name) {
+  async CreateVolumeFromSnapshot(
+    src_lun_uuid,
+    snapshot_uuid,
+    cloned_lun_name,
+    description
+  ) {
     const create_volume_from_snapshot = {
       api: "SYNO.Core.ISCSI.LUN",
       version: 1,
@@ -595,6 +699,9 @@ class SynologyHttpClient {
       cloned_lun_name: cloned_lun_name, // cloned lun name
       clone_type: "democratic-csi", // check
     };
+    if (description) {
+      create_volume_from_snapshot.description = description;
+    }
     return await this.do_request(
       "GET",
       "entry.cgi",

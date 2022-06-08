@@ -2,4 +2,4 @@
 
 # https://engineering.docker.com/2019/07/road-to-containing-iscsi/
 
-chroot /host /usr/bin/env -i PATH="/sbin:/bin:/usr/bin" iscsiadm "${@:1}"
+chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" iscsiadm "${@:1}"

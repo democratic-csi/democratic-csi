@@ -681,7 +681,13 @@ class Api {
     throw new Error(JSON.stringify(response.body));
   }
 
-  async CoreWaitForJob(job_id, timeout = 0) {
+  /**
+   *
+   * @param {*} job_id
+   * @param {*} timeout in seconds
+   * @returns
+   */
+  async CoreWaitForJob(job_id, timeout = 0, check_interval = 3000) {
     if (!job_id) {
       throw new Error("invalid job_id");
     }
@@ -692,16 +698,17 @@ class Api {
     let job;
 
     // wait for job to finish
-    while (!job || !["SUCCESS", "ABORTED", "FAILED"].includes(job.state)) {
+    do {
+      if (job) {
+        await sleep(check_interval);
+      }
       job = await this.CoreGetJobs({ id: job_id });
       job = job[0];
-      await sleep(3000);
-
       currentTime = Date.now() / 1000;
       if (timeout > 0 && currentTime > startTime + timeout) {
         throw new Error("timeout waiting for job to complete");
       }
-    }
+    } while (!["SUCCESS", "ABORTED", "FAILED"].includes(job.state));
 
     return job;
   }
@@ -754,7 +761,38 @@ class Api {
     response = await httpClient.post(endpoint, data);
 
     if (response.statusCode == 200) {
-      return;
+      return response.body;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  /**
+   *
+   * @param {*} data
+   */
+  async FilesystemChown(data) {
+    /*
+        {
+          "path": "string",
+          "uid": 0,
+          "gid": 0,
+          "options": {
+            "recursive": false,
+            "traverse": false
+          }
+        }
+      */
+
+    const httpClient = await this.getHttpClient(false);
+    let response;
+    let endpoint;
+
+    endpoint = `/filesystem/chown`;
+    response = await httpClient.post(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
     }
 
     throw new Error(JSON.stringify(response.body));

@@ -1,2 +1,4 @@
+**~
 node_modules
 dev
+/ci/bin/*dev*

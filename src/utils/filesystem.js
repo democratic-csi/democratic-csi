@@ -1,5 +1,7 @@
 const cp = require("child_process");
 const fs = require("fs");
+const GeneralUtils = require("./general");
+const path = require("path");
 
 const DEFAULT_TIMEOUT = process.env.FILESYSTEM_DEFAULT_TIMEOUT || 30000;
 
@@ -23,6 +25,10 @@ class Filesystem {
         spawn: cp.spawn,
       };
     }
+  }
+
+  covertUnixSeparatorToWindowsSeparator(p) {
+    return p.replaceAll(path.posix.sep, path.win32.sep);
   }
 
   /**
@@ -223,8 +229,12 @@ class Filesystem {
     }
   }
 
+  async isSymbolicLink(path) {
+    return fs.lstatSync(path).isSymbolicLink();
+  }
+
   /**
-   * create symlink
+   * remove file
    *
    * @param {*} device
    */
@@ -298,7 +308,7 @@ class Filesystem {
   async getBlockDevice(device) {
     const filesystem = this;
     device = await filesystem.realpath(device);
-    let args = ["-a", "-b", "-l", "-J", "-O"];
+    let args = ["-a", "-b", "-J", "-O"];
     args.push(device);
     let result;
 
@@ -312,30 +322,214 @@ class Filesystem {
   }
 
   /**
-   * blkid -p -o export <device>
+   *
+   * @param {*} device
+   * @returns
+   */
+  async getBlockDeviceLargestPartition(device) {
+    const filesystem = this;
+    let block_device_info = await filesystem.getBlockDevice(device);
+    if (block_device_info.children) {
+      let child;
+      for (const child_i of block_device_info.children) {
+        if (child_i.type == "part") {
+          if (!child) {
+            child = child_i;
+          } else {
+            if (child_i.size > child.size) {
+              child = child_i;
+            }
+          }
+        }
+      }
+      return `${child.path}`;
+    }
+  }
+
+  /**
+   *
+   * @param {*} device
+   * @returns
+   */
+  async getBlockDeviceLastPartition(device) {
+    const filesystem = this;
+    let block_device_info = await filesystem.getBlockDevice(device);
+    if (block_device_info.children) {
+      let child;
+      for (const child_i of block_device_info.children) {
+        if (child_i.type == "part") {
+          if (!child) {
+            child = child_i;
+          } else {
+            let minor = child["maj:min"].split(":")[1];
+            let minor_i = child_i["maj:min"].split(":")[1];
+            if (minor_i > minor) {
+              child = child_i;
+            }
+          }
+        }
+      }
+      return `${child.path}`;
+    }
+  }
+
+  /**
+   *
+   * @param {*} device
+   * @returns
+   */
+  async getBlockDevicePartitionCount(device) {
+    const filesystem = this;
+    let count = 0;
+    let block_device_info = await filesystem.getBlockDevice(device);
+    if (block_device_info.children) {
+      for (const child_i of block_device_info.children) {
+        if (child_i.type == "part") {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  async getBlockDeviceHasParitionTable(device) {
+    const filesystem = this;
+    let block_device_info = await filesystem.getBlockDevice(device);
+
+    return block_device_info.pttype ? true : false;
+  }
+
+  /**
+   * DOS
+   * - type=83 = Linux
+   * - type=07 = HPFS/NTFS/exFAT
+   *
+   * GPT
+   * - type=0FC63DAF-8483-4772-8E79-3D69D8477DE4 = linux
+   * - type=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7 = ntfs
+   * - type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B = EFI
+   *
+   * @param {*} device
+   * @param {*} label
+   * @param {*} type
+   */
+  async partitionDevice(
+    device,
+    label = "gpt",
+    type = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
+  ) {
+    const filesystem = this;
+    let args = [device];
+    let result;
+
+    try {
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `label: ${label}\n`,
+      });
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `type=${type}\n`,
+      });
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
+   * mimic the behavior of partitioning a new data drive in windows directly
+   *
+   * https://en.wikipedia.org/wiki/Microsoft_Reserved_Partition
+   *
+   * @param {*} device
+   */
+  async partitionDeviceWindows(device) {
+    const filesystem = this;
+    let args = [device];
+    let result;
+    let block_device_info = await filesystem.getBlockDevice(device);
+
+    //let sixteen_megabytes = 16777216;
+    //let thirtytwo_megabytes = 33554432;
+    //let onehundredtwentyeight_megabytes = 134217728;
+
+    let msr_partition_size = "16M";
+    let label = "gpt";
+    let msr_guid = "E3C9E316-0B5C-4DB8-817D-F92DF00215AE";
+    let ntfs_guid = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7";
+
+    if (block_device_info.type != "disk") {
+      throw new Error(
+        `cannot partition device of type: ${block_device_info.type}`
+      );
+    }
+
+    /**
+     * On drives less than 16GB in size, the MSR is 32MB.
+     * On drives greater than or equal two 16GB, the MSR is 128 MB.
+     * It is only 128 MB for Win 7/8 ( On drives less than 16GB in size, the MSR is 32MB ) & 16 MB for win 10!
+     */
+    let msr_partition_size_break = 17179869184; // 16GB
+
+    // TODO: this size may be sectors so not really disk size in terms of GB
+    if (block_device_info.size >= msr_partition_size_break) {
+      // ignoring for now, appears windows 10+ use 16MB always
+      //msr_partition_size = "128M";
+    }
+
+    try {
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `label: ${label}\n`,
+      });
+      // must send ALL partitions at once (newline separated), cannot send them 1 at a time
+      result = await filesystem.exec("sfdisk", args, {
+        stdin: `size=${msr_partition_size},type=${msr_guid}\ntype=${ntfs_guid}\n`,
+      });
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
    *
    * @param {*} device
    */
   async deviceIsFormatted(device) {
     const filesystem = this;
-    let args = ["-p", "-o", "export", device];
     let result;
 
     try {
-      result = await filesystem.exec("blkid", args);
+      result = await filesystem.getBlockDevice(device);
+      return result.fstype ? true : false;
     } catch (err) {
-      if (err.code == 2 && err.stderr.includes("No such device or address")) {
-        throw err;
-      }
-
-      if (err.code == 2) {
-        return false;
-      }
-
       throw err;
     }
+  }
 
-    return true;
+  async deviceIsIscsi(device) {
+    const filesystem = this;
+    let result;
+
+    do {
+      if (result) {
+        device = `/dev/${result.pkname}`;
+      }
+      result = await filesystem.getBlockDevice(device);
+    } while (result.pkname);
+
+    return result && result.tran == "iscsi";
+  }
+
+  async getBlockDeviceParent(device) {
+    const filesystem = this;
+    let result;
+
+    do {
+      if (result) {
+        device = `/dev/${result.pkname}`;
+      }
+      result = await filesystem.getBlockDevice(device);
+    } while (result.pkname);
+
+    return result;
   }
 
   /**
@@ -438,6 +632,31 @@ class Filesystem {
     }
   }
 
+  async expandPartition(device) {
+    const filesystem = this;
+    const command = "growpart";
+    const args = [];
+
+    let block_device_info = await filesystem.getBlockDevice(device);
+    let device_fs_info = await filesystem.getDeviceFilesystemInfo(device);
+    let growpart_partition = device_fs_info["part_entry_number"];
+    let parent_block_device = await filesystem.getBlockDeviceParent(device);
+
+    args.push(parent_block_device.path, growpart_partition);
+
+    try {
+      await filesystem.exec(command, args);
+    } catch (err) {
+      if (
+        err.code == 1 &&
+        err.stdout &&
+        err.stdout.includes("could only be grown by")
+      ) {
+        return;
+      }
+    }
+  }
+
   /**
    * expand a given filesystem
    *
@@ -458,11 +677,24 @@ class Filesystem {
         args = args.concat(["filesystem", "resize", "max"]);
         args.push(device); // in this case should be a mounted path
         break;
+      case "exfat":
+        // https://github.com/exfatprogs/exfatprogs/issues/134
+        return;
       case "ext4":
       case "ext3":
       case "ext4dev":
         command = "resize2fs";
         args = args.concat(options);
+        args.push(device);
+        break;
+      case "ntfs":
+        // must be unmounted
+        command = "ntfsresize";
+        await filesystem.exec(command, ["-c", device]);
+        await filesystem.exec(command, ["-n", device]);
+        args = args.concat("-P", "-f");
+        args = args.concat(options);
+        //args = args.concat(["-s", "max"]);
         args.push(device);
         break;
       case "xfs":
@@ -481,6 +713,10 @@ class Filesystem {
 
     try {
       result = await filesystem.exec(command, args);
+      // must clear the dirty bit after resize
+      if (fstype.toLowerCase() == "ntfs") {
+        await filesystem.exec("ntfsfix", ["-d", device]);
+      }
       return result;
     } catch (err) {
       throw err;
@@ -520,6 +756,15 @@ class Filesystem {
         args = args.concat(fsoptions);
         args.push("-f");
         args.push("-p");
+        break;
+      case "ntfs":
+        /**
+         * -b, --clear-bad-sectors Clear the bad sector list
+         * -d, --clear-dirty       Clear the volume dirty flag
+         */
+        command = "ntfsfix";
+        args.puuh("-d");
+        args.push(device);
         break;
       case "xfs":
         command = "xfs_repair";
@@ -589,22 +834,43 @@ class Filesystem {
    * @param {*} path
    */
   async pathExists(path) {
-    const filesystem = this;
-    let args = [];
-    args.push(path);
-
+    let result = false;
     try {
-      await filesystem.exec("stat", args);
+      await GeneralUtils.retry(
+        10,
+        200,
+        () => {
+          fs.statSync(path);
+        },
+        {
+          retryCondition: (err) => {
+            if (err.code == "UNKNOWN") {
+              return true;
+            }
+            return false;
+          },
+        }
+      );
+      result = true;
     } catch (err) {
-      return false;
+      if (err.code !== "ENOENT") {
+        throw err;
+      }
     }
-    return true;
+
+    return result;
   }
 
   exec(command, args, options = {}) {
     if (!options.hasOwnProperty("timeout")) {
       // TODO: cannot use this as fsck etc are too risky to kill
       //options.timeout = DEFAULT_TIMEOUT;
+    }
+
+    let stdin;
+    if (options.stdin) {
+      stdin = options.stdin;
+      delete options.stdin;
     }
 
     const filesystem = this;
@@ -614,13 +880,27 @@ class Filesystem {
       args.unshift(command);
       command = filesystem.options.paths.sudo;
     }
-    console.log("executing filesystem command: %s %s", command, args.join(" "));
-    
+    let command_log = `${command} ${args.join(" ")}`.trim();
+    if (stdin) {
+      command_log = `echo '${stdin}' | ${command_log}`
+        .trim()
+        .replace(/\n/, "\\n");
+    }
+    console.log("executing filesystem command: %s", command_log);
+
     return new Promise((resolve, reject) => {
       const child = filesystem.options.executor.spawn(command, args, options);
       let stdout = "";
       let stderr = "";
-  
+
+      child.on("spawn", function () {
+        if (stdin) {
+          child.stdin.setEncoding("utf-8");
+          child.stdin.write(stdin);
+          child.stdin.end();
+        }
+      });
+
       child.stdout.on("data", function (data) {
         stdout = stdout + data;
       });

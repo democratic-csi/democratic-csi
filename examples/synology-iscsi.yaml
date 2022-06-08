@@ -10,9 +10,9 @@ httpConnection:
   session: "democratic-csi"
   serialize: true
 
-synology:
-  # choose the proper volume for your system
-  volume: /volume1
+# Choose the DSM volume this driver operates on. The default value is /volume1.
+# synology:
+#   volume: /volume1
 
 iscsi:
   targetPortal: "server[:port]"
@@ -31,7 +31,12 @@ iscsi:
   # documented below are several blocks
   # pick the option appropriate for you based on what your backing fs is and desired features
   # you do not need to alter dev_attribs under normal circumstances but they may be altered in advanced use-cases
+  # These options can also be configured per storage-class:
+  # See https://github.com/democratic-csi/democratic-csi/blob/master/docs/storage-class-parameters.md
   lunTemplate:
+    # can be static value or handlebars template
+    #description: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+    
     # btrfs thin provisioning
     type: "BLUN"
     # tpws = Hardware-assisted zeroing

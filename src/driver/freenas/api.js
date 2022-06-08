@@ -4,9 +4,8 @@ const { CsiBaseDriver } = require("../index");
 const HttpClient = require("./http").Client;
 const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte } = require("../../utils/zfs");
-const getLargestNumber = require("../../utils/general").getLargestNumber;
 const registry = require("../../utils/registry");
-const sleep = require("../../utils/general").sleep;
+const GeneralUtils = require("../../utils/general");
 
 const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
@@ -262,7 +261,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
-              response = await httpClient.post("/sharing/nfs", share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post("/sharing/nfs", share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201
@@ -483,7 +502,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
-              response = await httpClient.post(endpoint, share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post(endpoint, share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201
@@ -1363,7 +1402,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 });
 
                 if (deleteAsset) {
-                  response = await httpClient.delete(endpoint);
+                  response = await GeneralUtils.retry(
+                    3,
+                    1000,
+                    async () => {
+                      return await httpClient.delete(endpoint);
+                    },
+                    {
+                      retryCondition: (err) => {
+                        if (err.code == "ECONNRESET") {
+                          return true;
+                        }
+                        if (err.code == "ECONNABORTED") {
+                          return true;
+                        }
+                        if (err.response && err.response.statusCode == 504) {
+                          return true;
+                        }
+                        return false;
+                      },
+                    }
+                  );
 
                   // returns a 500 if does not exist
                   // v1 = 204
@@ -1444,12 +1503,35 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 });
 
                 if (deleteAsset) {
-                  response = await httpClient.delete(endpoint);
+                  response = await GeneralUtils.retry(
+                    3,
+                    1000,
+                    async () => {
+                      return await httpClient.delete(endpoint);
+                    },
+                    {
+                      retryCondition: (err) => {
+                        if (err.code == "ECONNRESET") {
+                          return true;
+                        }
+                        if (err.code == "ECONNABORTED") {
+                          return true;
+                        }
+                        if (err.response && err.response.statusCode == 504) {
+                          return true;
+                        }
+                        return false;
+                      },
+                    }
+                  );
 
                   // returns a 500 if does not exist
                   // v1 = 204
                   // v2 = 200
-                  if (![200, 204].includes(response.statusCode)) {
+                  if (
+                    ![200, 204].includes(response.statusCode) &&
+                    !JSON.stringify(response.body).includes("does not exist")
+                  ) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `received error deleting smb share - share: ${shareId} code: ${
@@ -1477,7 +1559,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         break;
       case "iscsi":
         // Delete target
-        // NOTE: deletting a target inherently deletes associated targetgroup(s) and targettoextent(s)
+        // NOTE: deleting a target inherently deletes associated targetgroup(s) and targettoextent(s)
 
         // Delete extent
         try {
@@ -1565,7 +1647,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                       targetId,
                       retries
                     );
-                    await sleep(retryWait);
+                    await GeneralUtils.sleep(retryWait);
                     response = await httpClient.delete(endpoint);
                   }
 
@@ -1958,7 +2040,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&
-              !["btrfs", "ext3", "ext4", "ext4dev", "xfs"].includes(
+              !GeneralUtils.default_supported_block_filesystems().includes(
                 capability.mount.fs_type
               )
             ) {
@@ -2025,6 +2107,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    */
   async Probe(call) {
     const driver = this;
+    const httpApiClient = await driver.getTrueNASHttpApiClient();
 
     if (driver.ctx.args.csiMode.includes("controller")) {
       let datasetParentName = this.getVolumeParentDatasetName() + "/";
@@ -2039,6 +2122,14 @@ class FreeNASApiDriver extends CsiBaseDriver {
           `datasetParentName and detachedSnapshotsDatasetParentName must not overlap`
         );
       }
+
+      if (!(await httpApiClient.getIsScale())) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `driver is only availalbe with TrueNAS SCALE`
+        );
+      }
+
       return { ready: { value: true } };
     } else {
       return { ready: { value: true } };
@@ -2066,6 +2157,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
     let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
+    let volume_id = await driver.getVolumeIdFromName(name);
     let volume_content_source = call.request.volume_content_source;
     let minimum_volume_size = await driver.getMinimumVolumeSize();
     let default_required_bytes = 1073741824;
@@ -2171,7 +2263,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
      * NOTE: avoid the urge to templatize this given the name length limits for zvols
      * ie: namespace-name may quite easily exceed 58 chars
      */
-    const datasetName = datasetParentName + "/" + name;
+    const datasetName = datasetParentName + "/" + volume_id;
 
     // ensure volumes with the same name being requested a 2nd time but with a different size fails
     try {
@@ -2326,7 +2418,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               volume_content_source_snapshot_id +
               "@" +
               VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
-              name;
+              volume_id;
           }
 
           driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
@@ -2378,7 +2470,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               ) {
                 job = await httpApiClient.CoreGetJobs({ id: job_id });
                 job = job[0];
-                await sleep(3000);
+                await GeneralUtils.sleep(3000);
               }
 
               job.error = job.error || "";
@@ -2488,7 +2580,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
             volume_content_source_volume_id +
             "@" +
             VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
-            name;
+            volume_id;
 
           driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
 
@@ -2538,7 +2630,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               ) {
                 job = await httpApiClient.CoreGetJobs({ id: job_id });
                 job = job[0];
-                await sleep(3000);
+                await GeneralUtils.sleep(3000);
               }
 
               job.error = job.error || "";
@@ -2626,6 +2718,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
         volsize: driverZfsResourceType == "volume" ? capacity_bytes : undefined,
         sparse: driverZfsResourceType == "volume" ? sparse : undefined,
         create_ancestors: true,
+        share_type: driver.getDriverShareType().includes("smb")
+          ? "SMB"
+          : "GENERIC",
         user_properties: httpApiClient.getPropertiesKeyValueArray(
           httpApiClient.getUserProperties(volumeProperties)
         ),
@@ -2721,7 +2816,18 @@ class FreeNASApiDriver extends CsiBaseDriver {
         }
 
         if (setPerms) {
-          await httpApiClient.FilesystemSetperm(perms);
+          response = await httpApiClient.FilesystemSetperm(perms);
+          await httpApiClient.CoreWaitForJob(response, 30);
+          // SetPerm does not alter ownership with extended ACLs
+          // run this in addition just for good measure
+          if (perms.uid || perms.gid) {
+            response = await httpApiClient.FilesystemChown({
+              path: perms.path,
+              uid: perms.uid,
+              gid: perms.gid,
+            });
+            await httpApiClient.CoreWaitForJob(response, 30);
+          }
         }
 
         // set acls
@@ -2777,7 +2883,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     const res = {
       volume: {
-        volume_id: name,
+        volume_id,
         //capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
         capacity_bytes:
           this.options.zfs.datasetEnableQuotas ||
@@ -3649,7 +3755,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
           // so we must be cognizant and use the highest possible value here
           // note that whatever value is returned here can/will essentially impact the refquota
           // value of a derived volume
-          size_bytes = getLargestNumber(row.referenced, row.logicalreferenced);
+          size_bytes = GeneralUtils.getLargestNumber(
+            row.referenced,
+            row.logicalreferenced
+          );
         } else {
           // get the size of the parent volume
           size_bytes = row.volsize;
@@ -3930,7 +4039,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         while (!job || !["SUCCESS", "ABORTED", "FAILED"].includes(job.state)) {
           job = await httpApiClient.CoreGetJobs({ id: job_id });
           job = job[0];
-          await sleep(3000);
+          await GeneralUtils.sleep(3000);
         }
 
         job.error = job.error || "";
@@ -4045,7 +4154,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       // so we must be cognizant and use the highest possible value here
       // note that whatever value is returned here can/will essentially impact the refquota
       // value of a derived volume
-      size_bytes = getLargestNumber(
+      size_bytes = GeneralUtils.getLargestNumber(
         properties.referenced.rawvalue,
         properties.logicalreferenced.rawvalue
         // TODO: perhaps include minimum volume size here?

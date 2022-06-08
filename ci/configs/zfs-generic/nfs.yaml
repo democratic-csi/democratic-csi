@@ -11,7 +11,7 @@ zfs:
   detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
 
   datasetEnableQuotas: true
-  datasetEnableReservation: true
+  datasetEnableReservation: false
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: 0
   datasetPermissionsGroup: 0
@@ -21,4 +21,5 @@ nfs:
   shareStrategy: "setDatasetProperties"
   shareStrategySetDatasetProperties:
     properties:
-      sharenfs: "on"
+      #sharenfs: "on"
+      sharenfs: "rw,no_subtree_check,no_root_squash"

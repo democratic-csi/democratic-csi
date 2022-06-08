@@ -1,7 +1,7 @@
 const _ = require("lodash");
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
-const sleep = require("../../utils/general").sleep;
+const GeneralUtils = require("../../utils/general");
 const getLargestNumber = require("../../utils/general").getLargestNumber;
 
 const Handlebars = require("handlebars");
@@ -201,9 +201,9 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     switch (driverZfsResourceType) {
       case "filesystem":
-        return ["nfs", "cifs"];
+        return GeneralUtils.default_supported_file_filesystems();
       case "volume":
-        return ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
+        return GeneralUtils.default_supported_block_filesystems();
     }
   }
 
@@ -620,6 +620,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
     let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
+    let volume_id = await driver.getVolumeIdFromName(name);
     let volume_content_source = call.request.volume_content_source;
 
     if (!datasetParentName) {
@@ -710,7 +711,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
      * NOTE: avoid the urge to templatize this given the name length limits for zvols
      * ie: namespace-name may quite easily exceed 58 chars
      */
-    const datasetName = datasetParentName + "/" + name;
+    const datasetName = datasetParentName + "/" + volume_id;
 
     // ensure volumes with the same name being requested a 2nd time but with a different size fails
     try {
@@ -862,7 +863,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
               volume_content_source_snapshot_id +
               "@" +
               VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
-              name;
+              volume_id;
           }
 
           driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
@@ -909,6 +910,12 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             });
           } else {
             try {
+              // remove readonly/undesired props
+              let cloneProperties = volumeProperties;
+              delete cloneProperties["aclmode"];
+              delete cloneProperties["aclinherit"];
+              delete cloneProperties["acltype"];
+              delete cloneProperties["casesensitivity"];
               response = await zb.zfs.clone(fullSnapshotName, datasetName, {
                 properties: volumeProperties,
               });
@@ -971,7 +978,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             volume_content_source_volume_id +
             "@" +
             VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
-            name;
+            volume_id;
 
           driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
 
@@ -1024,9 +1031,15 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           } else {
             // create clone
             // zfs origin property contains parent info, ie: pool0/k8s/test/PVC-111@clone-test
+            // remove readonly/undesired props
+            let cloneProperties = volumeProperties;
+            delete cloneProperties["aclmode"];
+            delete cloneProperties["aclinherit"];
+            delete cloneProperties["acltype"];
+            delete cloneProperties["casesensitivity"];
             try {
               response = await zb.zfs.clone(fullSnapshotName, datasetName, {
-                properties: volumeProperties,
+                properties: cloneProperties,
               });
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
@@ -1128,8 +1141,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         // TODO: this is unsfafe approach, make it better
         // probably could see if ^-.*\s and split and then shell escape
         if (this.options.zfs.datasetPermissionsAcls) {
+          let aclBinary = _.get(
+            driver.options,
+            "zfs.datasetPermissionsAclsBinary",
+            "setfacl"
+          );
           for (const acl of this.options.zfs.datasetPermissionsAcls) {
-            command = execClient.buildCommand("setfacl", [
+            command = execClient.buildCommand(aclBinary, [
               acl,
               properties.mountpoint.value,
             ]);
@@ -1147,7 +1165,6 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             }
           }
         }
-
         break;
       case "volume":
         // set properties
@@ -1191,7 +1208,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     const res = {
       volume: {
-        volume_id: name,
+        volume_id,
         //capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
         capacity_bytes:
           this.options.zfs.datasetEnableQuotas ||
@@ -1301,27 +1318,24 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
     try {
-      let max_tries = 5;
-      let sleep_time = 3000;
-      let current_try = 1;
-      let success = false;
-      while (!success && current_try <= max_tries) {
-        try {
+      await GeneralUtils.retry(
+        12,
+        5000,
+        async () => {
           await zb.zfs.destroy(datasetName, { recurse: true, force: true });
-          success = true;
-        } catch (err) {
-          if (err.toString().includes("dataset is busy")) {
-            current_try++;
-            if (current_try > max_tries) {
-              throw err;
-            } else {
-              await sleep(sleep_time);
+        },
+        {
+          retryCondition: (err) => {
+            if (
+              err.toString().includes("dataset is busy") ||
+              err.toString().includes("target is busy")
+            ) {
+              return true;
             }
-          } else {
-            throw err;
-          }
+            return false;
+          },
         }
-      }
+      );
     } catch (err) {
       if (err.toString().includes("filesystem has dependent clones")) {
         throw new GrpcError(
@@ -2190,7 +2204,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       });
 
       // let things settle down
-      //await sleep(3000);
+      //await GneralUtils.sleep(3000);
     } else {
       try {
         await zb.zfs.snapshot(fullSnapshotName, {
@@ -2198,7 +2212,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         });
 
         // let things settle down
-        //await sleep(3000);
+        //await GeneralUtils.sleep(3000);
       } catch (err) {
         if (err.toString().includes("dataset does not exist")) {
           throw new GrpcError(

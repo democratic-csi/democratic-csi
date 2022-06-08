@@ -1,3 +1,33 @@
+# v1.7.0
+
+Released 2022-06-08
+
+The windows release.
+
+- windows smb, iscsi, and local-hostpath support (requires chart `v0.13.0+`)
+- ntfs, exfat, vfat fs support
+- `zfs-generic-smb` driver
+- synology improvements
+  - DSM7 support
+  - synology enhancements to allow templates to be configured at various
+    'levels'
+- testing improvements
+  - support (for testing) generating volume_id from name
+  - test all the smb variants
+  - test all nfs/smb client drivers
+- misc fixes
+  - wait for chown/chmod jobs to complete (freenas)
+  - general improvement to smb behavior throughout
+  - better logging
+  - better sudo logic throughout
+  - minor fixes throughout
+- more robust logic for connecting to iscsi devices with partition tables
+- massive performance improvement for ssh-based drivers (reusing existing
+  connection instead of new connection per-command)
+- dep bumps
+- trimmed container images
+- windows container images for 2019 and 2022
+
 # v1.6.3
 
 Released 2022-04-08

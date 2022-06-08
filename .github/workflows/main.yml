@@ -17,12 +17,13 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-  build-npm:
-    name: build-npm
-    runs-on:
-      - self-hosted
+  build-npm-linux-amd64:
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
       - shell: bash
         name: npm install
         run: |
@@ -30,35 +31,84 @@ jobs:
       - name: upload build
         uses: actions/upload-artifact@v2
         with:
-          name: node-modules
-          #path: node_modules/
-          path: node_modules.tar.gz
-          retention-days: 7
+          name: node-modules-linux-amd64
+          path: node_modules-linux-amd64.tar.gz
+          retention-days: 1
 
-  csi-sanity-synology:
+  build-npm-windows-amd64:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - shell: pwsh
+        name: npm install
+        run: |
+          ci\bin\build.ps1
+      - name: upload build
+        uses: actions/upload-artifact@v2
+        with:
+          name: node-modules-windows-amd64
+          path: node_modules-windows-amd64.tar.gz
+          retention-days: 1
+
+  csi-sanity-synology-dsm6:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
         config:
-          - synlogy/iscsi.yaml
+          - synlogy/dsm6/iscsi.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-synology
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
           ci/bin/run.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          SYNOLOGY_HOST: ${{ secrets.SANITY_SYNOLOGY_HOST }}
-          SYNOLOGY_PORT: ${{ secrets.SANITY_SYNOLOGY_PORT }}
+          SYNOLOGY_HOST: ${{ secrets.SANITY_SYNOLOGY_DSM6_HOST }}
+          SYNOLOGY_PORT: ${{ secrets.SANITY_SYNOLOGY_DSM6_PORT }}
+          SYNOLOGY_USERNAME: ${{ secrets.SANITY_SYNOLOGY_USERNAME }}
+          SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
+          SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
+
+  csi-sanity-synology-dsm7:
+    needs:
+      - build-npm-linux-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - synlogy/dsm7/iscsi.yaml
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - csi-sanity-synology
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules-linux-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          SYNOLOGY_HOST: ${{ secrets.SANITY_SYNOLOGY_DSM7_HOST }}
+          SYNOLOGY_PORT: ${{ secrets.SANITY_SYNOLOGY_DSM7_PORT }}
           SYNOLOGY_USERNAME: ${{ secrets.SANITY_SYNOLOGY_USERNAME }}
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
@@ -66,7 +116,7 @@ jobs:
   # api-based drivers
   csi-sanity-truenas-scale-22_02:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -74,16 +124,18 @@ jobs:
           - truenas/scale/22.02/scale-iscsi.yaml
           - truenas/scale/22.02/scale-nfs.yaml
           # 80 char limit
-          #- truenas/scale-smb.yaml
+          - truenas/scale/22.02/scale-smb.yaml
     runs-on:
       - self-hosted
-      - csi-sanity-zfs-local
-      #- csi-sanity-truenas-scale
+      - Linux
+      - X64
+      - csi-sanity-truenas
+      #- csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -97,25 +149,27 @@ jobs:
   # ssh-based drivers
   csi-sanity-truenas-core-12_0:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
         config:
           # 63 char limit
-          #- truenas/core-iscsi.yaml
+          - truenas/core/12.0/core-iscsi.yaml
           - truenas/core/12.0/core-nfs.yaml
           # 80 char limit
-          #- truenas/core-smb.yaml
+          - truenas/core/12.0/core-smb.yaml
     runs-on:
       - self-hosted
-      - csi-sanity-zfs-local
-      #- csi-sanity-truenas-core
+      - Linux
+      - X64
+      #- csi-sanity-truenas
+      - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -129,7 +183,7 @@ jobs:
   # ssh-based drivers
   csi-sanity-truenas-core-13_0:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -137,16 +191,18 @@ jobs:
           - truenas/core/13.0/core-iscsi.yaml
           - truenas/core/13.0/core-nfs.yaml
           # 80 char limit
-          #- truenas/core-smb.yaml
+          - truenas/core/13.0/core-smb.yaml
     runs-on:
       - self-hosted
-      - csi-sanity-zfs-local
-      #- csi-sanity-truenas-core
+      - Linux
+      - X64
+      #- csi-sanity-truenas
+      - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -160,21 +216,24 @@ jobs:
   # ssh-based drivers
   csi-sanity-zfs-generic:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
         config:
           - zfs-generic/iscsi.yaml
           - zfs-generic/nfs.yaml
+          - zfs-generic/smb.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-zfs-generic
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -185,10 +244,70 @@ jobs:
           SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
           SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
 
+  # client drivers
+  csi-sanity-client:
+    needs:
+      - build-npm-linux-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - client/nfs.yaml
+          - client/smb.yaml
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - csi-sanity-client
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules-linux-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
+          SHARE_NAME: tank_client_smb
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
+
+  csi-sanity-client-windows:
+    needs:
+      - build-npm-windows-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - client\smb.yaml
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - csi-sanity-client
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules-windows-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci\bin\run.ps1
+        env:
+          TEMPLATE_CONFIG_FILE: ".\\ci\\configs\\${{ matrix.config }}"
+          SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
+          SHARE_NAME: tank_client_smb
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
+
+
+
   # zfs-local drivers
   csi-sanity-zfs-local:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
     strategy:
       fail-fast: false
       matrix:
@@ -197,12 +316,14 @@ jobs:
           - zfs-local/dataset.yaml
     runs-on:
       - self-hosted
+      - Linux
+      - X64
       - csi-sanity-zfs-local
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: node-modules-linux-amd64
       - name: csi-sanity
         run: |
           # run tests
@@ -213,36 +334,108 @@ jobs:
   # local-hostpath driver
   csi-sanity-local-hostpath:
     needs:
-      - build-npm
+      - build-npm-linux-amd64
+      - build-npm-windows-amd64
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - local-hostpath/basic.yaml
+        os: [Linux, Windows]
+        include:
+          - os: Linux
+            npmartifact: node-modules-linux-amd64
+            template: "./ci/configs/local-hostpath/basic.yaml"
+            run: |
+              # run tests
+              ci/bin/run.sh
+          - os: Windows
+            npmartifact: node-modules-windows-amd64
+            template: ".\\ci\\configs\\local-hostpath\\basic.yaml"
+            run: |
+              # run tests
+              ci\bin\run.ps1
     runs-on:
       - self-hosted
+      - ${{ matrix.os }}
+      - X64
+      - csi-sanity-local-hostpath
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
-          name: node-modules
+          name: ${{ matrix.npmartifact }}
+      - name: csi-sanity
+        run: ${{ matrix.run }}
+        env:
+          TEMPLATE_CONFIG_FILE: "${{ matrix.template }}"
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
+
+  csi-sanity-windows-node:
+    needs:
+      - build-npm-windows-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - windows\iscsi.yaml
+          - windows\smb.yaml
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: node-modules-windows-amd64
       - name: csi-sanity
         run: |
           # run tests
-          ci/bin/run.sh
+          ci\bin\run.ps1
         env:
-          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
+          TEMPLATE_CONFIG_FILE: ".\\ci\\configs\\${{ matrix.config }}"
+          SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
+          SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
+          SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
+          CSI_SANITY_FOCUS: "Node Service"
 
-  build-docker:
+  determine-image-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            export GIT_TAG=${GITHUB_REF#refs/tags/}
+          else
+            export GIT_BRANCH=${GITHUB_REF#refs/heads/}
+          fi
+          if [[ -n "${GIT_TAG}" ]]; then
+            echo "::set-output name=tag::${GIT_TAG}"
+          elif [[ -n "${GIT_BRANCH}" ]]; then
+            if [[ "${GIT_BRANCH}" == "master" ]]; then
+              echo "::set-output name=tag::latest"
+            else
+              echo "::set-output name=tag::${GIT_BRANCH}"
+            fi
+          else
+            :
+          fi
+
+  build-docker-linux:
     needs:
-      - csi-sanity-synology
+      - determine-image-tag
+      - csi-sanity-synology-dsm6
+      - csi-sanity-synology-dsm7
       - csi-sanity-truenas-scale-22_02
       - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
+      - csi-sanity-client
+      - csi-sanity-client-windows
       - csi-sanity-zfs-local
       - csi-sanity-local-hostpath
+      - csi-sanity-windows-node
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -250,7 +443,7 @@ jobs:
         run: |
           export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
           mkdir -p ~/.docker/cli-plugins/
-          wget -qO ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.5.1/buildx-v0.5.1.linux-${ARCH}
+          wget -qO ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.8.2/buildx-v0.8.2.linux-${ARCH}
           chmod a+x ~/.docker/cli-plugins/docker-buildx
           docker info
           docker buildx version
@@ -267,3 +460,78 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
           DOCKER_CLI_EXPERIMENTAL: enabled
           DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le
+          IMAGE_TAG: ${{needs.determine-image-tag.outputs.tag}}
+
+  build-docker-windows:
+    needs:
+      - csi-sanity-synology-dsm6
+      - csi-sanity-synology-dsm7
+      - csi-sanity-truenas-scale-22_02
+      - csi-sanity-truenas-core-12_0
+      - csi-sanity-truenas-core-13_0
+      - csi-sanity-zfs-generic
+      - csi-sanity-client
+      - csi-sanity-client-windows
+      - csi-sanity-zfs-local
+      - csi-sanity-local-hostpath
+      - csi-sanity-windows-node
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2019, windows-2022]
+        include:
+          - os: windows-2019
+            core_base_tag: ltsc2019
+            nano_base_tag: "1809"
+            file: Dockerfile.Windows
+          - os: windows-2022
+            core_base_tag: ltsc2022
+            nano_base_tag: ltsc2022
+            file: Dockerfile.Windows
+    steps:
+      - uses: actions/checkout@v2
+      - name: docker build
+        shell: bash
+        run: |
+          docker info
+          docker build --pull -f ${{ matrix.file }} --build-arg NANO_BASE_TAG=${{ matrix.nano_base_tag }} --build-arg CORE_BASE_TAG=${{ matrix.core_base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} \
+          --label "org.opencontainers.image.created=$(date -u --iso-8601=seconds)" \
+          --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+          .
+          docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }}
+          docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} -o democratic-csi-windows-${{ matrix.core_base_tag }}.tar
+      - name: upload image tar
+        uses: actions/upload-artifact@v2
+        with:
+          name: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
+          path: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
+          retention-days: 1
+
+  push-docker-windows:
+    needs:
+      - build-docker-linux
+      - build-docker-windows
+      - determine-image-tag
+    runs-on:
+      - self-hosted
+      - buildah
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v3
+        with:
+          name: democratic-csi-windows-ltsc2019.tar
+      - uses: actions/download-artifact@v3
+        with:
+          name: democratic-csi-windows-ltsc2022.tar
+      - name: push windows images with buildah
+        run: |
+          #.github/bin/install_latest_buildah.sh
+          buildah version
+          .github/bin/docker-release-windows.sh
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
+          DOCKER_CLI_EXPERIMENTAL: enabled
+          IMAGE_TAG: ${{needs.determine-image-tag.outputs.tag}}

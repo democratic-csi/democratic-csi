@@ -1,9 +1,12 @@
+const _ = require("lodash");
 const { CsiBaseDriver } = require("../index");
+const GeneralUtils = require("../../utils/general");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const Handlebars = require("handlebars");
 const registry = require("../../utils/registry");
 const SynologyHttpClient = require("./http").SynologyHttpClient;
 const semver = require("semver");
-const sleep = require("../../utils/general").sleep;
+const yaml = require("js-yaml");
 
 const __REGISTRY_NS__ = "ControllerSynologyDriver";
 
@@ -142,6 +145,37 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
   }
 
+  getObjectFromDevAttribs(list = []) {
+    if (!list) {
+      return {};
+    }
+    return list.reduce(
+      (obj, item) => Object.assign(obj, { [item.dev_attrib]: item.enable }),
+      {}
+    );
+  }
+
+  getDevAttribsFromObject(obj, keepNull = false) {
+    return Object.entries(obj)
+      .filter((e) => keepNull || e[1] != null)
+      .map((e) => ({ dev_attrib: e[0], enable: e[1] }));
+  }
+
+  parseParameterYamlData(data, fieldHint = "") {
+    try {
+      return yaml.load(data);
+    } catch {
+      if (err instanceof yaml.YAMLException) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `${fieldHint} not a valid YAML document.`.trim()
+        );
+      } else {
+        throw err;
+      }
+    }
+  }
+
   buildIscsiName(name) {
     let iscsiName = name;
     if (this.options.iscsi.namePrefix) {
@@ -153,6 +187,25 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     return iscsiName.toLowerCase();
+  }
+
+  /**
+   * Returns the value for the 'location' parameter indicating on which volume
+   * a LUN is to be created.
+   *
+   * @param {Object} parameters - Parameters received from a StorageClass
+   * @param {String} parameters.volume - The volume specified by the StorageClass
+   * @returns {String} The location of the volume.
+   */
+  getLocation() {
+    let location = _.get(this.options, "synology.volume");
+    if (!location) {
+      location = "volume1";
+    }
+    if (!location.startsWith("/")) {
+      location = "/" + location;
+    }
+    return location;
   }
 
   assertCapabilities(capabilities) {
@@ -171,7 +224,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
           if (
             capability.mount.fs_type &&
-            !["nfs", "cifs"].includes(capability.mount.fs_type)
+            !GeneralUtils.default_supported_file_filesystems().includes(
+              capability.mount.fs_type
+            )
           ) {
             message = `invalid fs_type ${capability.mount.fs_type}`;
             return false;
@@ -198,7 +253,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&
-              !["btrfs", "ext3", "ext4", "ext4dev", "xfs"].includes(
+              !GeneralUtils.default_supported_block_filesystems().includes(
                 capability.mount.fs_type
               )
             ) {
@@ -310,6 +365,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     let volume_context = {};
+    const normalizedParameters = driver.getNormalizedParameters(
+      call.request.parameters
+    );
     switch (driver.getDriverShareType()) {
       case "nfs":
         // TODO: create volume here
@@ -327,11 +385,52 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         break;
       case "iscsi":
         let iscsiName = driver.buildIscsiName(name);
+        let lunTemplate;
+        let targetTemplate;
         let data;
         let target;
         let lun_mapping;
         let lun_uuid;
         let existingLun;
+
+        lunTemplate = Object.assign(
+          {},
+          _.get(driver.options, "iscsi.lunTemplate", {}),
+          driver.parseParameterYamlData(
+            _.get(normalizedParameters, "lunTemplate", "{}"),
+            "parameters.lunTemplate"
+          ),
+          driver.parseParameterYamlData(
+            _.get(call.request, "secrets.lunTemplate", "{}"),
+            "secrets.lunTemplate"
+          )
+        );
+        targetTemplate = Object.assign(
+          {},
+          _.get(driver.options, "iscsi.targetTemplate", {}),
+          driver.parseParameterYamlData(
+            _.get(normalizedParameters, "targetTemplate", "{}"),
+            "parameters.targetTemplate"
+          ),
+          driver.parseParameterYamlData(
+            _.get(call.request, "secrets.targetTemplate", "{}"),
+            "secrets.targetTemplate"
+          )
+        );
+
+        // render the template for description
+        if (lunTemplate.description) {
+          lunTemplate.description = Handlebars.compile(lunTemplate.description)(
+            {
+              name: call.request.name,
+              parameters: call.request.parameters,
+              csi: {
+                name: this.ctx.args.csiName,
+                version: this.ctx.args.csiVersion,
+              },
+            }
+          );
+        }
 
         // ensure volumes with the same name being requested a 2nd time but with a different size fails
         try {
@@ -361,13 +460,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
         if (volume_content_source) {
           let src_lun_uuid;
-          let src_lun_id;
           switch (volume_content_source.type) {
             case "snapshot":
               let parts = volume_content_source.snapshot.snapshot_id.split("/");
 
-              src_lun_id = parts[2];
-              if (!src_lun_id) {
+              src_lun_uuid = parts[2];
+              if (!src_lun_uuid) {
                 throw new GrpcError(
                   grpc.status.NOT_FOUND,
                   `invalid snapshot_id: ${volume_content_source.snapshot.snapshot_id}`
@@ -382,13 +480,17 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                 );
               }
 
-              let src_lun = await httpClient.GetLunByID(src_lun_id);
-              src_lun_uuid = src_lun.uuid;
+              // This is for backwards compatibility. Previous versions of this driver used the LUN ID instead of the
+              // UUID. If this is the case we need to get the LUN UUID before we can proceed.
+              if (!src_lun_uuid.includes("-")) {
+                src_lun_uuid = await httpClient.GetLunByID(src_lun_uuid).uuid;
+              }
 
-              let snapshot = await httpClient.GetSnapshotByLunIDAndSnapshotUUID(
-                src_lun_id,
-                snapshot_uuid
-              );
+              let snapshot =
+                await httpClient.GetSnapshotByLunUUIDAndSnapshotUUID(
+                  src_lun_uuid,
+                  snapshot_uuid
+                );
               if (!snapshot) {
                 throw new GrpcError(
                   grpc.status.NOT_FOUND,
@@ -401,7 +503,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                 await httpClient.CreateVolumeFromSnapshot(
                   src_lun_uuid,
                   snapshot_uuid,
-                  iscsiName
+                  iscsiName,
+                  lunTemplate.description
                 );
               }
               break;
@@ -425,7 +528,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
                     `invalid volume_id: ${volume_content_source.volume.volume_id}`
                   );
                 }
-                await httpClient.CreateClonedVolume(src_lun_uuid, iscsiName);
+                await httpClient.CreateClonedVolume(
+                  src_lun_uuid,
+                  iscsiName,
+                  driver.getLocation(),
+                  lunTemplate.description
+                );
               }
               break;
             default:
@@ -444,20 +552,22 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
         } else {
           // create lun
-          data = Object.assign({}, driver.options.iscsi.lunTemplate, {
+          data = Object.assign({}, lunTemplate, {
             name: iscsiName,
-            location: driver.options.synology.volume,
+            location: driver.getLocation(),
             size: capacity_bytes,
           });
+
           lun_uuid = await httpClient.CreateLun(data);
         }
 
         // create target
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
-        data = Object.assign({}, driver.options.iscsi.targetTemplate, {
+        data = Object.assign({}, targetTemplate, {
           name: iscsiName,
           iqn,
         });
+
         let target_id = await httpClient.CreateTarget(data);
         //target = await httpClient.GetTargetByTargetID(target_id);
         target = await httpClient.GetTargetByIQN(iqn);
@@ -609,12 +719,12 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
             let waitTimeBetweenChecks = settleSeconds * 1000;
 
-            await sleep(waitTimeBetweenChecks);
+            await GeneralUtils.sleep(waitTimeBetweenChecks);
             lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
 
             while (currentCheck <= settleMaxRetries && lun_uuid) {
               currentCheck++;
-              await sleep(waitTimeBetweenChecks);
+              await GeneralUtils.sleep(waitTimeBetweenChecks);
               lun_uuid = await httpClient.GetLunUUIDByName(iscsiName);
             }
 
@@ -737,8 +847,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
   async GetCapacity(call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
+    const location = driver.getLocation();
 
-    if (!driver.options.synology.volume) {
+    if (!location) {
       throw new GrpcError(
         grpc.status.FAILED_PRECONDITION,
         `invalid configuration: missing volume`
@@ -753,9 +864,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       }
     }
 
-    let response = await httpClient.GetVolumeInfo(
-      driver.options.synology.volume
-    );
+    let response = await httpClient.GetVolumeInfo(location);
     return { available_capacity: response.body.data.volume.size_free_byte };
   }
 
@@ -833,6 +942,24 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
+    const normalizedParameters = driver.getNormalizedParameters(
+      call.request.parameters
+    );
+    let lunSnapshotTemplate;
+
+    lunSnapshotTemplate = Object.assign(
+      {},
+      _.get(driver.options, "iscsi.lunSnapshotTemplate", {}),
+      driver.parseParameterYamlData(
+        _.get(normalizedParameters, "lunSnapshotTemplate", "{}"),
+        "parameters.lunSnapshotTemplate"
+      ),
+      driver.parseParameterYamlData(
+        _.get(call.request, "secrets.lunSnapshotTemplate", "{}"),
+        "secrets.lunSnapshotTemplate"
+      )
+    );
+
     // check for other snapshopts with the same name on other volumes and fail as appropriate
     // TODO: technically this should only be checking lun/snapshots relevant to this specific install of the driver
     // but alas an isolation/namespacing mechanism does not exist in synology
@@ -848,16 +975,16 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
     // check for already exists
     let snapshot;
-    snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
+    snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);
     if (!snapshot) {
-      let data = Object.assign({}, driver.options.iscsi.lunSnapshotTemplate, {
+      let data = Object.assign({}, lunSnapshotTemplate, {
         src_lun_uuid: lun.uuid,
         taken_by: "democratic-csi",
         description: name, //check
       });
 
       await httpClient.CreateSnapshot(data);
-      snapshot = await httpClient.GetSnapshotByLunIDAndName(lun.lun_id, name);
+      snapshot = await httpClient.GetSnapshotByLunUUIDAndName(lun.uuid, name);
 
       if (!snapshot) {
         throw new Error(`failed to create snapshot`);
@@ -871,7 +998,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
          * is needed to create a volume from this snapshot.
          */
         size_bytes: snapshot.total_size,
-        snapshot_id: `/lun/${lun.lun_id}/${snapshot.uuid}`, // add shanpshot_uuid //fixme
+        snapshot_id: `/lun/${lun.uuid}/${snapshot.uuid}`,
         source_volume_id: source_volume_id,
         //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
         creation_time: {
@@ -908,8 +1035,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
 
     let parts = snapshot_id.split("/");
-    let lun_id = parts[2];
-    if (!lun_id) {
+    let lun_uuid = parts[2];
+    if (!lun_uuid) {
       return {};
     }
 
@@ -918,9 +1045,14 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       return {};
     }
 
-    // TODO: delete snapshot
-    let snapshot = await httpClient.GetSnapshotByLunIDAndSnapshotUUID(
-      lun_id,
+    // This is for backwards compatibility. Previous versions of this driver used the LUN ID instead of the UUID. If
+    // this is the case we need to get the LUN UUID before we can proceed.
+    if (!lun_uuid.includes("-")) {
+      lun_uuid = await httpClient.GetLunByID(lun_uuid).uuid;
+    }
+
+    let snapshot = await httpClient.GetSnapshotByLunUUIDAndSnapshotUUID(
+      lun_uuid,
       snapshot_uuid
     );
 

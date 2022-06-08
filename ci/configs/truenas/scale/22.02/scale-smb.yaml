@@ -9,35 +9,19 @@ httpConnection:
   password: ${TRUENAS_PASSWORD}
 
 zfs:
-  datasetProperties:
-    # smb options
-    #aclmode: restricted
-    #casesensitivity: mixed
-
   datasetParentName: tank/ci/${CI_BUILD_KEY}/v
   detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
 
   datasetEnableQuotas: true
-  datasetEnableReservation: true
-  datasetPermissionsMode: "0777"
-  datasetPermissionsUser: 0
-  datasetPermissionsGroup: 0
+  datasetEnableReservation: false
+  datasetPermissionsMode: "0770"
+  datasetPermissionsUser: 1001
+  datasetPermissionsGroup: 1001
   
-  # for smb with guest
-  #datasetPermissionsUser: nobody
-  #datasetPermissionsGroup: nobody
-  
-  #datasetPermissionsGroup: root
-  #datasetPermissionsAcls:
-  #- "-m everyone@:full_set:allow"
-
-  #datasetPermissionsAcls:
-  #- "-m u:kube:full_set:allow"
-
 smb:
   shareHost: ${TRUENAS_HOST}
   #nameTemplate: ""
-  namePrefix: "csi-ci-${CI_BUILD_KEY}"
+  namePrefix: "csi-ci-${CI_BUILD_KEY}-"
   nameSuffix: ""
   shareAuxiliaryConfigurationTemplate: |
     #guest ok = yes
@@ -46,11 +30,21 @@ smb:
   shareAllowedHosts: []
   shareDeniedHosts: []
   #shareDefaultPermissions: true
-  shareGuestOk: true
+  shareGuestOk: false
   #shareGuestOnly: true
   #shareShowHiddenFiles: true
-  shareRecycleBin: true
+  shareRecycleBin: false
   shareBrowsable: false
   shareAccessBasedEnumeration: true
   shareTimeMachine: false
   #shareStorageTask:
+
+node:
+  mount:
+    mount_flags: "username=smbroot,password=smbroot"
+
+_private:
+  csi:
+    volume:
+      idHash:
+        strategy: crc16

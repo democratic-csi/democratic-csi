@@ -36,8 +36,8 @@ zfs:
   datasetEnableQuotas: true
   datasetEnableReservation: false
   datasetPermissionsMode: "0777"
-  datasetPermissionsUser: root
-  datasetPermissionsGroup: root
+  datasetPermissionsUser: 0
+  datasetPermissionsGroup: 0
   #datasetPermissionsAcls:
   #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"
@@ -48,6 +48,7 @@ nfs:
   shareStrategy: "setDatasetProperties"
   shareStrategySetDatasetProperties:
     properties:
+      #sharenfs: "rw,no_subtree_check,no_root_squash"
       sharenfs: "on"
       # share: ""
   shareHost: "server address"

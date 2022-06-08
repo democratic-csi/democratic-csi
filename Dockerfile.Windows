@@ -1,0 +1,100 @@
+#
+# https://github.com/kubernetes/kubernetes/blob/master/test/images/windows/powershell-helper/Dockerfile_windows
+# https://github.com/kubernetes/kubernetes/blob/master/test/images/busybox/Dockerfile_windows
+# https://github.com/kubernetes/kubernetes/tree/master/test/images#windows-test-images-considerations
+# https://stefanscherer.github.io/find-dependencies-in-windows-containers/
+# 
+# docker build --build-arg NANO_BASE_TAG=1809 --build-arg CORE_BASE_TAG=ltsc2019 -t foobar -f Dockerfile.Windows .
+# docker run --rm -ti --entrypoint powershell foobar
+# docker run --rm foobar
+# docker save foobar -o foobar.tar
+# buildah pull docker-archive:foobar.tar
+
+# mcr.microsoft.com/windows/servercore:ltsc2019
+# mcr.microsoft.com/windows/nanoserver:1809
+
+ARG NANO_BASE_TAG
+ARG CORE_BASE_TAG
+
+FROM mcr.microsoft.com/windows/servercore:${CORE_BASE_TAG} as powershell
+
+# install powershell
+ENV PS_VERSION=6.2.7
+ADD https://github.com/PowerShell/PowerShell/releases/download/v$PS_VERSION/PowerShell-$PS_VERSION-win-x64.zip /PowerShell/powershell.zip
+
+RUN cd C:\PowerShell &\
+    tar.exe -xf powershell.zip &\
+    del powershell.zip &\
+    mklink powershell.exe pwsh.exe
+
+
+FROM mcr.microsoft.com/windows/servercore:${CORE_BASE_TAG} as build
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+#ENV GPG_VERSION 4.0.2
+ENV GPG_VERSION 2.3.4
+
+RUN Invoke-WebRequest $('https://files.gpg4win.org/gpg4win-vanilla-{0}.exe' -f $env:GPG_VERSION) -OutFile 'gpg4win.exe' -UseBasicParsing ; \
+    Start-Process .\gpg4win.exe -ArgumentList '/S' -NoNewWindow -Wait
+
+# https://github.com/nodejs/node#release-keys
+RUN @( \
+    '4ED778F539E3634C779C87C6D7062848A1AB005C', \
+    '141F07595B7B3FFE74309A937405533BE57C7D57', \
+    '94AE36675C464D64BAFA68DD7434390BDBE9B9C5', \
+    '74F12602B6F1C4E913FAA37AD3A89613643B6201', \
+    '71DCFD284A79C3B38668286BC97EC7A07EDE3FC1', \
+    '61FC681DFB92A079F1685E77973F295594EC4689', \
+    '8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600', \
+    'C4F0DFFF4E8C1A8236409D08E73BC641CC11F4C8', \
+    'C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C', \
+    'DD8F2338BAE7501E3DD5AC78C273792F7D83545D', \
+    'A48C2BEE680E841632CD4E44F07496B3EB3C1762', \
+    '108F52B48DB57BB0CC439B2997B01419BD92F80A', \
+    'B9E2F5981AA6E0CD28160D9FF13993A75599653C' \
+    ) | foreach { \
+      gpg --keyserver hkps://keys.openpgp.org --recv-keys $_ ; \
+    }
+
+ENV NODE_VERSION 16.15.1
+
+RUN Invoke-WebRequest $('https://nodejs.org/dist/v{0}/SHASUMS256.txt.asc' -f $env:NODE_VERSION) -OutFile 'SHASUMS256.txt.asc' -UseBasicParsing ;
+#RUN Invoke-WebRequest $('https://nodejs.org/dist/v{0}/SHASUMS256.txt.asc' -f $env:NODE_VERSION) -OutFile 'SHASUMS256.txt.asc' -UseBasicParsing ; \
+#    gpg --batch --decrypt --output SHASUMS256.txt SHASUMS256.txt.asc
+#gpg --verify SHASUMS256.txt.sig SHASUMS256.txt
+
+RUN Invoke-WebRequest $('https://nodejs.org/dist/v{0}/node-v{0}-win-x64.zip' -f $env:NODE_VERSION) -OutFile 'node.zip' -UseBasicParsing ; \
+    $sum = $(cat SHASUMS256.txt.asc | sls $('  node-v{0}-win-x64.zip' -f $env:NODE_VERSION)) -Split ' ' ; \
+    if ((Get-FileHash node.zip -Algorithm sha256).Hash -ne $sum[0]) { Write-Error 'SHA256 mismatch' } ; \
+    Expand-Archive node.zip -DestinationPath C:\ ; \
+    Rename-Item -Path $('C:\node-v{0}-win-x64' -f $env:NODE_VERSION) -NewName 'C:\nodejs'
+
+#RUN setx /M PATH "%PATH%;C:\nodejs"
+RUN setx /M PATH $(${Env:PATH} + \";C:\nodejs\")
+
+RUN node --version; npm --version;
+
+RUN mkdir /app
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --only=production; ls /
+COPY . .
+
+FROM mcr.microsoft.com/windows/nanoserver:${NANO_BASE_TAG}
+
+LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
+LABEL org.opencontainers.image.url https://github.com/democratic-csi/democratic-csi
+LABEL org.opencontainers.image.licenses MIT
+
+# if additional dlls are required can copy like this
+#COPY --from=build /Windows/System32/nltest.exe /Windows/System32/nltest.exe
+
+COPY --from=build /app /app
+WORKDIR /app
+
+# this works for both host-process and non-host-process container semantics
+COPY --from=build /nodejs/node.exe ./bin
+
+ENTRYPOINT [ "bin/node.exe", "--expose-gc", "bin/democratic-csi" ]

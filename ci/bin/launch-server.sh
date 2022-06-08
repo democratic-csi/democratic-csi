@@ -3,6 +3,9 @@
 set -e
 set -x
 
+export PATH="/usr/local/lib/nodejs/bin:${PATH}"
+echo "current launch-server PATH: ${PATH}"
+
 : ${CI_BUILD_KEY:="local"}
 : ${TEMPLATE_CONFIG_FILE:=${1}}
 : ${CSI_MODE:=""}

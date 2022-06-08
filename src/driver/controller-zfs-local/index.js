@@ -1,6 +1,7 @@
 const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const GeneralUtils = require("../../utils/general");
 const LocalCliExecClient = require("./exec").LocalCliClient;
 const registry = require("../../utils/registry");
 const { Zetabyte } = require("../../utils/zfs");
@@ -95,7 +96,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
       case "filesystem":
         return ["zfs"];
       case "volume":
-        return ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
+        return GeneralUtils.default_supported_block_filesystems();
     }
   }
 

@@ -26,7 +26,7 @@ zfs:
 iscsi:
   targetPortal: ${TRUENAS_HOST}
   interface: ""
-  namePrefix: "csi-ci-${CI_BUILD_KEY}"
+  namePrefix: "csi-ci-${CI_BUILD_KEY}-"
   nameSuffix: ""
   targetGroups:
     - targetGroupPortalGroup: 1
@@ -35,3 +35,10 @@ iscsi:
       targetGroupAuthGroup:
   # 0-100 (0 == ignore)
   extentAvailThreshold: 0
+
+# overcome the 63 char limit for testing purposes only
+_private:
+  csi:
+    volume:
+      idHash:
+        strategy: crc16

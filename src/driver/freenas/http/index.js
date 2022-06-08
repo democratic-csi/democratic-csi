@@ -86,6 +86,12 @@ class Client {
       httpAgent: this.getHttpAgent(),
       httpsAgent: this.getHttpsAgent(),
       timeout: 60 * 1000,
+      validateStatus: function (status) {
+        if (status >= 500) {
+          return false;
+        }
+        return true;
+      },
     };
 
     if (client.options.apiKey) {
@@ -122,10 +128,17 @@ class Client {
       _.set(options, prop, "redacted");
     }
 
+    delete options.httpAgent;
+    delete options.httpsAgent;
+
     this.logger.debug("FREENAS HTTP REQUEST: " + stringify(options));
     this.logger.debug("FREENAS HTTP ERROR: " + error);
-    this.logger.debug("FREENAS HTTP STATUS: " + response.statusCode);
-    this.logger.debug("FREENAS HTTP HEADERS: " + stringify(response.headers));
+    this.logger.debug(
+      "FREENAS HTTP STATUS: " + _.get(response, "statusCode", "")
+    );
+    this.logger.debug(
+      "FREENAS HTTP HEADERS: " + stringify(_.get(response, "headers", ""))
+    );
     this.logger.debug("FREENAS HTTP BODY: " + stringify(body));
   }
 

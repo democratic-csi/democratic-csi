@@ -16,8 +16,8 @@ iscsi:
   targetPortal: ${SYNOLOGY_HOST}
   targetPortals: []
   baseiqn: "iqn.2000-01.com.synology:XpenoDsm62x."
-  namePrefix: "csi-${CI_BUILD_KEY}-"
-  nameSuffix: "-ci"
+  namePrefix: "csi-ci-${CI_BUILD_KEY}-"
+  nameSuffix: ""
 
   lunTemplate:
     # btrfs thin provisioning

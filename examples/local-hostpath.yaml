@@ -6,5 +6,5 @@ local-hostpath:
   shareBasePath:      "/var/lib/csi-local-hostpath"
   controllerBasePath: "/var/lib/csi-local-hostpath"
   dirPermissionsMode: "0777"
-  dirPermissionsUser: root
-  dirPermissionsGroup: root
+  dirPermissionsUser: 0
+  dirPermissionsGroup: 0

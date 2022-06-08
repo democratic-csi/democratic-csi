@@ -4,8 +4,9 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const registry = require("../../utils/registry");
 const SshClient = require("../../utils/ssh").SshClient;
 const HttpClient = require("./http").Client;
+const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
-const { sleep, stringify } = require("../../utils/general");
+const GeneralUtils = require("../../utils/general");
 
 const Handlebars = require("handlebars");
 
@@ -110,6 +111,13 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         return client;
       }
     );
+  }
+
+  async getTrueNASHttpApiClient() {
+    return registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
+      const httpClient = await this.getHttpClient();
+      return new TrueNASApiClient(httpClient, this.ctx.cache);
+    });
   }
 
   getDriverShareType() {
@@ -300,7 +308,27 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   break;
               }
 
-              response = await httpClient.post("/sharing/nfs", share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post("/sharing/nfs", share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201
@@ -521,7 +549,27 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   break;
               }
 
-              response = await httpClient.post(endpoint, share);
+              response = await GeneralUtils.retry(
+                3,
+                1000,
+                async () => {
+                  return await httpClient.post(endpoint, share);
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.code == "ECONNRESET") {
+                      return true;
+                    }
+                    if (err.code == "ECONNABORTED") {
+                      return true;
+                    }
+                    if (err.response && err.response.statusCode == 504) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
 
               /**
                * v1 = 201
@@ -1402,7 +1450,27 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 });
 
                 if (deleteAsset) {
-                  response = await httpClient.delete(endpoint);
+                  response = await GeneralUtils.retry(
+                    3,
+                    1000,
+                    async () => {
+                      return await httpClient.delete(endpoint);
+                    },
+                    {
+                      retryCondition: (err) => {
+                        if (err.code == "ECONNRESET") {
+                          return true;
+                        }
+                        if (err.code == "ECONNABORTED") {
+                          return true;
+                        }
+                        if (err.response && err.response.statusCode == 504) {
+                          return true;
+                        }
+                        return false;
+                      },
+                    }
+                  );
 
                   // returns a 500 if does not exist
                   // v1 = 204
@@ -1484,12 +1552,35 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 });
 
                 if (deleteAsset) {
-                  response = await httpClient.delete(endpoint);
+                  response = await GeneralUtils.retry(
+                    3,
+                    1000,
+                    async () => {
+                      return await httpClient.delete(endpoint);
+                    },
+                    {
+                      retryCondition: (err) => {
+                        if (err.code == "ECONNRESET") {
+                          return true;
+                        }
+                        if (err.code == "ECONNABORTED") {
+                          return true;
+                        }
+                        if (err.response && err.response.statusCode == 504) {
+                          return true;
+                        }
+                        return false;
+                      },
+                    }
+                  );
 
                   // returns a 500 if does not exist
                   // v1 = 204
                   // v2 = 200
-                  if (![200, 204].includes(response.statusCode)) {
+                  if (
+                    ![200, 204].includes(response.statusCode) &&
+                    !JSON.stringify(response.body).includes("does not exist")
+                  ) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `received error deleting smb share - share: ${shareId} code: ${
@@ -1606,7 +1697,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                       targetId,
                       retries
                     );
-                    await sleep(retryWait);
+                    await GeneralUtils.sleep(retryWait);
                     response = await httpClient.delete(endpoint);
                   }
 
@@ -1716,6 +1807,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   async setFilesystemMode(path, mode) {
     const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
 
     switch (apiVersion) {
       case 1:
@@ -1747,6 +1839,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         response = await httpClient.post(endpoint, perms);
 
         if (response.statusCode == 200) {
+          await httpApiClient.CoreWaitForJob(response.body, 30);
           return;
         }
 
@@ -1764,6 +1857,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   async setFilesystemOwnership(path, user = false, group = false) {
     const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
 
     if (user === false || typeof user == "undefined" || user === null) {
       user = "";
@@ -1832,6 +1926,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         response = await httpClient.post(endpoint, perms);
 
         if (response.statusCode == 200) {
+          await httpApiClient.CoreWaitForJob(response.body, 30);
           return;
         }
 
@@ -2122,7 +2217,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     // likely bad creds/url
     throw new GrpcError(
       grpc.status.UNKNOWN,
-      `FreeNAS error getting system version info: ${stringify({
+      `FreeNAS error getting system version info: ${GeneralUtils.stringify({
         errors: versionErrors,
         responses: versionResponses,
       })}`

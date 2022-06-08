@@ -1,9 +1,9 @@
 const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
+const GeneralUtils = require("../../utils/general");
 const registry = require("../../utils/registry");
 const SshClient = require("../../utils/ssh").SshClient;
-const sleep = require("../../utils/general").sleep;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 const Handlebars = require("handlebars");
@@ -52,12 +52,31 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getDriverZfsResourceType() {
     switch (this.options.driver) {
       case "zfs-generic-nfs":
+      case "zfs-generic-smb":
         return "filesystem";
       case "zfs-generic-iscsi":
         return "volume";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
     }
+  }
+
+  generateSmbShareName(datasetName) {
+    const driver = this;
+
+    driver.ctx.logger.verbose(
+      `generating smb share name for dataset: ${datasetName}`
+    );
+
+    let name = datasetName || "";
+    name = name.replaceAll("/", "_");
+    name = name.replaceAll("-", "_");
+
+    driver.ctx.logger.verbose(
+      `generated smb share name for dataset (${datasetName}): ${name}`
+    );
+
+    return name;
   }
 
   /**
@@ -67,6 +86,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
    * @param {*} datasetName
    */
   async createShare(call, datasetName) {
+    const driver = this;
     const zb = await this.getZetabyte();
     const execClient = this.getExecClient();
 
@@ -106,6 +126,41 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
           node_attach_driver: "nfs",
           server: this.options.nfs.shareHost,
           share: properties.mountpoint.value,
+        };
+        return volume_context;
+
+      case "zfs-generic-smb":
+        let share;
+        switch (this.options.smb.shareStrategy) {
+          case "setDatasetProperties":
+            for (let key of ["share", "sharesmb"]) {
+              if (
+                this.options.smb.shareStrategySetDatasetProperties.properties[
+                  key
+                ]
+              ) {
+                await zb.zfs.set(datasetName, {
+                  [key]:
+                    this.options.smb.shareStrategySetDatasetProperties
+                      .properties[key],
+                });
+              }
+            }
+
+            share = driver.generateSmbShareName(datasetName);
+            break;
+          default:
+            break;
+        }
+
+        properties = await zb.zfs.get(datasetName, ["mountpoint"]);
+        properties = properties[datasetName];
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        volume_context = {
+          node_attach_driver: "smb",
+          server: this.options.smb.shareHost,
+          share,
         };
         return volume_context;
 
@@ -176,8 +231,12 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
               }
             }
 
-            response = await this.targetCliCommand(
-              `
+            await GeneralUtils.retry(
+              3,
+              2000,
+              async () => {
+                await this.targetCliCommand(
+                  `
 # create target
 cd /iscsi
 create ${basename}:${iscsiName}
@@ -195,6 +254,16 @@ create ${iscsiName} /dev/${extentDiskName}
 cd /iscsi/${basename}:${iscsiName}/tpg1/luns
 create /backstores/block/${iscsiName}
 `
+                );
+              },
+              {
+                retryCondition: (err) => {
+                  if (err.stdout && err.stdout.includes("Ran out of input")) {
+                    return true;
+                  }
+                  return false;
+                },
+              }
             );
             break;
           default:
@@ -258,12 +327,42 @@ create /backstores/block/${iscsiName}
                 }
               }
             }
-            await sleep(2000); // let things settle
+            await GeneralUtils.sleep(2000); // let things settle
             break;
           default:
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
               `invalid configuration: unknown shareStrategy ${this.options.nfs.shareStrategy}`
+            );
+        }
+        break;
+
+      case "zfs-generic-smb":
+        switch (this.options.smb.shareStrategy) {
+          case "setDatasetProperties":
+            for (let key of ["share", "sharesmb"]) {
+              if (
+                this.options.smb.shareStrategySetDatasetProperties.properties[
+                  key
+                ]
+              ) {
+                try {
+                  await zb.zfs.inherit(datasetName, key);
+                } catch (err) {
+                  if (err.toString().includes("dataset does not exist")) {
+                    // do nothing
+                  } else {
+                    throw err;
+                  }
+                }
+              }
+            }
+            await GeneralUtils.sleep(2000); // let things settle
+            break;
+          default:
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `invalid configuration: unknown shareStrategy ${this.options.smb.shareStrategy}`
             );
         }
         break;
@@ -307,8 +406,12 @@ create /backstores/block/${iscsiName}
         switch (this.options.iscsi.shareStrategy) {
           case "targetCli":
             basename = this.options.iscsi.shareStrategyTargetCli.basename;
-            response = await this.targetCliCommand(
-              `
+            await GeneralUtils.retry(
+              3,
+              2000,
+              async () => {
+                await this.targetCliCommand(
+                  `
 # delete target
 cd /iscsi
 delete ${basename}:${iscsiName}
@@ -317,7 +420,18 @@ delete ${basename}:${iscsiName}
 cd /backstores/block
 delete ${iscsiName}
 `
+                );
+              },
+              {
+                retryCondition: (err) => {
+                  if (err.stdout && err.stdout.includes("Ran out of input")) {
+                    return true;
+                  }
+                  return false;
+                },
+              }
             );
+
             break;
           default:
             break;
@@ -362,19 +476,19 @@ delete ${iscsiName}
 
     let command = "sh";
     let args = ["-c"];
-    let taregetCliCommand = [];
-    taregetCliCommand.push(`echo "${data}"`.trim());
-    taregetCliCommand.push("|");
-    taregetCliCommand.push("targetcli");
 
+    let targetCliArgs = ["targetcli"];
     if (
       _.get(this.options, "iscsi.shareStrategyTargetCli.sudoEnabled", false)
     ) {
-      command = "sudo";
-      args.unshift("sh");
+      targetCliArgs.unshift("sudo");
     }
 
-    args.push("'" + taregetCliCommand.join(" ") + "'");
+    let targetCliCommand = [];
+    targetCliCommand.push(`echo "${data}"`.trim());
+    targetCliCommand.push("|");
+    targetCliCommand.push(targetCliArgs.join(" "));
+    args.push("'" + targetCliCommand.join(" ") + "'");
 
     let logCommandTmp = command + " " + args.join(" ");
     let logCommand = "";
@@ -405,12 +519,12 @@ delete ${iscsiName}
       execClient.buildCommand(command, args),
       options
     );
-    if (response.code != 0) {
-      throw new Error(JSON.stringify(response));
-    }
     driver.ctx.logger.verbose(
       "TargetCLI response: " + JSON.stringify(response)
     );
+    if (response.code != 0) {
+      throw response;
+    }
     return response;
   }
 }

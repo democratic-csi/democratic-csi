@@ -64,6 +64,16 @@ Predominantly 3 things are needed:
 
 You should install/configure the requirements for both nfs and iscsi.
 
+### cifs
+
+```
+RHEL / CentOS
+sudo yum install -y cifs-utils
+
+Ubuntu / Debian
+sudo apt-get install -y cifs-utils
+```
+
 ### nfs
 
 ```
@@ -176,6 +186,35 @@ volume is/was provisioned.
 The nature of this `driver` also prevents the enforcement of quotas. In short
 the requested volume size is generally ignored.
 
+### windows
+
+Support for Windows was introduced in `v1.7.0`. Currently support is limited
+to kubernetes nodes capabale of running `HostProcess` containers. Support was
+tested against `Windows Server 2019` using `rke2-v1.24`. Currently any of the
+`-smb` and `-iscsi` drivers will work. Support for `ntfs` was added to the
+linux nodes as well (using the `ntfs3` driver) so volumes created can be
+utilized by nodes with either operating system (in the case of `cifs` by both
+simultaneously).
+
+Due to current limits in the kubernetes tooling it is not possible to use the
+`local-hostpath` driver but support is implemented in this project and will
+work as soon as kubernetes support is available.
+
+```
+# ensure all updates are installed
+
+# enable the container feature
+Enable-WindowsOptionalFeature -Online -FeatureName Containers –All
+
+# create symbolic link due to current limitations in the driver-registrar container
+New-Item -ItemType SymbolicLink -Path "C:\registration\" -Target "C:\var\lib\kubelet\plugins_registry\"
+
+# install a HostProcess compatible kubernetes
+```
+
+- https://kubernetes.io/blog/2021/08/16/windows-hostprocess-containers/
+- https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/
+
 ## Server Prep
 
 Server preparation depends slightly on which `driver` you are using.
@@ -201,6 +240,7 @@ Ensure the following services are configurged and running:
 - ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
 - nfs
 - iscsi
+
   - (fixed in 12.0-U2+) when using the FreeNAS API concurrently the
     `/etc/ctl.conf` file on the server can become invalid, some sample scripts
     are provided in the `contrib` directory to clean things up ie: copy the
@@ -216,7 +256,7 @@ Ensure the following services are configurged and running:
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/initiator'`
       - `curl --header "Accept: application/json" --user root:<password> 'http(s)://<ip>/api/v2.0/iscsi/auth'`
   - The maximum number of volumes is limited to 255 by default on FreeBSD (physical devices such as disks and CD-ROM drives count against this value).
-  Be sure to properly adjust both [tunables](https://www.freebsd.org/cgi/man.cgi?query=ctl&sektion=4#end) `kern.cam.ctl.max_ports` and `kern.cam.ctl.max_luns` to avoid running out of resources when dynamically provisioning iSCSI volumes on FreeNAS or TrueNAS Core.
+    Be sure to properly adjust both [tunables](https://www.freebsd.org/cgi/man.cgi?query=ctl&sektion=4#end) `kern.cam.ctl.max_ports` and `kern.cam.ctl.max_luns` to avoid running out of resources when dynamically provisioning iSCSI volumes on FreeNAS or TrueNAS Core.
 
 - smb
 
@@ -273,17 +313,38 @@ Issues to review:
 - https://jira.ixsystems.com/browse/NAS-108522
 - https://jira.ixsystems.com/browse/NAS-107219
 
-### ZoL (zfs-generic-nfs, zfs-generic-iscsi)
+### ZoL (zfs-generic-nfs, zfs-generic-iscsi, zfs-generic-smb)
 
 Ensure ssh and zfs is installed on the nfs/iscsi server and that you have installed
 `targetcli`.
 
-- `sudo yum install targetcli -y`
-- `sudo apt-get -y install targetcli-fb`
+The driver executes many commands over an ssh connection. You may consider
+disabling all the `motd` details for the ssh user as it can spike the cpu
+unecessarily:
+
+- https://askubuntu.com/questions/318592/how-can-i-remove-the-landscape-canonical-com-greeting-from-motd
+- https://linuxconfig.org/disable-dynamic-motd-and-news-on-ubuntu-20-04-focal-fossa-linux
+
+```
+####### iscsi
+yum install targetcli -y
+apt-get -y install targetcli-fb
+
+####### smb
+apt-get install -y samba smbclient
+
+# create posix user
+groupadd -g 1001 smbroot
+useradd -u 1001 -g 1001 -M -N -s /sbin/nologin smbroot
+passwd smbroot (optional)
+
+# create smb user and set password
+smbpasswd -L -a smbroot
+```
 
 ### Synology (synology-iscsi)
 
-Ensure iscsi manager has been installed and is generally setup/configured.
+Ensure iscsi manager has been installed and is generally setup/configured. DSM 6.3+ is supported.
 
 ## Helm Installation
 

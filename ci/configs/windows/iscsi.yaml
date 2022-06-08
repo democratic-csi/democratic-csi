@@ -1,0 +1,31 @@
+driver: zfs-generic-iscsi
+
+sshConnection:
+  host: ${SERVER_HOST}
+  port: 22
+  username: ${SERVER_USERNAME}
+  password: ${SERVER_PASSWORD}
+
+zfs:
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  zvolCompression:
+  zvolDedup:
+  zvolEnableReservation: false
+  zvolBlocksize:
+
+iscsi:
+  targetPortal: ${SERVER_HOST}
+  interface: ""
+  namePrefix: "csi-ci-${CI_BUILD_KEY}"
+  nameSuffix: ""
+  shareStrategy: "targetCli"
+  shareStrategyTargetCli:
+    basename: "iqn.2003-01.org.linux-iscsi.ubuntu-19.x8664"
+    tpg:
+      attributes:
+        authentication: 0
+        generate_node_acls: 1
+        cache_dynamic_acls: 1
+        demo_mode_write_protect: 0

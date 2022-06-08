@@ -34,9 +34,10 @@ zfs:
   #  "org.freenas:test": "{{ parameters.foo }}"
   #  "org.freenas:test2": "some value"
 
-  datasetProperties:
-    aclmode: restricted
-    casesensitivity: mixed
+  # these are managed automatically via the volume creation process when flagged as an smb volume
+  #datasetProperties:
+  #  aclmode: restricted
+  #  casesensitivity: mixed
 
   datasetParentName: tank/k8s/a/vols
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
@@ -47,8 +48,10 @@ zfs:
   datasetPermissionsMode: "0777"
   datasetPermissionsUser: 0
   datasetPermissionsGroup: 0
-  datasetPermissionsAcls:
-  - "-m everyone@:full_set:allow"
+  
+  # not supported yet in api
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"
 
 smb:
