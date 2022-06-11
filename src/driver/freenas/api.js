@@ -3010,10 +3010,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
     try {
-      await httpApiClient.DatasetDelete(datasetName, {
-        recursive: true,
-        force: true,
-      });
+      await GeneralUtils.retry(
+        12,
+        5000,
+        async () => {
+          await httpApiClient.DatasetDelete(datasetName, {
+            recursive: true,
+            force: true,
+          });
+        },
+        {
+          retryCondition: (err) => {
+            if (
+              err.toString().includes("dataset is busy") ||
+              err.toString().includes("target is busy")
+            ) {
+              return true;
+            }
+            return false;
+          },
+        }
+      );
     } catch (err) {
       if (err.toString().includes("filesystem has dependent clones")) {
         throw new GrpcError(
