@@ -182,6 +182,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
+    const truenasVersion = semver.coerce(
+      await httpApiClient.getSystemVersionMajorMinor()
+    );
+    const isScale = await httpApiClient.getIsScale();
 
     let volume_context;
     let properties;
@@ -261,6 +265,12 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
+              if (isScale && semver.satisfies(truenasVersion, ">=22.12")) {
+                share.path = share.paths[0];
+                delete share.paths;
+                delete share.alldirs;
+              }
+
               response = await GeneralUtils.retry(
                 3,
                 1000,
@@ -294,7 +304,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
                     sharePaths = response.body.nfs_paths;
                     break;
                   case 2:
-                    sharePaths = response.body.paths;
+                    if (response.body.path) {
+                      sharePaths = [response.body.path];
+                    } else {
+                      sharePaths = response.body.paths;
+                    }
                     break;
                 }
 
@@ -336,7 +350,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
                               properties.mountpoint.value
                             )) ||
                           (item.paths &&
-                            item.paths.includes(properties.mountpoint.value))
+                            item.paths.includes(properties.mountpoint.value)) ||
+                          (item.path &&
+                            item.path == properties.mountpoint.value)
                         ) {
                           return true;
                         }
@@ -1393,7 +1409,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
                     sharePaths = response.body.nfs_paths;
                     break;
                   case 2:
-                    sharePaths = response.body.paths;
+                    if (response.body.path) {
+                      sharePaths = [response.body.path];
+                    } else {
+                      sharePaths = response.body.paths;
+                    }
                     break;
                 }
 

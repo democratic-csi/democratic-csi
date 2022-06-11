@@ -9,6 +9,7 @@ const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 const GeneralUtils = require("../../utils/general");
 
 const Handlebars = require("handlebars");
+const semver = require("semver");
 
 // freenas properties
 const FREENAS_NFS_SHARE_PROPERTY_NAME = "democratic-csi:freenas_nfs_share_id";
@@ -226,8 +227,13 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     const driverShareType = this.getDriverShareType();
     const execClient = this.getExecClient();
     const httpClient = await this.getHttpClient();
+    const httpApiClient = await this.getTrueNASHttpApiClient();
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
+    const truenasVersion = semver.coerce(
+      await httpApiClient.getSystemVersionMajorMinor()
+    );
+    const isScale = await httpApiClient.getIsScale();
 
     let volume_context;
     let properties;
@@ -308,6 +314,12 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   break;
               }
 
+              if (isScale && semver.satisfies(truenasVersion, ">=22.12")) {
+                share.path = share.paths[0];
+                delete share.paths;
+                delete share.alldirs;
+              }
+
               response = await GeneralUtils.retry(
                 3,
                 1000,
@@ -341,7 +353,11 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                     sharePaths = response.body.nfs_paths;
                     break;
                   case 2:
-                    sharePaths = response.body.paths;
+                    if (response.body.path) {
+                      sharePaths = [response.body.path];
+                    } else {
+                      sharePaths = response.body.paths;
+                    }
                     break;
                 }
 
@@ -382,7 +398,8 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                             properties.mountpoint.value
                           )) ||
                         (item.paths &&
-                          item.paths.includes(properties.mountpoint.value))
+                          item.paths.includes(properties.mountpoint.value)) ||
+                        (item.path && item.path == properties.mountpoint.value)
                       ) {
                         return true;
                       }
@@ -1441,7 +1458,11 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                     sharePaths = response.body.nfs_paths;
                     break;
                   case 2:
-                    sharePaths = response.body.paths;
+                    if (response.body.path) {
+                      sharePaths = [response.body.path];
+                    } else {
+                      sharePaths = response.body.paths;
+                    }
                     break;
                 }
 

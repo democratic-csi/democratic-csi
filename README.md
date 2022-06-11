@@ -324,6 +324,8 @@ unecessarily:
 
 - https://askubuntu.com/questions/318592/how-can-i-remove-the-landscape-canonical-com-greeting-from-motd
 - https://linuxconfig.org/disable-dynamic-motd-and-news-on-ubuntu-20-04-focal-fossa-linux
+- https://github.com/democratic-csi/democratic-csi/issues/151 (some notes on
+  using delegated zfs permissions)
 
 ```
 ####### iscsi
