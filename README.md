@@ -328,6 +328,13 @@ unecessarily:
   using delegated zfs permissions)
 
 ```
+####### nfs
+yum install -y nfs-utils
+systemctl enable --now nfs-server.service
+
+apt-get install -y nfs-kernel-server
+systemctl enable --now nfs-kernel-server.service
+
 ####### iscsi
 yum install targetcli -y
 apt-get -y install targetcli-fb

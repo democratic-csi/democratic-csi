@@ -281,8 +281,7 @@ class Api {
 
     // throw error if cannot get v1 or v2 data
     // likely bad creds/url
-    throw new GrpcError(
-      grpc.status.UNKNOWN,
+    throw new Error(
       `FreeNAS error getting system version info: ${stringify({
         errors: versionErrors,
         responses: versionResponses,
