@@ -2607,7 +2607,7 @@ class CsiBaseDriver {
                 if (!result) {
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    `it appears something else is already mounted at ${target_path}`
+                    `it appears ${normalized_staging_device} is already mounted at ${target_path}, should be ${normalized_staging_path}`
                   );
                 }
               }
