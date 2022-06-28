@@ -829,6 +829,32 @@ class Filesystem {
     return true;
   }
 
+  async getInodeInfo(path) {
+    const filesystem = this;
+    let args = ["-i"];
+    let result;
+
+    args.push(path);
+
+    try {
+      result = await filesystem.exec("df", args);
+      if (result.code == 0) {
+        result = result.stdout.split("\n")[1].replace(/\s\s+/g, " ");
+        let parts = result.split(" ");
+        return {
+          device: parts[0],
+          mount_path: parts[5],
+          inodes_total: parts[1],
+          inodes_used: parts[2],
+          inodes_used_percentage: parts[4].replace(/[^0-9.]/g, ""),
+          inodes_free: parts[3],
+        };
+      }
+    } catch (err) {
+      throw err;
+    }
+  }
+
   /**
    *
    * @param {*} path

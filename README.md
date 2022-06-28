@@ -206,9 +206,6 @@ work as soon as kubernetes support is available.
 # enable the container feature
 Enable-WindowsOptionalFeature -Online -FeatureName Containers –All
 
-# create symbolic link due to current limitations in the driver-registrar container
-New-Item -ItemType SymbolicLink -Path "C:\registration\" -Target "C:\var\lib\kubelet\plugins_registry\"
-
 # install a HostProcess compatible kubernetes
 ```
 
