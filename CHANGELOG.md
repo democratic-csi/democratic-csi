@@ -1,3 +1,18 @@
+# v1.7.2
+
+Released 2022-06-28
+
+- support for inode stats
+- doc updates
+- bump deps
+
+# v1.7.1
+
+Released 2022-06-14
+
+- support for the alpha TrueNAS SCALE 22.12
+- Fix invalid class reference
+
 # v1.7.0
 
 Released 2022-06-08

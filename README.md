@@ -206,9 +206,6 @@ work as soon as kubernetes support is available.
 # enable the container feature
 Enable-WindowsOptionalFeature -Online -FeatureName Containers –All
 
-# create symbolic link due to current limitations in the driver-registrar container
-New-Item -ItemType SymbolicLink -Path "C:\registration\" -Target "C:\var\lib\kubelet\plugins_registry\"
-
 # install a HostProcess compatible kubernetes
 ```
 
@@ -418,16 +415,24 @@ need to be set with helm (support added in chart version `0.6.1`):
 
 ### Nomad
 
-`democratic-csi` works with Nomad in a functioning but limted capacity. See the [Nomad docs](docs/nomad.md) for details.
+`democratic-csi` works with Nomad in a functioning but limted capacity. See the
+[Nomad docs](docs/nomad.md) for details.
 
 ## Multiple Deployments
 
-You may install multiple deployments of each/any driver. It requires the following:
+You may install multiple deployments of each/any driver. It requires the
+following:
 
 - Use a new helm release name for each deployment
-- Make sure you have a unique `csiDriver.name` in the values file
+- Make sure you have a unique `csiDriver.name` in the values file (within the
+  same cluster)
 - Use unqiue names for your storage classes (per cluster)
-- Use a unique parent dataset (ie: don't try to use the same parent across deployments or clusters)
+- Use a unique parent dataset (ie: don't try to use the same parent across
+  deployments or clusters)
+- For `iscsi` and `smb` be aware that the names of assets/shares are _global_
+  and so collisions are possible/probable. Appropriate use of the respective
+  `nameTemplate`, `namePrefix`, and `nameSuffix` configuration options will
+  mitigate the issue (See [#210][i210]).
 
 # Snapshot Support
 

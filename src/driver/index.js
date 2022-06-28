@@ -3026,6 +3026,20 @@ class CsiBaseDriver {
                 unit: "BYTES",
               },
             ];
+            try {
+              result = await filesystem.getInodeInfo(device_path);
+              // not all filesystems use inodes, only utilize if total > 0
+              if (result && result.inodes_total > 0) {
+                res.usage.push({
+                  available: result.inodes_free,
+                  total: result.inodes_total,
+                  used: result.inodes_used,
+                  unit: "INODES",
+                });
+              }
+            } catch (err) {
+              driver.ctx.logger.debug("failed to retrieve inode info", err);
+            }
             break;
           case "block":
             if (!(await filesystem.pathExists(device_path))) {
