@@ -844,10 +844,9 @@ class Filesystem {
         return {
           device: parts[0],
           mount_path: parts[5],
-          inodes_total: parts[1],
-          inodes_used: parts[2],
-          inodes_used_percentage: parts[4].replace(/[^0-9.]/g, ""),
-          inodes_free: parts[3],
+          inodes_total: parseInt(parts[1]),
+          inodes_used: parseInt(parts[2]),
+          inodes_free: parseInt(parts[3]),
         };
       }
     } catch (err) {

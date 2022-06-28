@@ -3028,7 +3028,8 @@ class CsiBaseDriver {
             ];
             try {
               result = await filesystem.getInodeInfo(device_path);
-              if (result) {
+              // not all filesystems use inodes, only utilize if total > 0
+              if (result && result.inodes_total > 0) {
                 res.usage.push({
                   available: result.inodes_free,
                   total: result.inodes_total,
