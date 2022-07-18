@@ -24,12 +24,12 @@ parameters:
       type: ADV        # Ext4 thin provisioning with legacy advanced feature set
       type: FILE       # Ext4 thick provisioning
       description: Some Description
-      
+
       # Only for thick provisioned volumes. Known values:
       # 0: Buffered Writes
       # 3: Direct Write
       direct_io_pattern: 0
-      
+
       # Device Attributes. See below for more info
       dev_attribs:
       - dev_attrib: emulate_tpws
@@ -41,7 +41,7 @@ parameters:
     targetTemplate: |
       has_header_checksum: false
       has_data_checksum: false
-      
+
       # Note that this option requires a compatible filesystem. Use 0 for unlimited sessions.
       max_sessions: 0
       multi_sessions: true
@@ -82,7 +82,7 @@ parameters:
   # This inline yaml object will be passed to the Synology API when creating the snapshot.
   lunSnapshotTemplate: |
     is_locked: true
-    
+
     # https://kb.synology.com/en-me/DSM/tutorial/What_is_file_system_consistent_snapshot
     # Note that app consistent snapshots require a working Synology Storage Console. Otherwise both values will have
     # equivalent behavior.
@@ -91,7 +91,7 @@ parameters:
 ```
 
 Note that it is currently not supported by Synology devices to restore a snapshot onto a different volume. You can
-create volumes from snapshots, but you should use the same `StorageClass` as the original volume of the snapshot did. 
+create volumes from snapshots, but you should use the same `StorageClass` as the original volume of the snapshot did.
 
 ### Enabling CHAP Authentication
 You can enable CHAP Authentication for `StorageClass`es by supplying an appropriate `StorageClass` secret (see the
@@ -123,16 +123,26 @@ kind: Secret
 metadata:
   name: chap-secret
 stringData:
-  # Client Credentials
-  user: client
-  password: MySecretPassword
-  # Mutual CHAP Credentials. If these are specified mutual CHAP will be enabled.
-  mutualUser: server
-  mutualPassword: MyOtherPassword
+  targetTemplate: |
+    auth_type: 2
+    # Client Credentials
+    user: client
+    password: MySecretPassword
+    # Mutual CHAP Credentials. If these are specified mutual CHAP will be enabled.
+    mutualUser: server
+    mutualPassword: MyOtherPassword
 ```
 
-Note that CHAP authentication will only be enabled if the secret contains a username and password. If e.g. a password is
-missing CHAP authentication will not be enabled (but the volume will still be created). You cannot automatically
-enable/disable CHAP or change the password after the volume has been created.
+The following configuration options are known:
+- `auth_type: 0`: Authentication is disabled.
+- `auth_type: 1`: CHAP authentication via the supplied `user` and `password`. You should also set `chap: true`
+  in this case.
+- `auth_type: 2`: Mutual CHAP authentication. In addition to `user`, `password` and `chap` you should also set
+  `mutual_user`, `mutual_password` and `mutual_chap: true`.
 
-If the secret itself is referenced but not present, the volume will not be created.
+Note that in order to correctly mount the volume you also need to configure an appropriate `node-stage-secret` on the
+`StorageClass`.
+
+You can use the secrets mechanism to supply additional data for the `lunTemplate` as well. The different templates will
+be merged with the secret taking precedence over the `StorageClass` and the global configuration. If a secret is
+referenced but not present, the volume will not be created.
