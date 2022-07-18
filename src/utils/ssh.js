@@ -4,6 +4,7 @@ const GeneralUtils = require("./general");
 
 class SshClient {
   constructor(options = {}) {
+    const client = this;
     this.options = options;
     this.options.connection = this.options.connection || {};
     if (this.options.logger) {
@@ -17,9 +18,9 @@ class SshClient {
       this.options.connection.keepaliveInterval = 10000;
     }
 
-    if (this.options.connection.debug == true) {
+    if (this.options.connection.debug === true) {
       this.options.connection.debug = function (msg) {
-        this.debug(msg);
+        client.debug(msg);
       };
     }
 

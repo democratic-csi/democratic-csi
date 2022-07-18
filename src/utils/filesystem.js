@@ -315,6 +315,9 @@ class Filesystem {
     try {
       result = await filesystem.exec("lsblk", args);
       const parsed = JSON.parse(result.stdout);
+      if (parsed.blockdevices.length != 1) {
+        throw new Error(`cannot properly find device: ${device}`);
+      }
       return parsed.blockdevices[0];
     } catch (err) {
       throw err;

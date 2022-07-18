@@ -1,3 +1,11 @@
+# v1.7.3
+
+Released 2022-07-17
+
+- more stringent block device lookup logic (see #215)
+- dependency bumps
+- minor fixes throughout
+
 # v1.7.2
 
 Released 2022-06-28
