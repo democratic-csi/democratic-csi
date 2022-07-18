@@ -53,6 +53,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       }
 
       options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
+      options.sudoCommands = _.get(this.options, "zfs.cli.sudoEnabledCommands", []);
 
       if (typeof this.setZetabyteCustomOptions === "function") {
         await this.setZetabyteCustomOptions(options);

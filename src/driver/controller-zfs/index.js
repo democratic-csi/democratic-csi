@@ -159,7 +159,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     driver.ctx.logger.verbose("whoami command: %s", command);
     const response = await execClient.exec(command);
     if (response.code !== 0) {
-      throw new Error("failed to run uname to determine max zvol name length");
+      throw new Error("failed to run whoami to determine name of user");
     } else {
       return response.stdout.trim();
     }
@@ -475,9 +475,10 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   async setFilesystemMode(path, mode) {
     const driver = this;
     const execClient = this.getExecClient();
+    const sudoEnabled = _.get(this.options, "zfs.cli.sudoEnabled", false);
 
     let command = execClient.buildCommand("chmod", [mode, path]);
-    if ((await driver.getWhoAmI()) != "root") {
+    if ((await driver.getWhoAmI()) != "root" && sudoEnabled) {
       command = (await driver.getSudoPath()) + " " + command;
     }
 

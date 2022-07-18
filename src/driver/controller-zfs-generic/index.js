@@ -36,6 +36,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       }
 
       options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
+      options.sudoCommands = _.get(this.options, "zfs.cli.sudoEnabledCommands", []);
 
       if (typeof this.setZetabyteCustomOptions === "function") {
         await this.setZetabyteCustomOptions(options);
@@ -79,6 +80,37 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
     return name;
   }
 
+  async setShareProperty(zb, datasetName, propertyDict) {
+    try {
+      await zb.zfs.set(datasetName, propertyDict);
+    } catch (err) {
+      if (
+        err.toString().includes("unable to reshare") &&
+        zb.options.sudoCommands.includes("mount")
+      ) {
+        await zb.zfs.share(datasetName);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  async unsetShareProperty(zb, datasetName, propertyKey) {
+    if (zb.options.sudoCommands.includes("unshare")) {
+      await zb.zfs.unshare(datasetName, { idempotent: true });
+    }
+
+    try {
+      await zb.zfs.inherit(datasetName, propertyKey);
+    } catch (err) {
+      if (err.toString().includes("dataset does not exist")) {
+        // do nothing
+      } else {
+        throw err;
+      }
+    }
+  }
+
   /**
    * should create any necessary share resources
    * should set the SHARE_VOLUME_CONTEXT_PROPERTY_NAME propery
@@ -105,7 +137,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
                   key
                 ]
               ) {
-                await zb.zfs.set(datasetName, {
+                await this.setShareProperty(zb, datasetName, {
                   [key]:
                     this.options.nfs.shareStrategySetDatasetProperties
                       .properties[key],
@@ -139,7 +171,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
                   key
                 ]
               ) {
-                await zb.zfs.set(datasetName, {
+                await this.setShareProperty(zb, datasetName, {
                   [key]:
                     this.options.smb.shareStrategySetDatasetProperties
                       .properties[key],
@@ -316,15 +348,7 @@ create /backstores/block/${iscsiName}
                   key
                 ]
               ) {
-                try {
-                  await zb.zfs.inherit(datasetName, key);
-                } catch (err) {
-                  if (err.toString().includes("dataset does not exist")) {
-                    // do nothing
-                  } else {
-                    throw err;
-                  }
-                }
+                await this.unsetShareProperty(zb, datasetName, key);
               }
             }
             await GeneralUtils.sleep(2000); // let things settle
@@ -346,15 +370,7 @@ create /backstores/block/${iscsiName}
                   key
                 ]
               ) {
-                try {
-                  await zb.zfs.inherit(datasetName, key);
-                } catch (err) {
-                  if (err.toString().includes("dataset does not exist")) {
-                    // do nothing
-                  } else {
-                    throw err;
-                  }
-                }
+                await this.unsetShareProperty(zb, datasetName, key);
               }
             }
             await GeneralUtils.sleep(2000); // let things settle
