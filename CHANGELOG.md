@@ -1,8 +1,9 @@
 # v1.7.3
 
-Released 2022-07-17
+Released 2022-07-28
 
 - more stringent block device lookup logic (see #215)
+- ipv6 iscsi support
 - dependency bumps
 - minor fixes throughout
 
