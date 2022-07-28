@@ -214,6 +214,7 @@ class ISCSI {
         }
 
         // protocol: [id] ip:port,target_portal_group_tag targetname
+        // tcp: [111] [2001:123:456::1]:3260,1 iqn.2005-10.org.freenas.ctl:default-aptcacher-iscsi-claim (non-flash)
         const entries = result.stdout.trim().split("\n");
         const sessions = [];
         let fields;
@@ -222,7 +223,7 @@ class ISCSI {
           sessions.push({
             protocol: entry.split(":")[0],
             id: Number(fields[1].replace("[", "").replace("]", "")),
-            portal: fields[2].replace("[", "").replace("]", "").split(",")[0],
+            portal: fields[2].split(",")[0],
             target_portal_group_tag: fields[2].split(",")[1],
             iqn: fields[3].trim(),
             //iqn: fields[3].split(":")[0],

@@ -781,6 +781,13 @@ class CsiBaseDriver {
                 iscsiConnection.portal
               );
 
+              if (!session) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unable to find iscsi session for iqn: ${iscsiConnection.iqn}, portal: ${iscsiConnection.portal}`
+                );
+              }
+
               // rescan in scenarios when login previously occurred but volumes never appeared
               await iscsi.iscsiadm.rescanSession(session);
 
