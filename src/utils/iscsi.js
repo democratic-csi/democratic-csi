@@ -178,9 +178,14 @@ class ISCSI {
       async getSession(tgtIQN, portal) {
         const sessions = await iscsi.iscsiadm.getSessions();
 
+        let parsedPortal = iscsi.parsePortal(portal);
         let session = false;
         sessions.every((i_session) => {
-          if (`${i_session.iqn}` == tgtIQN && portal == i_session.portal) {
+          if (
+            `${i_session.iqn}` == tgtIQN &&
+            (portal == i_session.portal ||
+              `[${parsedPortal.host}]:${parsedPortal.port}` == i_session.portal)
+          ) {
             session = i_session;
             return false;
           }
@@ -215,10 +220,19 @@ class ISCSI {
 
         // protocol: [id] ip:port,target_portal_group_tag targetname
         // tcp: [111] [2001:123:456::1]:3260,1 iqn.2005-10.org.freenas.ctl:default-aptcacher-iscsi-claim (non-flash)
-        const entries = result.stdout.trim().split("\n");
+        // tcp: [111] [hostname]:3260,1 iqn.2005-10.org.freenas.ctl:default-aptcacher-iscsi-claim (non-flash)
+        let data;
+        data = result.stdout;
+        if (!data) {
+          data = "";
+        }
+        const entries = data.trim().split("\n");
         const sessions = [];
         let fields;
         entries.forEach((entry) => {
+          if (!entry) {
+            return;
+          }
           fields = entry.split(" ");
           sessions.push({
             protocol: entry.split(":")[0],
@@ -513,6 +527,36 @@ class ISCSI {
 
         return true;
       },
+    };
+  }
+
+  parsePortal(portal) {
+    portal = portal.trim();
+    let host = null;
+    let port = null;
+
+    // ipv6
+    if (portal.startsWith("[")) {
+      host = portal.substr(0, portal.indexOf("]") + 1);
+      port = portal.substr(portal.indexOf("]") + 2);
+    } else {
+      const lastIndex = portal.lastIndexOf(":");
+
+      if (lastIndex !== -1) {
+        host = portal.slice(0, lastIndex);
+        port = portal.slice(lastIndex + 1);
+      } else {
+        host = portal;
+      }
+    }
+
+    if (!port) {
+      port = 3260;
+    }
+
+    return {
+      host,
+      port: parseInt(port),
     };
   }
 

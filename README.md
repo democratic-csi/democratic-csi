@@ -1,5 +1,6 @@
 ![Image](https://img.shields.io/docker/pulls/democraticcsi/democratic-csi.svg)
 ![Image](https://img.shields.io/github/workflow/status/democratic-csi/democratic-csi/CI?style=flat-square)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/democratic-csi)](https://artifacthub.io/packages/search?repo=democratic-csi)
 
 # Introduction
 

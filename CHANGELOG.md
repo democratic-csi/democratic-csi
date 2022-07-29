@@ -1,3 +1,9 @@
+# v1.7.4
+
+Released 2022-07-29
+
+- improved ipv6 iscsi support
+
 # v1.7.3
 
 Released 2022-07-28
