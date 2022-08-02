@@ -500,8 +500,34 @@ class Filesystem {
     let result;
 
     try {
-      result = await filesystem.getBlockDevice(device);
-      return result.fstype ? true : false;
+      /**
+       * lsblk
+       * blkid
+       */
+      const strategy = process.env.FILESYSTEM_TYPE_DETECTION_STRATEGY || "lsblk";
+
+      switch (strategy) {
+        // requires udev data to be present otherwise fstype property is always null but otherwise succeeds
+        case "lsblk":
+          result = await filesystem.getBlockDevice(device);
+          return result.fstype ? true : false;
+        // no requirement on udev data to be present
+        case "blkid":
+          try {
+            result = await filesystem.getDeviceFilesystemInfo(device);
+          } catch (err) {
+            // if not formatted nor partitioned exits with 2
+            if (err.code == 2) {
+              return false;
+            }
+            throw err;
+          }
+
+          return result.type ? true : false;
+        // file -s <device> could also be an option
+        default:
+          throw new Error(`unknown filesystem detection strategy: ${strategy}`);
+      }
     } catch (err) {
       throw err;
     }
