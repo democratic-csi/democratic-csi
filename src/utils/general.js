@@ -213,6 +213,7 @@ async function retry(retries, retriesDelay, code, options = {}) {
         let retry = retryCondition(err);
         if (!retry) {
           console.log(`retry - failed condition, not trying again`);
+          //console.log(code.toString(), retryCondition.toString());
           throw err;
         }
       }

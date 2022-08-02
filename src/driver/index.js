@@ -792,7 +792,7 @@ class CsiBaseDriver {
               await iscsi.iscsiadm.rescanSession(session);
 
               // find device name
-              device = `/dev/disk/by-path/ip-${iscsiConnection.portal}-iscsi-${iscsiConnection.iqn}-lun-${iscsiConnection.lun}`;
+              device = iscsi.devicePathByPortalIQNLUN(iscsiConnection.portal, iscsiConnection.iqn, iscsiConnection.lun)
               let deviceByPath = device;
 
               // can take some time for device to show up, loop for some period

@@ -560,6 +560,14 @@ class ISCSI {
     };
   }
 
+  devicePathByPortalIQNLUN(portal, iqn, lun) {
+    const parsedPortal = this.parsePortal(portal);
+    const portalHost = parsedPortal.host
+      .replaceAll("[", "")
+      .replaceAll("]", "");
+    return `/dev/disk/by-path/ip-${portalHost}:${parsedPortal.port}-iscsi-${iqn}-lun-${lun}`;
+  }
+
   exec(command, args, options = {}) {
     if (!options.hasOwnProperty("timeout")) {
       options.timeout = DEFAULT_TIMEOUT;

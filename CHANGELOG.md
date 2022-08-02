@@ -1,3 +1,10 @@
+# v1.7.5
+
+Released 2022-08-02
+
+- improved ipv6 iscsi support
+- allow using `blkid` for filesystem detection on block devices
+
 # v1.7.4
 
 Released 2022-07-29
