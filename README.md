@@ -94,9 +94,9 @@ If you are running Kubernetes with rancher/rke please see the following:
 
 - https://github.com/rancher/rke/issues/1846
 
-```
-RHEL / CentOS
+#### RHEL / CentOS
 
+```
 # Install the following system packages
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
 
@@ -110,10 +110,11 @@ sudo systemctl start iscsid multipathd
 # Start and enable iscsi
 sudo systemctl enable iscsi
 sudo systemctl start iscsi
+```
 
+#### Ubuntu / Debian
 
-Ubuntu / Debian
-
+```
 # Install the following system packages
 sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools
 
@@ -134,6 +135,62 @@ sudo systemctl enable open-iscsi.service
 sudo service open-iscsi start
 sudo systemctl status open-iscsi
 ```
+#### [Talos](https://www.talos.dev/)
+To use iscsi storage in kubernetes cluster in talos these steps are needed which are similar to the ones explained in https://www.talos.dev/v1.1/kubernetes-guides/configuration/replicated-local-storage-with-openebs-jiva/#patching-the-jiva-installation
+
+##### Patch nodes
+since talos does not have iscsi support by default, the iscsi extension is needed
+create a `patch.yaml` file with
+```yaml
+- op: add
+  path: /machine/install/extensions
+  value:
+    - image: ghcr.io/siderolabs/iscsi-tools:v0.1.1
+```
+and apply the patch across all of your nodes
+```bash
+talosctl -e <endpoint ip/hostname> -n <node ip/hostname> patch mc -p @patch.yaml
+```
+the extension will not activate until you "upgrade" the nodes, even if there is no update, use the latest version of talos installer.
+VERIFY THE TALOS VERSION IN THIS COMMAND BEFORE RUNNING IT AND READ THE [OpenEBS Jiva](https://www.talos.dev/v1.1/kubernetes-guides/configuration/replicated-local-storage-with-openebs-jiva/#patching-the-jiva-installation).
+upgrade all of the nodes in the cluster to get the extension
+```bash
+talosctl -e <endpoint ip/hostname> -n <node ip/hostname> upgrade --image=ghcr.io/siderolabs/installer:v1.1.1
+```
+
+since the default [iscsi](https://github.com/democratic-csi/democratic-csi/blob/master/docker/iscsiadm) does not work with talos, this config map is needed to be applied in the same namespace as the democratic-csi installation
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: talos-iscsiadm
+data:
+  iscsiadm: |
+    #!/bin/bash
+    iscsid_pid=$(for proc in /proc/*/cmdline; do grep -q "iscsid -f" <<< $(cat $proc 2>/dev/null | tr "\0" " ") && echo $(basename $(dirname $proc)) && break; done)
+    nsenter --mount="/proc/${iscsid_pid}/ns/mnt" --net="/proc/${iscsid_pid}/ns/net" -- /usr/local/sbin/iscsiadm "${@:1}"
+```
+
+in your `values.yaml` file make sure to enable these settings
+```yaml
+
+node:
+  hostPID: true
+  extraVolumes:
+    - name: talos-iscsiadm
+      configMap:
+        name: talos-iscsiadm
+        defaultMode: 0777
+  driver:
+    extraVolumeMounts:
+      - name: talos-iscsiadm
+        mountPath: /usr/local/sbin/iscsiadm
+        subPath: iscsiadm
+    iscsiDirHostPath: /usr/local/etc/iscsi
+    iscsiDirHostPathCheckDirectory: false
+```
+and continue your democratic installation as usuall with other iscsi drivers.
+
 
 ### freenas-smb
 
