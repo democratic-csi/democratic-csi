@@ -1,9 +1,12 @@
 #!/bin/bash
 
+set -e
+set -x
 
 iscsiadm_host_strategy=$([ $ISCSIADM_HOST_STRATEGY ] && echo $ISCSIADM_HOST_STRATEGY || echo "chroot")
-
-echo "using $iscsiadm_host_strategy strategy"
+iscsiadm_host_path=$( [ $ISCSIADM_HOST_PATH ] && echo $ISCSIADM_HOST_PATH || echo "/sbin/iscsiadm")
+echo "using iscsiadm_host_strategy=$iscsiadm_host_strategy"
+echo "using iscsiadm_host_path=$iscsiadm_host_path"
 
 case $iscsiadm_host_strategy in
     chroot)
@@ -18,7 +21,7 @@ case $iscsiadm_host_strategy in
             echo "could not find the iscsid process"
             exit 1
         fi
-        nsenter --mount="/proc/${iscsid_pid}/ns/mnt" --net="/proc/${iscsid_pid}/ns/net" -- /usr/local/sbin/iscsiadm "${@:1}"
+        nsenter --mount="/proc/${iscsid_pid}/ns/mnt" --net="/proc/${iscsid_pid}/ns/net" -- $iscsiadm_host_path "${@:1}"
         ;;
 
     *)

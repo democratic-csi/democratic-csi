@@ -167,6 +167,8 @@ node:
     extraEnv:
       - name: ISCSIADM_HOST_STRATEGY
         value: nsenter
+      - name: ISCSIADM_HOST_PATH
+        value: /usr/local/sbin/iscsiadm
     iscsiDirHostPath: /usr/local/etc/iscsi
     iscsiDirHostPathCheckDirectory: false
 ```
