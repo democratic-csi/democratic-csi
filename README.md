@@ -158,34 +158,15 @@ upgrade all of the nodes in the cluster to get the extension
 talosctl -e <endpoint ip/hostname> -n <node ip/hostname> upgrade --image=ghcr.io/siderolabs/installer:v1.1.1
 ```
 
-since the default [iscsi](https://github.com/democratic-csi/democratic-csi/blob/master/docker/iscsiadm) does not work with talos, this config map is needed to be applied in the same namespace as the democratic-csi installation
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: talos-iscsiadm
-data:
-  iscsiadm: |
-    #!/bin/bash
-    iscsid_pid=$(for proc in /proc/*/cmdline; do grep -q "iscsid -f" <<< $(cat $proc 2>/dev/null | tr "\0" " ") && echo $(basename $(dirname $proc)) && break; done)
-    nsenter --mount="/proc/${iscsid_pid}/ns/mnt" --net="/proc/${iscsid_pid}/ns/net" -- /usr/local/sbin/iscsiadm "${@:1}"
-```
-
 in your `values.yaml` file make sure to enable these settings
 ```yaml
 
 node:
   hostPID: true
-  extraVolumes:
-    - name: talos-iscsiadm
-      configMap:
-        name: talos-iscsiadm
-        defaultMode: 0777
   driver:
-    extraVolumeMounts:
-      - name: talos-iscsiadm
-        mountPath: /usr/local/sbin/iscsiadm
-        subPath: iscsiadm
+    extraEnv:
+      - name: ISCSIADM_HOST_STRATEGY
+        value: nsenter
     iscsiDirHostPath: /usr/local/etc/iscsi
     iscsiDirHostPathCheckDirectory: false
 ```

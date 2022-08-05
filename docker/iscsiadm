@@ -1,5 +1,28 @@
 #!/bin/bash
 
-# https://engineering.docker.com/2019/07/road-to-containing-iscsi/
 
-chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" iscsiadm "${@:1}"
+iscsiadm_host_strategy=$([ $ISCSIADM_HOST_STRATEGY ] && echo $ISCSIADM_HOST_STRATEGY || echo "chroot")
+
+echo "using $iscsiadm_host_strategy strategy"
+
+case $iscsiadm_host_strategy in
+    chroot)
+        # https://engineering.docker.com/2019/07/road-to-containing-iscsi/
+        chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" iscsiadm "${@:1}"
+        ;;
+
+    nsenter)
+        # https://github.com/siderolabs/extensions/issues/38#issuecomment-1125403043
+        iscsid_pid=$(for proc in /proc/*/cmdline; do grep -q "iscsid -f" <<< $(cat $proc 2>/dev/null | tr "\0" " ") && echo $(basename $(dirname $proc)) && break; done)
+        if [ "$iscsid_pid" = "" ]; then
+            echo "could not find the iscsid process"
+            exit 1
+        fi
+        nsenter --mount="/proc/${iscsid_pid}/ns/mnt" --net="/proc/${iscsid_pid}/ns/net" -- /usr/local/sbin/iscsiadm "${@:1}"
+        ;;
+
+    *)
+        echo "$iscsiadm_host_strategy is not a valid strategy, choose either 'chroot' or 'nsenter'"
+        exit 1
+        ;;
+esac
