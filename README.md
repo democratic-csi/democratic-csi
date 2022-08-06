@@ -473,7 +473,7 @@ following:
 - For `iscsi` and `smb` be aware that the names of assets/shares are _global_
   and so collisions are possible/probable. Appropriate use of the respective
   `nameTemplate`, `namePrefix`, and `nameSuffix` configuration options will
-  mitigate the issue ([#210][i210]).
+  mitigate the issue (#210).
 
 # Snapshot Support
 

@@ -21,8 +21,8 @@ while getopts "t:" opt; do
   case "$opt" in
     t)
       if [[ "x${USE_HOST_MOUNT_TOOLS}" == "x" ]]; then
-        [[ "${OPTARG,,}" == "zfs" ]]     && USE_HOST_MOUNT_TOOLS=1
-        [[ "${OPTARG,,}" == "lustre" ]]  && USE_HOST_MOUNT_TOOLS=1
+        [[ "${OPTARG,,}" == "zfs" ]] && USE_HOST_MOUNT_TOOLS=1
+        [[ "${OPTARG,,}" == "lustre" ]] && USE_HOST_MOUNT_TOOLS=1
         [[ "${OPTARG,,}" == "onedata" ]] && USE_HOST_MOUNT_TOOLS=1
         #(printf '%s\0' "${container_supported_filesystems[@]}" | grep -Fqxz -- "${OPTARG}") || USE_HOST_MOUNT_TOOLS=1
       fi
