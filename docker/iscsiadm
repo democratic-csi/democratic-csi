@@ -1,5 +1,24 @@
 #!/bin/bash
 
-# https://engineering.docker.com/2019/07/road-to-containing-iscsi/
+iscsiadm_host_strategy=$([ $ISCSIADM_HOST_STRATEGY ] && echo $ISCSIADM_HOST_STRATEGY || echo "chroot")
+iscsiadm_host_path=$( [ $ISCSIADM_HOST_PATH ] && echo $ISCSIADM_HOST_PATH || echo "/sbin/iscsiadm")
 
-chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" iscsiadm "${@:1}"
+case $iscsiadm_host_strategy in
+    chroot)
+        # https://engineering.docker.com/2019/07/road-to-containing-iscsi/
+        chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" iscsiadm "${@:1}"
+        ;;
+
+    nsenter)
+        # https://github.com/siderolabs/extensions/issues/38#issuecomment-1125403043
+        iscsid_pid=$(for proc in /proc/*/cmdline; do grep -q "iscsid -f" <<< $(cat $proc 2>/dev/null | tr "\0" " ") && echo $(basename $(dirname $proc)) && break; done)
+        if [ "$iscsid_pid" = "" ]; then
+            exit 1
+        fi
+        nsenter --mount="/proc/${iscsid_pid}/ns/mnt" --net="/proc/${iscsid_pid}/ns/net" -- $iscsiadm_host_path "${@:1}"
+        ;;
+
+    *)
+        exit 1
+        ;;
+esac
