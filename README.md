@@ -170,7 +170,7 @@ node:
       - name: ISCSIADM_HOST_PATH
         value: /usr/local/sbin/iscsiadm
     iscsiDirHostPath: /usr/local/etc/iscsi
-    iscsiDirHostType: ""
+    iscsiDirHostPathType: ""
 ```
 and continue your democratic installation as usuall with other iscsi drivers.
 
