@@ -1,3 +1,10 @@
+# v1.7.6
+
+Released 2022-08-06
+
+- support fo `talos.dev` clusters
+- dep bumps
+
 # v1.7.5
 
 Released 2022-08-02
