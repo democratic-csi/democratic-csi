@@ -19,51 +19,51 @@ job "storage-controller" {
   group "controller" {
     network {
       mode = "bridge"
-
-      port "grpc" {
-        static = 9000
-        to     = 9000
-      }
     }
 
     task "controller" {
       driver = "docker"
 
       config {
-        image = "democraticcsi/democratic-csi:latest"
+        image = "democraticcsi/democratic-csi:v1.7.6"
         ports = ["grpc"]
 
         args = [
-          "--csi-version=1.2.0",
-          "--csi-name=org.democratic-csi.nfs",
+          "--csi-version=1.5.0",
+          "--csi-name=org.democratic-csi.iscsi",
           "--driver-config-file=${NOMAD_TASK_DIR}/driver-config-file.yaml",
           "--log-level=debug",
           "--csi-mode=controller",
           "--server-socket=/csi-data/csi.sock",
-          "--server-address=0.0.0.0",
-          "--server-port=9000",
         ]
 
         privileged = true
       }
 
       csi_plugin {
-        id        = "truenas"
+        # must match --csi-name arg
+        id        = "org.democratic-csi.iscsi"
         type      = "controller"
-        mount_dir = "/csi-data"
+        mount_dir = "/csi"
       }
 
       template {
         destination = "${NOMAD_TASK_DIR}/driver-config-file.yaml"
 
         data = <<EOH
-config
+# Please fill this configuration 
+# driver: freenas-iscsi
+# instance_id:
+# httpConnection:
+#  protocol: https
+# ...
+#
 EOH
       }
 
       resources {
-        cpu    = 30
-        memory = 50
+        cpu    = 300
+        memory = 192
       }
     }
   }
@@ -82,11 +82,11 @@ job "storage-node" {
       driver = "docker"
 
       config {
-        image = "democraticcsi/democratic-csi:latest"
+        image = "democraticcsi/democratic-csi:v1.7.6"
 
         args = [
-          "--csi-version=1.2.0",
-          "--csi-name=org.democratic-csi.nfs",
+          "--csi-version=1.5.0",
+          "--csi-name=org.democratic-csi.iscsi",
           "--driver-config-file=${NOMAD_TASK_DIR}/driver-config-file.yaml",
           "--log-level=debug",
           "--csi-mode=node",
@@ -97,22 +97,41 @@ job "storage-node" {
       }
 
       csi_plugin {
-        id        = "truenas"
-        type      = "node"
-        mount_dir = "/csi-data"
+        # must match --csi-name arg
+        id        = "org.democratic-csi.iscsi"
+        type      = "controller"
+        mount_dir = "/csi"
       }
 
       template {
         destination = "${NOMAD_TASK_DIR}/driver-config-file.yaml"
 
         data = <<EOH
-config
+# Please fill this configuration        
+# driver: freenas-iscsi
+# instance_id:
+# httpConnection:
+#  protocol: https
+# ...
+# 
 EOH
+      }
+      mount {
+        type = "bind"
+        target = "/host"
+        source = "/"
+        readonly = false
+      }
+      mount {
+        type = "bind"
+        target = "/run/udev"
+        source = "/run/udev"
+        readonly = true
       }
 
       resources {
-        cpu    = 30
-        memory = 50
+        cpu    = 300
+        memory = 192
       }
     }
   }
@@ -122,6 +141,43 @@ EOH
 
 ## Creating and registering the volumes
 
+### New way 
+
+To create the volume, use the nomad cli
+
+First create the following volume.hcl file
+```hcl
+
+id = "iscsi-volume-name"
+name = "iscsi-volume-name"
+type = "csi"
+plugin_id = "org.democratic-csi.iscsi"
+capacity_max = "2G"
+capacity_min = "1G"
+
+capability {
+  access_mode     = "single-node-writer"
+  attachment_mode = "file-system"
+}
+```
+
+Then apply from a server node:
+
+```
+nomad volume create volume.hcl
+```
+
+Or from gitlab CICD
+
+```
+create-csi-volume:
+  stage: deploy
+  image: hendrikmaus/nomad-cli
+  script:
+    - nomad volume create volume.hcl
+```
+
+### Old way
 To create the volumes, we are going to use the [csc](https://github.com/rexray/gocsi/tree/master/csc) utility. It can be installed via `go`.
 
 ```
