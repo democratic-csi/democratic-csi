@@ -57,7 +57,7 @@ RUN @( \
       gpg --keyserver hkps://keys.openpgp.org --recv-keys $_ ; \
     }
 
-ENV NODE_VERSION 16.16.0
+ENV NODE_VERSION 16.18.0
 
 RUN Invoke-WebRequest $('https://nodejs.org/dist/v{0}/SHASUMS256.txt.asc' -f $env:NODE_VERSION) -OutFile 'SHASUMS256.txt.asc' -UseBasicParsing ;
 #RUN Invoke-WebRequest $('https://nodejs.org/dist/v{0}/SHASUMS256.txt.asc' -f $env:NODE_VERSION) -OutFile 'SHASUMS256.txt.asc' -UseBasicParsing ; \

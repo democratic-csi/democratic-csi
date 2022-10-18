@@ -27,6 +27,8 @@ node:
       customOptions: []
       #- -E
       #- nodiscard
+      #- m
+      #- 0
       # ...
     btrfs:
       customOptions: []

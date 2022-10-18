@@ -275,6 +275,8 @@ following known issues:
 Ensure the following services are configurged and running:
 
 - ssh (if you use a password for authentication make sure it is allowed)
+  - https://www.truenas.com/community/threads/ssh-access-ssh-rsa-not-in-pubkeyacceptedalgorithms.101715/
+  - `PubkeyAcceptedAlgorithms +ssh-rsa`
 - ensure `zsh`, `bash`, or `sh` is set as the root shell, `csh` gives false errors due to quoting
 - nfs
 - iscsi
@@ -473,7 +475,7 @@ following:
 - For `iscsi` and `smb` be aware that the names of assets/shares are _global_
   and so collisions are possible/probable. Appropriate use of the respective
   `nameTemplate`, `namePrefix`, and `nameSuffix` configuration options will
-  mitigate the issue (#210).
+  mitigate the issue [#210](https://github.com/democratic-csi/democratic-csi/issues/210).
 
 # Snapshot Support
 
