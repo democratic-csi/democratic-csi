@@ -208,6 +208,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   }
 
   getAccessModes() {
+    let access_modes = _.get(this.options, "csi.access_modes", null);
+    if (access_modes !== null) {
+      return access_modes;
+    }
+
     const driverZfsResourceType = this.getDriverZfsResourceType();
     switch (driverZfsResourceType) {
       case "filesystem":
