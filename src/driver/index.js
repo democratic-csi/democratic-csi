@@ -2793,6 +2793,7 @@ class CsiBaseDriver {
           case "oneclient":
           case "hostpath":
           case "iscsi":
+          case "nvmeof":
           case "zfs-local":
             // ensure appropriate directories/files
             switch (access_type) {

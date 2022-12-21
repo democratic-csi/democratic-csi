@@ -18,7 +18,7 @@
     "url": "https://github.com/democratic-csi/democratic-csi.git"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.5.7",
+    "@grpc/grpc-js": "^1.7.3",
     "@grpc/proto-loader": "^0.7.0",
     "@kubernetes/client-node": "^0.18.0",
     "async-mutex": "^0.4.0",
