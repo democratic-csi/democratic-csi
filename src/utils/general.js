@@ -98,10 +98,10 @@ function lockKeysFromRequest(call, serviceMethodName) {
     case "NodeUnstageVolume":
     case "NodePublishVolume":
     case "NodeUnpublishVolume":
-    case "NodeGetVolumeStats":
     case "NodeExpandVolume":
       return ["volume_id_" + call.request.volume_id];
 
+    case "NodeGetVolumeStats":
     default:
       return [];
   }
