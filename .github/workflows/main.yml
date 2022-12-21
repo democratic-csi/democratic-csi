@@ -256,6 +256,7 @@ jobs:
           - zfs-generic/iscsi.yaml
           - zfs-generic/nfs.yaml
           - zfs-generic/smb.yaml
+          - zfs-generic/nvmeof.yaml
     runs-on:
       - self-hosted
       - Linux

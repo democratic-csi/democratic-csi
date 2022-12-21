@@ -9,6 +9,7 @@ const { Mount } = require("../utils/mount");
 const { OneClient } = require("../utils/oneclient");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
+const { NVMEoF } = require("../utils/nvmeof");
 const registry = require("../utils/registry");
 const semver = require("semver");
 const GeneralUtils = require("../utils/general");
@@ -136,6 +137,17 @@ class CsiBaseDriver {
   getDefaultISCSIInstance() {
     return registry.get(`${__REGISTRY_NS__}:default_iscsi_instance`, () => {
       return new ISCSI();
+    });
+  }
+
+  /**
+   * Get an instance of the NVMEoF class
+   *
+   * @returns NVMEoF
+   */
+  getDefaultNVMEoFInstance() {
+    return registry.get(`${__REGISTRY_NS__}:default_nvmeof_instance`, () => {
+      return new NVMEoF();
     });
   }
 
@@ -560,6 +572,7 @@ class CsiBaseDriver {
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
     const iscsi = driver.getDefaultISCSIInstance();
+    const nvmeof = driver.getDefaultNVMEoFInstance();
     let result;
     let device;
     let block_device_info;
@@ -792,7 +805,11 @@ class CsiBaseDriver {
               await iscsi.iscsiadm.rescanSession(session);
 
               // find device name
-              device = iscsi.devicePathByPortalIQNLUN(iscsiConnection.portal, iscsiConnection.iqn, iscsiConnection.lun)
+              device = iscsi.devicePathByPortalIQNLUN(
+                iscsiConnection.portal,
+                iscsiConnection.iqn,
+                iscsiConnection.lun
+              );
               let deviceByPath = device;
 
               // can take some time for device to show up, loop for some period
@@ -887,6 +904,233 @@ class CsiBaseDriver {
             }
 
             break;
+
+          case "nvmeof":
+            {
+              let transports = [];
+              if (volume_context.transport) {
+                transports.push(volume_context.transport.trim());
+              }
+
+              if (volume_context.transports) {
+                volume_context.transports.split(",").forEach((transport) => {
+                  transports.push(transport.trim());
+                });
+              }
+
+              // ensure unique entries only
+              transports = [...new Set(transports)];
+
+              // stores actual device paths after nvmeof login
+              let nvmeofControllerDevices = [];
+              let nvmeofNamespaceDevices = [];
+
+              // stores configuration of targets/iqn/luns to connect to
+              let nvmeofConnections = [];
+              for (let transport of transports) {
+                nvmeofConnections.push({
+                  transport,
+                  nqn: volume_context.nqn,
+                  nsid: volume_context.nsid,
+                });
+              }
+
+              for (let nvmeofConnection of nvmeofConnections) {
+                // connect
+                try {
+                  await GeneralUtils.retry(15, 2000, async () => {
+                    await nvmeof.connectByNQNTransport(
+                      nvmeofConnection.nqn,
+                      nvmeofConnection.transport
+                    );
+                  });
+                } catch (err) {
+                  driver.ctx.logger.warn(
+                    `error: ${JSON.stringify(err)} connecting to transport: ${
+                      nvmeofConnection.transport
+                    }`
+                  );
+                  continue;
+                }
+
+                // find controller device
+                let controllerDevice;
+                try {
+                  await GeneralUtils.retry(15, 2000, async () => {
+                    controllerDevice =
+                      await nvmeof.controllerDevicePathByTransportNQN(
+                        nvmeofConnection.transport,
+                        nvmeofConnection.nqn,
+                        nvmeofConnection.nsid
+                      );
+
+                    if (!controllerDevice) {
+                      throw new Error(`failed to find controller device`);
+                    }
+                  });
+                } catch (err) {
+                  driver.ctx.logger.warn(
+                    `error finding nvme controller device: ${JSON.stringify(
+                      err
+                    )}`
+                  );
+                  continue;
+                }
+
+                // find namespace device
+                let namespaceDevice;
+                try {
+                  await GeneralUtils.retry(15, 2000, async () => {
+                    namespaceDevice =
+                      await nvmeof.namespaceDevicePathByNQNNamespace(
+                        nvmeofConnection.nqn,
+                        nvmeofConnection.nsid
+                      );
+                    if (!controllerDevice) {
+                      throw new Error(`failed to find namespace device`);
+                    }
+                  });
+                } catch (err) {
+                  driver.ctx.logger.warn(
+                    `error finding nvme namespace device: ${JSON.stringify(
+                      err
+                    )}`
+                  );
+                  continue;
+                }
+
+                // sanity check for device files
+                if (!namespaceDevice) {
+                  continue;
+                }
+
+                // sanity check for device files
+                if (!controllerDevice) {
+                  continue;
+                }
+
+                // rescan in scenarios when login previously occurred but volumes never appeared
+                // must be the NVMe char device, not the namespace device
+                await nvmeof.rescanNamespace(controllerDevice);
+
+                // can take some time for device to show up, loop for some period
+                result = await filesystem.pathExists(namespaceDevice);
+                let timer_start = Math.round(new Date().getTime() / 1000);
+                let timer_max = 30;
+                let deviceCreated = result;
+                while (!result) {
+                  await GeneralUtils.sleep(2000);
+                  result = await filesystem.pathExists(namespaceDevice);
+
+                  if (result) {
+                    deviceCreated = true;
+                    break;
+                  }
+
+                  let current_time = Math.round(new Date().getTime() / 1000);
+                  if (!result && current_time - timer_start > timer_max) {
+                    driver.ctx.logger.warn(
+                      `hit timeout waiting for namespace device node to appear: ${namespaceDevice}`
+                    );
+                    break;
+                  }
+                }
+
+                if (deviceCreated) {
+                  device = await filesystem.realpath(namespaceDevice);
+                  nvmeofControllerDevices.push(controllerDevice);
+                  nvmeofNamespaceDevices.push(namespaceDevice);
+
+                  driver.ctx.logger.info(
+                    `successfully logged into nvmeof transport ${nvmeofConnection.transport} and created controller device: ${controllerDevice}, namespace device: ${namespaceDevice}`
+                  );
+                }
+              }
+
+              // let things settle
+              // this will help in dm scenarios
+              await GeneralUtils.sleep(2000);
+
+              // filter duplicates
+              nvmeofNamespaceDevices = nvmeofNamespaceDevices.filter(
+                (value, index, self) => {
+                  return self.indexOf(value) === index;
+                }
+              );
+
+              nvmeofControllerDevices = nvmeofControllerDevices.filter(
+                (value, index, self) => {
+                  return self.indexOf(value) === index;
+                }
+              );
+
+              // only throw an error if we were not able to attach to *any* devices
+              if (nvmeofNamespaceDevices.length < 1) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unable to attach any nvme devices`
+                );
+              }
+
+              if (nvmeofControllerDevices.length != nvmeofConnections.length) {
+                driver.ctx.logger.warn(
+                  `failed to attach all nvmeof devices/subsystems/transports`
+                );
+
+                // TODO: allow a parameter to control this behavior in some form
+                if (false) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `unable to attach all iscsi devices`
+                  );
+                }
+              }
+
+              /**
+               * NVMEoF has native multipath capabilities without using device mapper
+               * You can disable the built-in using kernel param nvme_core.multipath=N/Y
+               */
+              let useNativeMultipath = await nvmeof.nativeMultipathEnabled();
+
+              if (useNativeMultipath) {
+                // only throw an error if we were not able to attach to *any* devices
+                if (nvmeofNamespaceDevices.length > 1) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `too many nvme namespace devices, native multipath enabled therefore should only have 1`
+                  );
+                }
+              } else {
+                // compare all device-mapper slaves with the newly created devices
+                // if any of the new devices are device-mapper slaves treat this as a
+                // multipath scenario
+                let allDeviceMapperSlaves =
+                  await filesystem.getAllDeviceMapperSlaveDevices();
+                let commonDevices = allDeviceMapperSlaves.filter((value) =>
+                  nvmeofNamespaceDevices.includes(value)
+                );
+
+                const useDMMultipath =
+                  nvmeofConnections.length > 1 || commonDevices.length > 0;
+
+                // discover multipath device to use
+                if (useDMMultipath) {
+                  device = await filesystem.getDeviceMapperDeviceFromSlaves(
+                    nvmeofNamespaceDevices,
+                    false
+                  );
+
+                  if (!device) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `failed to discover multipath device`
+                    );
+                  }
+                }
+              }
+            }
+            break;
+
           case "hostpath":
             result = await mount.pathIsMounted(staging_target_path);
             // if not mounted, mount
@@ -989,6 +1233,7 @@ class CsiBaseDriver {
             let is_block = false;
             switch (node_attach_driver) {
               case "iscsi":
+              case "nvmeof":
                 is_block = true;
                 break;
               case "zfs-local":
@@ -1093,6 +1338,7 @@ class CsiBaseDriver {
                   fs_type = "cifs";
                   break;
                 case "iscsi":
+                case "nvmeof":
                   fs_type = "ext4";
                   break;
                 default:
@@ -1988,6 +2234,7 @@ class CsiBaseDriver {
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
     const iscsi = driver.getDefaultISCSIInstance();
+    const nvmeof = driver.getDefaultNVMEoFInstance();
     let result;
     let is_block = false;
     let is_device_mapper = false;
@@ -2210,6 +2457,13 @@ class CsiBaseDriver {
                   }
                 }
               }
+            }
+
+            if (await filesystem.deviceIsNVMEoF(block_device_info_i.path)) {
+              let nqn = await nvmeof.nqnByNamespaceDeviceName(
+                block_device_info_i.name
+              );
+              await nvmeof.disconnectByNQN(nqn);
             }
           }
         }

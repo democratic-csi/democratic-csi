@@ -504,7 +504,8 @@ class Filesystem {
        * lsblk
        * blkid
        */
-      const strategy = process.env.FILESYSTEM_TYPE_DETECTION_STRATEGY || "lsblk";
+      const strategy =
+        process.env.FILESYSTEM_TYPE_DETECTION_STRATEGY || "lsblk";
 
       switch (strategy) {
         // requires udev data to be present otherwise fstype property is always null but otherwise succeeds
@@ -545,6 +546,21 @@ class Filesystem {
     } while (result.pkname);
 
     return result && result.tran == "iscsi";
+  }
+
+  async deviceIsNVMEoF(device) {
+    const filesystem = this;
+    let result;
+
+    do {
+      if (result) {
+        device = `/dev/${result.pkname}`;
+      }
+      result = await filesystem.getBlockDevice(device);
+    } while (result.pkname);
+
+    // TODO: add further logic here to ensure the device is not a local pcie/etc device
+    return result && result.tran == "nvme";
   }
 
   async getBlockDeviceParent(device) {

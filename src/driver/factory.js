@@ -35,6 +35,7 @@ function factory(ctx, options) {
     case "zfs-generic-nfs":
     case "zfs-generic-smb":
     case "zfs-generic-iscsi":
+    case "zfs-generic-nvmeof":
       return new ControllerZfsGenericDriver(ctx, options);
     case "zfs-local-dataset":
     case "zfs-local-zvol":

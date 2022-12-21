@@ -4,7 +4,7 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const { Filesystem } = require("../../utils/filesystem");
 const registry = require("../../utils/registry");
 const semver = require("semver");
-const SshClient = require("../../utils/ssh").SshClient;
+const SshClient = require("../../utils/zfs_ssh_exec_client").SshClient;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 // zfs common properties

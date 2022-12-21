@@ -8,6 +8,17 @@ function sleep(ms) {
   });
 }
 
+function trimchar(str, ch) {
+  var start = 0,
+    end = str.length;
+
+  while (start < end && str[start] === ch) ++start;
+
+  while (end > start && str[end - 1] === ch) --end;
+
+  return start > 0 || end < str.length ? str.substring(start, end) : str;
+}
+
 function md5(val) {
   return crypto.createHash("md5").update(val).digest("hex");
 }
@@ -265,3 +276,4 @@ module.exports.default_supported_block_filesystems =
 module.exports.default_supported_file_filesystems =
   default_supported_file_filesystems;
 module.exports.retry = retry;
+module.exports.trimchar = trimchar;
