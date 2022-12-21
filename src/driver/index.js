@@ -2457,9 +2457,7 @@ class CsiBaseDriver {
                   }
                 }
               }
-            }
-
-            if (await filesystem.deviceIsNVMEoF(block_device_info_i.path)) {
+            } else if (await filesystem.deviceIsNVMEoF(block_device_info_i.path)) {
               let nqn = await nvmeof.nqnByNamespaceDeviceName(
                 block_device_info_i.name
               );
