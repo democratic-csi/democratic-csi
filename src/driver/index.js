@@ -2369,99 +2369,116 @@ class CsiBaseDriver {
 
           // TODO: this could be made async to detach all simultaneously
           for (const block_device_info_i of realBlockDeviceInfos) {
-            if (await filesystem.deviceIsIscsi(block_device_info_i.path)) {
-              let parent_block_device = await filesystem.getBlockDeviceParent(
-                block_device_info_i.path
-              );
+            switch (block_device_info_i.tran) {
+              case "iscsi":
+                {
+                  if (
+                    await filesystem.deviceIsIscsi(block_device_info_i.path)
+                  ) {
+                    let parent_block_device =
+                      await filesystem.getBlockDeviceParent(
+                        block_device_info_i.path
+                      );
 
-              // figure out which iscsi session this belongs to and logout
-              // scan /dev/disk/by-path/ip-*?
-              // device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
-              // parse output from `iscsiadm -m session -P 3`
-              let sessions = await iscsi.iscsiadm.getSessionsDetails();
-              for (let i = 0; i < sessions.length; i++) {
-                let session = sessions[i];
-                let is_attached_to_session = false;
+                    // figure out which iscsi session this belongs to and logout
+                    // scan /dev/disk/by-path/ip-*?
+                    // device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
+                    // parse output from `iscsiadm -m session -P 3`
+                    let sessions = await iscsi.iscsiadm.getSessionsDetails();
+                    for (let i = 0; i < sessions.length; i++) {
+                      let session = sessions[i];
+                      let is_attached_to_session = false;
 
-                if (
-                  session.attached_scsi_devices &&
-                  session.attached_scsi_devices.host &&
-                  session.attached_scsi_devices.host.devices
-                ) {
-                  is_attached_to_session =
-                    session.attached_scsi_devices.host.devices.some(
-                      (device) => {
-                        if (
-                          device.attached_scsi_disk == parent_block_device.name
-                        ) {
-                          return true;
+                      if (
+                        session.attached_scsi_devices &&
+                        session.attached_scsi_devices.host &&
+                        session.attached_scsi_devices.host.devices
+                      ) {
+                        is_attached_to_session =
+                          session.attached_scsi_devices.host.devices.some(
+                            (device) => {
+                              if (
+                                device.attached_scsi_disk ==
+                                parent_block_device.name
+                              ) {
+                                return true;
+                              }
+                              return false;
+                            }
+                          );
+                      }
+
+                      if (is_attached_to_session) {
+                        let timer_start;
+                        let timer_max;
+
+                        timer_start = Math.round(new Date().getTime() / 1000);
+                        timer_max = 30;
+                        let loggedOut = false;
+                        while (!loggedOut) {
+                          try {
+                            await iscsi.iscsiadm.logout(session.target, [
+                              session.persistent_portal,
+                            ]);
+                            loggedOut = true;
+                          } catch (err) {
+                            await GeneralUtils.sleep(2000);
+                            let current_time = Math.round(
+                              new Date().getTime() / 1000
+                            );
+                            if (current_time - timer_start > timer_max) {
+                              // not throwing error for now as future invocations would not enter code path anyhow
+                              loggedOut = true;
+                              //throw new GrpcError(
+                              //  grpc.status.UNKNOWN,
+                              //  `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
+                              //);
+                            }
+                          }
                         }
-                        return false;
+
+                        timer_start = Math.round(new Date().getTime() / 1000);
+                        timer_max = 30;
+                        let deletedEntry = false;
+                        while (!deletedEntry) {
+                          try {
+                            await iscsi.iscsiadm.deleteNodeDBEntry(
+                              session.target,
+                              session.persistent_portal
+                            );
+                            deletedEntry = true;
+                          } catch (err) {
+                            await GeneralUtils.sleep(2000);
+                            let current_time = Math.round(
+                              new Date().getTime() / 1000
+                            );
+                            if (current_time - timer_start > timer_max) {
+                              // not throwing error for now as future invocations would not enter code path anyhow
+                              deletedEntry = true;
+                              //throw new GrpcError(
+                              //  grpc.status.UNKNOWN,
+                              //  `hit timeout trying to delete iscsi node DB entry: ${session.target}, ${session.persistent_portal}`
+                              //);
+                            }
+                          }
+                        }
                       }
+                    }
+                  }
+                }
+                break;
+              case "nvme":
+                {
+                  if (
+                    await filesystem.deviceIsNVMEoF(block_device_info_i.path)
+                  ) {
+                    let nqn = await nvmeof.nqnByNamespaceDeviceName(
+                      block_device_info_i.name
                     );
-                }
-
-                if (is_attached_to_session) {
-                  let timer_start;
-                  let timer_max;
-
-                  timer_start = Math.round(new Date().getTime() / 1000);
-                  timer_max = 30;
-                  let loggedOut = false;
-                  while (!loggedOut) {
-                    try {
-                      await iscsi.iscsiadm.logout(session.target, [
-                        session.persistent_portal,
-                      ]);
-                      loggedOut = true;
-                    } catch (err) {
-                      await GeneralUtils.sleep(2000);
-                      let current_time = Math.round(
-                        new Date().getTime() / 1000
-                      );
-                      if (current_time - timer_start > timer_max) {
-                        // not throwing error for now as future invocations would not enter code path anyhow
-                        loggedOut = true;
-                        //throw new GrpcError(
-                        //  grpc.status.UNKNOWN,
-                        //  `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
-                        //);
-                      }
-                    }
-                  }
-
-                  timer_start = Math.round(new Date().getTime() / 1000);
-                  timer_max = 30;
-                  let deletedEntry = false;
-                  while (!deletedEntry) {
-                    try {
-                      await iscsi.iscsiadm.deleteNodeDBEntry(
-                        session.target,
-                        session.persistent_portal
-                      );
-                      deletedEntry = true;
-                    } catch (err) {
-                      await GeneralUtils.sleep(2000);
-                      let current_time = Math.round(
-                        new Date().getTime() / 1000
-                      );
-                      if (current_time - timer_start > timer_max) {
-                        // not throwing error for now as future invocations would not enter code path anyhow
-                        deletedEntry = true;
-                        //throw new GrpcError(
-                        //  grpc.status.UNKNOWN,
-                        //  `hit timeout trying to delete iscsi node DB entry: ${session.target}, ${session.persistent_portal}`
-                        //);
-                      }
-                    }
+                    await nvmeof.disconnectByNQN(nqn);
                   }
                 }
-              }
-            } else if (await filesystem.deviceIsNVMEoF(block_device_info_i.path)) {
-              let nqn = await nvmeof.nqnByNamespaceDeviceName(
-                block_device_info_i.name
-              );
-              await nvmeof.disconnectByNQN(nqn);
+                break;
             }
           }
         }
