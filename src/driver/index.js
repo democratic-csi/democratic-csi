@@ -14,6 +14,7 @@ const registry = require("../utils/registry");
 const semver = require("semver");
 const GeneralUtils = require("../utils/general");
 const { Zetabyte } = require("../utils/zfs");
+const { transport } = require("winston");
 
 const __REGISTRY_NS__ = "CsiBaseDriver";
 
@@ -982,7 +983,8 @@ class CsiBaseDriver {
                 try {
                   await GeneralUtils.retry(15, 2000, async () => {
                     namespaceDevice =
-                      await nvmeof.namespaceDevicePathByNQNNamespace(
+                      await nvmeof.namespaceDevicePathByTransportNQNNamespace(
+                        nvmeofConnection.transport,
                         nvmeofConnection.nqn,
                         nvmeofConnection.nsid
                       );
@@ -1124,6 +1126,14 @@ class CsiBaseDriver {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `failed to discover multipath device`
+                    );
+                  }
+                } else {
+                  // only throw an error if we were not able to attach to *any* devices
+                  if (nvmeofNamespaceDevices.length > 1) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `too many nvme namespace devices, neither DM nor native multipath enabled`
                     );
                   }
                 }
@@ -2348,6 +2358,7 @@ class CsiBaseDriver {
         }
 
         if (is_block) {
+          let breakdeviceloop = false;
           let realBlockDeviceInfos = [];
           // detect if is a multipath device
           is_device_mapper = await filesystem.isDeviceMapperDevice(
@@ -2369,6 +2380,9 @@ class CsiBaseDriver {
 
           // TODO: this could be made async to detach all simultaneously
           for (const block_device_info_i of realBlockDeviceInfos) {
+            if (breakdeviceloop) {
+              break;
+            }
             switch (block_device_info_i.tran) {
               case "iscsi":
                 {
@@ -2475,7 +2489,15 @@ class CsiBaseDriver {
                     let nqn = await nvmeof.nqnByNamespaceDeviceName(
                       block_device_info_i.name
                     );
-                    await nvmeof.disconnectByNQN(nqn);
+                    if (nqn) {
+                      await nvmeof.disconnectByNQN(nqn);
+                      /**
+                       * the above disconnects *all* devices with the nqn so we
+                       * do NOT want to keep iterating all the 'real' devices
+                       * in the case of DM multipath
+                       */
+                      breakdeviceloop = true;
+                    }
                   }
                 }
                 break;

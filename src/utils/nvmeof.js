@@ -106,9 +106,9 @@ class NVMEoF {
 
   /**
    * Rescans the NVME namespaces
-   * 
-   * @param {*} device 
-   * @param {*} args 
+   *
+   * @param {*} device
+   * @param {*} args
    */
   async rescanNamespace(device, args = []) {
     const nvmeof = this;
@@ -170,20 +170,29 @@ class NVMEoF {
     return result.stdout.trim() == "Y";
   }
 
-  async namespaceDevicePathByNQNNamespace(nqn, namespace) {
+  async namespaceDevicePathByTransportNQNNamespace(transport, nqn, namespace) {
     const nvmeof = this;
-    let result = await nvmeof.list(["-v"]);
-    for (let device of result.Devices) {
-      for (let subsytem of device.Subsystems) {
-        if (subsytem.SubsystemNQN != nqn) {
-          continue;
-        } else {
-          for (let i_namespace of subsytem.Namespaces) {
-            if (i_namespace.NSID != namespace) {
-              continue;
-            } else {
-              return `/dev/${i_namespace.NameSpace}`;
-            }
+    transport = nvmeof.parseTransport(transport);
+    let nativeMultipathEnabled = await nvmeof.nativeMultipathEnabled();
+    if (nativeMultipathEnabled) {
+      let subsystem = await nvmeof.getSubsystemByNQN(nqn);
+      if (subsystem) {
+        for (let i_namespace of subsystem.Namespaces) {
+          if (i_namespace.NSID != namespace) {
+            continue;
+          } else {
+            return `/dev/${i_namespace.NameSpace}`;
+          }
+        }
+      }
+    } else {
+      let controller = await nvmeof.getControllerByTransportNQN(transport, nqn);
+      if (controller) {
+        for (let i_namespace of controller.Namespaces) {
+          if (i_namespace.NSID != namespace) {
+            continue;
+          } else {
+            return `/dev/${i_namespace.NameSpace}`;
           }
         }
       }
@@ -193,45 +202,60 @@ class NVMEoF {
   async controllerDevicePathByTransportNQN(transport, nqn) {
     const nvmeof = this;
     transport = nvmeof.parseTransport(transport);
+    let controller = await nvmeof.getControllerByTransportNQN(transport, nqn);
+    if (controller) {
+      return `/dev/${controller.Controller}`;
+    }
+  }
+
+  async getSubsystemByNQN(nqn) {
+    const nvmeof = this;
     let result = await nvmeof.list(["-v"]);
     for (let device of result.Devices) {
-      for (let subsytem of device.Subsystems) {
-        if (subsytem.SubsystemNQN != nqn) {
+      for (let subsystem of device.Subsystems) {
+        if (subsystem.SubsystemNQN == nqn) {
+          return subsystem;
+        }
+      }
+    }
+  }
+
+  async getControllerByTransportNQN(transport, nqn) {
+    const nvmeof = this;
+    transport = nvmeof.parseTransport(transport);
+    let subsystem = await nvmeof.getSubsystemByNQN(nqn);
+    if (subsystem) {
+      for (let controller of subsystem.Controllers) {
+        if (controller.Transport != transport.type) {
           continue;
-        } else {
-          for (let controller of subsytem.Controllers) {
-            if (controller.Transport != transport.type) {
-              continue;
-            }
+        }
 
-            let controllerAddress = controller.Address;
-            let parts = controllerAddress.split(",");
+        let controllerAddress = controller.Address;
+        let parts = controllerAddress.split(",");
 
-            let traddr;
-            let trsvcid;
-            for (let i_part of parts) {
-              let i_parts = i_part.split("=");
-              switch (i_parts[0]) {
-                case "traddr":
-                  traddr = i_parts[1];
-                  break;
-                case "trsvcid":
-                  trsvcid = i_parts[1];
-                  break;
-              }
-            }
-
-            if (traddr != transport.address) {
-              continue;
-            }
-
-            if (transport.service && trsvcid != transport.service) {
-              continue;
-            }
-
-            return `/dev/${controller.Controller}`;
+        let traddr;
+        let trsvcid;
+        for (let i_part of parts) {
+          let i_parts = i_part.split("=");
+          switch (i_parts[0]) {
+            case "traddr":
+              traddr = i_parts[1];
+              break;
+            case "trsvcid":
+              trsvcid = i_parts[1];
+              break;
           }
         }
+
+        if (traddr != transport.address) {
+          continue;
+        }
+
+        if (transport.service && trsvcid != transport.service) {
+          continue;
+        }
+
+        return controller;
       }
     }
   }
@@ -240,13 +264,27 @@ class NVMEoF {
     const nvmeof = this;
     name = name.replace("/dev/", "");
     let result = await nvmeof.list(["-v"]);
-    for (let device of result.Devices) {
-      for (let subsytem of device.Subsystems) {
-        for (let namespace of subsytem.Namespaces) {
-          if (namespace.NameSpace != name) {
-            continue;
-          } else {
-            return subsytem.SubsystemNQN;
+    let nativeMultipathEnabled = await nvmeof.nativeMultipathEnabled();
+
+    if (nativeMultipathEnabled) {
+      for (let device of result.Devices) {
+        for (let subsystem of device.Subsystems) {
+          for (let namespace of subsystem.Namespaces) {
+            if (namespace.NameSpace == name) {
+              return subsystem.SubsystemNQN;
+            }
+          }
+        }
+      }
+    } else {
+      for (let device of result.Devices) {
+        for (let subsystem of device.Subsystems) {
+          for (let controller of subsystem.Controllers) {
+            for (let namespace of controller.Namespaces) {
+              if (namespace.NameSpace == name) {
+                return subsystem.SubsystemNQN;
+              }
+            }
           }
         }
       }
