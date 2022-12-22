@@ -69,7 +69,7 @@ class NVMEoF {
       transport_args.push("--trsvcid", transport.service);
     }
 
-    args.unshift("connect", "-o", "json", "--nqn", nqn, ...transport_args);
+    args.unshift("connect", "--nqn", nqn, ...transport_args);
 
     try {
       await nvmeof.exec(nvmeof.options.paths.nvme, args);
