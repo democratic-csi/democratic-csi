@@ -107,7 +107,11 @@ class NVMEoF {
     try {
       await nvmeof.exec(nvmeof.options.paths.nvme, args);
     } catch (err) {
-      if (err.stderr && err.stderr.includes("already connnected")) {
+      if (
+        err.stderr &&
+        (err.stderr.includes("already connnected") ||
+          err.stderr.includes("Operation already in progress"))
+      ) {
         // idempotent
       } else {
         throw err;
@@ -258,10 +262,16 @@ class NVMEoF {
     const nvmeof = this;
     let result = await nvmeof.list(["-v"]);
 
-    return nvmeof.getResultSubsystems(result);
+    return nvmeof.getNormalizedSubsystems(result);
   }
 
-  async getResultSubsystems(result) {
+  /**
+   * used to normalize subsystem list/response across different versions of nvme-cli
+   * 
+   * @param {*} result 
+   * @returns 
+   */
+  async getNormalizedSubsystems(result) {
     let subsystems = [];
 
     for (let device of result.Devices) {
