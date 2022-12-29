@@ -272,19 +272,22 @@ class NVMEoF {
          * old: "Address":"traddr=127.0.0.1 trsvcid=4420"
          * new: "Address":"traddr=127.0.0.1,trsvcid=4420"
          */
-        controllerAddress = controllerAddress.replaceAll(" ", ",");
+        controllerAddress = controllerAddress.replaceAll(
+          " trsvcid=",
+          ",trsvcid="
+        );
         let parts = controllerAddress.split(",");
 
         let traddr;
         let trsvcid;
         for (let i_part of parts) {
           let i_parts = i_part.split("=");
-          switch (i_parts[0]) {
+          switch (i_parts[0].trim()) {
             case "traddr":
-              traddr = i_parts[1];
+              traddr = i_parts[1].trim();
               break;
             case "trsvcid":
-              trsvcid = i_parts[1];
+              trsvcid = i_parts[1].trim();
               break;
           }
         }
