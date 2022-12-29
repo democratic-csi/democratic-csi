@@ -219,6 +219,7 @@ class NVMEoF {
     const nvmeof = this;
     transport = await nvmeof.parseTransport(transport);
     let nativeMultipathEnabled = await nvmeof.nativeMultipathEnabled();
+
     if (nativeMultipathEnabled) {
       let subsystem = await nvmeof.getSubsystemByNQN(nqn);
       if (subsystem) {
@@ -253,14 +254,34 @@ class NVMEoF {
     }
   }
 
-  async getSubsystemByNQN(nqn) {
+  async getSubsystems() {
     const nvmeof = this;
     let result = await nvmeof.list(["-v"]);
+
+    return nvmeof.getResultSubsystems(result);
+  }
+
+  async getResultSubsystems(result) {
+    let subsystems = [];
+
     for (let device of result.Devices) {
-      for (let subsystem of device.Subsystems) {
-        if (subsystem.SubsystemNQN == nqn) {
-          return subsystem;
-        }
+      if (Array.isArray(device.Subsystems)) {
+        subsystems = subsystems.concat(device.Subsystems);
+      } else if (device.Subsystem) {
+        // nvme-cli 1.x support
+        subsystems.push(device);
+      }
+    }
+
+    return subsystems;
+  }
+
+  async getSubsystemByNQN(nqn) {
+    const nvmeof = this;
+    const subsystems = await nvmeof.getSubsystems();
+    for (let subsystem of subsystems) {
+      if (subsystem.SubsystemNQN == nqn) {
+        return subsystem;
       }
     }
 
@@ -325,12 +346,13 @@ class NVMEoF {
   async nqnByNamespaceDeviceName(name) {
     const nvmeof = this;
     name = name.replace("/dev/", "");
-    let result = await nvmeof.list(["-v"]);
     let nativeMultipathEnabled = await nvmeof.nativeMultipathEnabled();
+    const subsystems = await nvmeof.getSubsystems();
 
     if (nativeMultipathEnabled) {
-      for (let device of result.Devices) {
-        for (let subsystem of device.Subsystems) {
+      // using per-subsystem namespace
+      for (let subsystem of subsystems) {
+        if (subsystem.Namespaces) {
           for (let namespace of subsystem.Namespaces) {
             if (namespace.NameSpace == name) {
               return subsystem.SubsystemNQN;
@@ -339,18 +361,23 @@ class NVMEoF {
         }
       }
     } else {
-      for (let device of result.Devices) {
-        for (let subsystem of device.Subsystems) {
+      // using per-controller namespace
+      for (let subsystem of subsystems) {
+        if (subsystem.Controllers) {
           for (let controller of subsystem.Controllers) {
-            for (let namespace of controller.Namespaces) {
-              if (namespace.NameSpace == name) {
-                return subsystem.SubsystemNQN;
+            if (controller.Namespaces) {
+              for (let namespace of controller.Namespaces) {
+                if (namespace.NameSpace == name) {
+                  return subsystem.SubsystemNQN;
+                }
               }
             }
           }
         }
       }
     }
+
+    nvmeof.logger.warn(`failed to find nqn for device: ${name}`);
   }
 
   devicePathByModelNumberSerialNumber(modelNumber, serialNumber) {

@@ -980,6 +980,11 @@ class CsiBaseDriver {
                 }
 
                 // find namespace device
+
+                // rescan in scenarios when login previously occurred but volumes never appeared
+                // must be the NVMe char device, not the namespace device
+                await nvmeof.rescanNamespace(controllerDevice);
+
                 let namespaceDevice;
                 try {
                   await GeneralUtils.retry(15, 2000, async () => {
@@ -1011,10 +1016,6 @@ class CsiBaseDriver {
                 if (!controllerDevice) {
                   continue;
                 }
-
-                // rescan in scenarios when login previously occurred but volumes never appeared
-                // must be the NVMe char device, not the namespace device
-                await nvmeof.rescanNamespace(controllerDevice);
 
                 // can take some time for device to show up, loop for some period
                 result = await filesystem.pathExists(namespaceDevice);
