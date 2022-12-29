@@ -24,6 +24,12 @@ class NVMEoF {
         spawn: cp.spawn,
       };
     }
+
+    if (nvmeof.options.logger) {
+      nvmeof.logger = nvmeof.options.logger;
+    } else {
+      nvmeof.logger = console;
+    }
   }
 
   /**
@@ -46,7 +52,35 @@ class NVMEoF {
   async listSubsys(args = []) {
     const nvmeof = this;
     args.unshift("list-subsys", "-o", "json");
-    await nvmeof.exec(nvmeof.options.paths.nvme, args);
+    let result = await nvmeof.exec(nvmeof.options.paths.nvme, args);
+    return result.parsed;
+  }
+
+  /**
+   * Discover NVMeoF subsystems
+   *
+   * @param {*} transport
+   * @param {*} args
+   * @returns
+   */
+  async discover(transport, args = []) {
+    const nvmeof = this;
+    transport = nvmeof.parseTransport(transport);
+
+    let transport_args = [];
+    if (transport.type) {
+      transport_args.push("--transport", transport.type);
+    }
+    if (transport.address) {
+      transport_args.push("--traddr", transport.address);
+    }
+    if (transport.service) {
+      transport_args.push("--trsvcid", transport.service);
+    }
+
+    args.unshift("discover", "-o", "json", ...transport_args);
+    let result = await nvmeof.exec(nvmeof.options.paths.nvme, args);
+    return result.parsed;
   }
 
   /**
@@ -218,6 +252,8 @@ class NVMEoF {
         }
       }
     }
+
+    nvmeof.logger.warn(`failed to find subsystem for nqn: ${nqn}`);
   }
 
   async getControllerByTransportNQN(transport, nqn) {
@@ -231,6 +267,12 @@ class NVMEoF {
         }
 
         let controllerAddress = controller.Address;
+        /**
+         * For backwards compatibility with older nvme-cli versions (at least < 2.2.1)
+         * old: "Address":"traddr=127.0.0.1 trsvcid=4420"
+         * new: "Address":"traddr=127.0.0.1,trsvcid=4420"
+         */
+        controllerAddress = controllerAddress.replaceAll(" ", ",");
         let parts = controllerAddress.split(",");
 
         let traddr;
@@ -258,6 +300,12 @@ class NVMEoF {
         return controller;
       }
     }
+
+    nvmeof.logger.warn(
+      `failed to find controller for transport: ${JSON.stringify(
+        transport
+      )}, nqn: ${nqn}`
+    );
   }
 
   async nqnByNamespaceDeviceName(name) {
@@ -318,7 +366,11 @@ class NVMEoF {
       command = nvmeof.options.paths.sudo;
     }
 
-    console.log("executing nvmeof command: %s %s", command, args.join(" "));
+    nvmeof.logger.verbose(
+      "executing nvmeof command: %s %s",
+      command,
+      args.join(" ")
+    );
 
     return new Promise((resolve, reject) => {
       const child = nvmeof.options.executor.spawn(command, args, options);

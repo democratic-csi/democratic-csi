@@ -147,8 +147,9 @@ class CsiBaseDriver {
    * @returns NVMEoF
    */
   getDefaultNVMEoFInstance() {
+    const driver = this;
     return registry.get(`${__REGISTRY_NS__}:default_nvmeof_instance`, () => {
-      return new NVMEoF();
+      return new NVMEoF({ logger: driver.ctx.logger });
     });
   }
 
