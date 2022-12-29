@@ -1,6 +1,7 @@
 const _ = require("lodash");
 const axios = require("axios");
 const crypto = require("crypto");
+const dns = require("dns");
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -261,6 +262,18 @@ async function retry(retries, retriesDelay, code, options = {}) {
   } while (true);
 }
 
+async function hostname_lookup(hostname) {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, function (err, result) {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(result);
+    });
+  });
+}
+
 module.exports.sleep = sleep;
 module.exports.md5 = md5;
 module.exports.crc32 = crc32;
@@ -277,3 +290,4 @@ module.exports.default_supported_file_filesystems =
   default_supported_file_filesystems;
 module.exports.retry = retry;
 module.exports.trimchar = trimchar;
+module.exports.hostname_lookup = hostname_lookup;

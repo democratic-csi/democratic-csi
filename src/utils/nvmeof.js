@@ -1,7 +1,6 @@
 const cp = require("child_process");
-const { trimchar } = require("./general");
+const { hostname_lookup, trimchar } = require("./general");
 const URI = require("uri-js");
-const { deleteItems } = require("@kubernetes/client-node");
 
 const DEFAULT_TIMEOUT = process.env.NVMEOF_DEFAULT_TIMEOUT || 30000;
 
@@ -65,7 +64,7 @@ class NVMEoF {
    */
   async discover(transport, args = []) {
     const nvmeof = this;
-    transport = nvmeof.parseTransport(transport);
+    transport = await nvmeof.parseTransport(transport);
 
     let transport_args = [];
     if (transport.type) {
@@ -90,7 +89,7 @@ class NVMEoF {
    */
   async connectByNQNTransport(nqn, transport, args = []) {
     const nvmeof = this;
-    transport = nvmeof.parseTransport(transport);
+    transport = await nvmeof.parseTransport(transport);
 
     let transport_args = [];
     if (transport.type) {
@@ -150,7 +149,7 @@ class NVMEoF {
     await nvmeof.exec(nvmeof.options.paths.nvme, args);
   }
 
-  parseTransport(transport) {
+  async parseTransport(transport) {
     if (typeof transport === "object") {
       return transport;
     }
@@ -175,6 +174,18 @@ class NVMEoF {
       case "fc":
         address = trimchar(address, "[");
         address = trimchar(address, "]");
+        break;
+      case "tcp":
+        /**
+         * kernel stores value as ip, so if address passed as hostname then
+         * translate to ip address
+         *
+         * TODO: this could be brittle
+         */
+        let lookup = await hostname_lookup(address);
+        if (lookup) {
+          address = lookup;
+        }
         break;
     }
 
@@ -206,7 +217,7 @@ class NVMEoF {
 
   async namespaceDevicePathByTransportNQNNamespace(transport, nqn, namespace) {
     const nvmeof = this;
-    transport = nvmeof.parseTransport(transport);
+    transport = await nvmeof.parseTransport(transport);
     let nativeMultipathEnabled = await nvmeof.nativeMultipathEnabled();
     if (nativeMultipathEnabled) {
       let subsystem = await nvmeof.getSubsystemByNQN(nqn);
@@ -235,7 +246,7 @@ class NVMEoF {
 
   async controllerDevicePathByTransportNQN(transport, nqn) {
     const nvmeof = this;
-    transport = nvmeof.parseTransport(transport);
+    transport = await nvmeof.parseTransport(transport);
     let controller = await nvmeof.getControllerByTransportNQN(transport, nqn);
     if (controller) {
       return `/dev/${controller.Controller}`;
@@ -258,7 +269,7 @@ class NVMEoF {
 
   async getControllerByTransportNQN(transport, nqn) {
     const nvmeof = this;
-    transport = nvmeof.parseTransport(transport);
+    transport = await nvmeof.parseTransport(transport);
     let subsystem = await nvmeof.getSubsystemByNQN(nqn);
     if (subsystem) {
       for (let controller of subsystem.Controllers) {

@@ -459,6 +459,7 @@ jobs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
       - csi-sanity-truenas-scale-22_02
+      - csi-sanity-truenas-scale-22_12
       - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
@@ -498,6 +499,7 @@ jobs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
       - csi-sanity-truenas-scale-22_02
+      - csi-sanity-truenas-scale-22_12
       - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
