@@ -153,6 +153,54 @@ class NVMEoF {
     await nvmeof.exec(nvmeof.options.paths.nvme, args);
   }
 
+  async deviceIsNamespaceDevice(device) {
+    const nvmeof = this;
+    device = device.replace("/dev/", "");
+    const subsystems = await nvmeof.getSubsystems();
+    for (let subsystem of subsystems) {
+      // check subsystem namespaces
+      if (subsystem.Namespaces) {
+        for (let namespace of subsystem.Namespaces) {
+          if (namespace.NameSpace == device) {
+            return true;
+          }
+        }
+      }
+
+      // check controller namespaces
+      if (subsystem.Controllers) {
+        for (let controller of subsystem.Controllers) {
+          if (controller.Namespaces) {
+            for (let namespace of controller.Namespaces) {
+              if (namespace.NameSpace == device) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  async deviceIsControllerDevice(device) {
+    const nvmeof = this;
+    device = device.replace("/dev/", "");
+    const subsystems = await nvmeof.getSubsystems();
+    for (let subsystem of subsystems) {
+      if (subsystem.Controllers) {
+        for (let controller of subsystem.Controllers) {
+          if (controller.Controller == device) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   async parseTransport(transport) {
     if (typeof transport === "object") {
       return transport;
@@ -267,9 +315,9 @@ class NVMEoF {
 
   /**
    * used to normalize subsystem list/response across different versions of nvme-cli
-   * 
-   * @param {*} result 
-   * @returns 
+   *
+   * @param {*} result
+   * @returns
    */
   async getNormalizedSubsystems(result) {
     let subsystems = [];
@@ -296,6 +344,44 @@ class NVMEoF {
     }
 
     nvmeof.logger.warn(`failed to find subsystem for nqn: ${nqn}`);
+  }
+
+  async getControllersByNamespaceDeviceName(name) {
+    const nvmeof = this;
+    name = name.replace("/dev/", "");
+    let nativeMultipathEnabled = await nvmeof.nativeMultipathEnabled();
+    const subsystems = await nvmeof.getSubsystems();
+
+    if (nativeMultipathEnabled) {
+      // using per-subsystem namespace
+      for (let subsystem of subsystems) {
+        if (subsystem.Namespaces) {
+          for (let namespace of subsystem.Namespaces) {
+            if (namespace.NameSpace == name) {
+              return subsystem.Controllers;
+            }
+          }
+        }
+      }
+    } else {
+      // using per-controller namespace
+      for (let subsystem of subsystems) {
+        if (subsystem.Controllers) {
+          for (let controller of subsystem.Controllers) {
+            if (controller.Namespaces) {
+              for (let namespace of controller.Namespaces) {
+                if (namespace.NameSpace == name) {
+                  return subsystem.Controllers;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    nvmeof.logger.warn(`failed to find controllers for device: ${name}`);
+    return [];
   }
 
   async getControllerByTransportNQN(transport, nqn) {

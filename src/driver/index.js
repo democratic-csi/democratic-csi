@@ -980,14 +980,13 @@ class CsiBaseDriver {
                 }
 
                 // find namespace device
-
-                // rescan in scenarios when login previously occurred but volumes never appeared
-                // must be the NVMe char device, not the namespace device
-                await nvmeof.rescanNamespace(controllerDevice);
-
                 let namespaceDevice;
                 try {
                   await GeneralUtils.retry(15, 2000, async () => {
+                    // rescan in scenarios when login previously occurred but volumes never appeared
+                    // must be the NVMe char device, not the namespace device
+                    await nvmeof.rescanNamespace(controllerDevice);
+
                     namespaceDevice =
                       await nvmeof.namespaceDevicePathByTransportNQNNamespace(
                         nvmeofConnection.transport,
@@ -3499,6 +3498,8 @@ class CsiBaseDriver {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
+    const nvmeof = driver.getDefaultNVMEoFInstance();
+
     let device;
     let fs_info;
     let device_path;
@@ -3561,6 +3562,14 @@ class CsiBaseDriver {
           rescan_devices.push(device);
 
           for (let sdevice of rescan_devices) {
+            let is_nvmeof = await filesystem.deviceIsNVMEoF(sdevice);
+            if (is_nvmeof) {
+              let controllers =
+                await nvmeof.getControllersByNamespaceDeviceName(sdevice);
+              for (let controller of controllers) {
+                await nvmeof.rescanNamespace(`/dev/${controller.Controller}`);
+              }
+            }
             // TODO: technically rescan is only relevant/available for remote drives
             // such as iscsi etc, should probably limit this call as appropriate
             // for now crudely checking the scenario inside the method itself
