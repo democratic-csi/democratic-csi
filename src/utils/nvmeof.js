@@ -401,7 +401,7 @@ class NVMEoF {
          * new: "Address":"traddr=127.0.0.1,trsvcid=4420"
          */
         controllerAddress = controllerAddress.replace(
-          new RegExp(/ ([a-z]*=)/, "g"),
+          new RegExp(/ ([a-z_]*=)/, "g"),
           ",$1"
         );
         let parts = controllerAddress.split(",");
