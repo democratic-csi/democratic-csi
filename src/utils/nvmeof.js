@@ -1,6 +1,7 @@
 const cp = require("child_process");
 const { hostname_lookup, trimchar } = require("./general");
 const URI = require("uri-js");
+const querystring = require("querystring");
 
 const DEFAULT_TIMEOUT = process.env.NVMEOF_DEFAULT_TIMEOUT || 30000;
 
@@ -100,6 +101,17 @@ class NVMEoF {
     }
     if (transport.service) {
       transport_args.push("--trsvcid", transport.service);
+    }
+
+    if (transport.args) {
+      for (let arg in transport.args) {
+        let value = transport.args[arg];
+        if (!arg.startsWith("-")) {
+          arg = `--${arg}`;
+        }
+  
+        transport_args.push(arg, value);
+      }
     }
 
     args.unshift("connect", "--nqn", nqn, ...transport_args);
@@ -208,6 +220,7 @@ class NVMEoF {
 
     transport = transport.trim();
     const parsed = URI.parse(transport);
+    let args = querystring.parse(parsed.query);
 
     let type = parsed.scheme;
     let address = parsed.host;
@@ -256,6 +269,7 @@ class NVMEoF {
       type,
       address,
       service,
+      args,
     };
   }
 
@@ -480,14 +494,6 @@ class NVMEoF {
     modelNumber = modelNumber.replaceAll(" ", "_");
     serialNumber = serialNumber.replaceAll(" ", "_");
     return `/dev/disk/by-id/nvme-${modelNumber}_${serialNumber}`;
-  }
-
-  devicePathByPortalIQNLUN(portal, iqn, lun) {
-    const parsedPortal = this.parsePortal(portal);
-    const portalHost = parsedPortal.host
-      .replaceAll("[", "")
-      .replaceAll("]", "");
-    return `/dev/disk/by-path/ip-${portalHost}:${parsedPortal.port}-iscsi-${iqn}-lun-${lun}`;
   }
 
   exec(command, args, options = {}) {
