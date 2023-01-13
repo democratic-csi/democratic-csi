@@ -56,3 +56,6 @@ which nvmetcli &>/dev/null || {
 
 cd "${SCRIPTDIR}"
 nvmetcli restore "${NVMETCONFIG}"
+
+touch /var/run/nvmet-config-loaded
+chmod +r /var/run/nvmet-config-loaded

@@ -897,6 +897,27 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     const execClient = this.getExecClient();
     const driver = this;
 
+    if (
+      _.get(
+        this.options,
+        "nvmeof.shareStrategyNvmetCli.configIsImportedFilePath"
+      )
+    ) {
+      try {
+        let response = await execClient.exec(
+          execClient.buildCommand("test", [
+            "-f",
+            _.get(
+              this.options,
+              "nvmeof.shareStrategyNvmetCli.configIsImportedFilePath"
+            ),
+          ])
+        );
+      } catch (err) {
+        throw new Error("nvmet has not been fully configured");
+      }
+    }
+
     data = data.trim();
 
     let command = "sh";
