@@ -1309,6 +1309,16 @@ class CsiBaseDriver {
                   if (!Array.isArray(formatOptions)) {
                     formatOptions = [];
                   }
+
+                  switch (fs_type) {
+                    case "ext3":
+                    case "ext4":
+                    case "ext4dev":
+                      // disable reserved blocks in this scenario
+                      formatOptions.unshift("-m", "0");
+                      break;
+                  }
+
                   await filesystem.formatDevice(device, fs_type, formatOptions);
                 }
 
