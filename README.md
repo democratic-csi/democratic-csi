@@ -1,5 +1,5 @@
 ![Image](https://img.shields.io/docker/pulls/democraticcsi/democratic-csi.svg)
-![Image](https://img.shields.io/github/workflow/status/democratic-csi/democratic-csi/CI?style=flat-square)
+![Image](https://img.shields.io/github/actions/workflow/status/democratic-csi/democratic-csi/main.yml?branch=master&style=flat-square)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/democratic-csi)](https://artifacthub.io/packages/search?repo=democratic-csi)
 
 # Introduction
@@ -24,6 +24,7 @@ have access to resizing, snapshots, clones, etc functionality.
   - `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
+  - `zfs-generic-nvmeof` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
   - `zfs-local-dataset` (provision node-local volume as dataset)
   - `zfs-local-zvol` (provision node-local volume as zvol)
@@ -67,21 +68,21 @@ You should install/configure the requirements for both nfs and iscsi.
 
 ### cifs
 
-```
-RHEL / CentOS
+```bash
+# RHEL / CentOS
 sudo yum install -y cifs-utils
 
-Ubuntu / Debian
+# Ubuntu / Debian
 sudo apt-get install -y cifs-utils
 ```
 
 ### nfs
 
-```
-RHEL / CentOS
+```bash
+# RHEL / CentOS
 sudo yum install -y nfs-utils
 
-Ubuntu / Debian
+# Ubuntu / Debian
 sudo apt-get install -y nfs-common
 ```
 
@@ -96,7 +97,7 @@ If you are running Kubernetes with rancher/rke please see the following:
 
 #### RHEL / CentOS
 
-```
+```bash
 # Install the following system packages
 sudo yum install -y lsscsi iscsi-initiator-utils sg3_utils device-mapper-multipath
 
@@ -135,32 +136,40 @@ sudo systemctl enable open-iscsi.service
 sudo service open-iscsi start
 sudo systemctl status open-iscsi
 ```
+
 #### [Talos](https://www.talos.dev/)
+
 To use iscsi storage in kubernetes cluster in talos these steps are needed which are similar to the ones explained in https://www.talos.dev/v1.1/kubernetes-guides/configuration/replicated-local-storage-with-openebs-jiva/#patching-the-jiva-installation
 
 ##### Patch nodes
+
 since talos does not have iscsi support by default, the iscsi extension is needed
 create a `patch.yaml` file with
+
 ```yaml
 - op: add
   path: /machine/install/extensions
   value:
     - image: ghcr.io/siderolabs/iscsi-tools:v0.1.1
 ```
+
 and apply the patch across all of your nodes
+
 ```bash
 talosctl -e <endpoint ip/hostname> -n <node ip/hostname> patch mc -p @patch.yaml
 ```
+
 the extension will not activate until you "upgrade" the nodes, even if there is no update, use the latest version of talos installer.
 VERIFY THE TALOS VERSION IN THIS COMMAND BEFORE RUNNING IT AND READ THE [OpenEBS Jiva](https://www.talos.dev/v1.1/kubernetes-guides/configuration/replicated-local-storage-with-openebs-jiva/#patching-the-jiva-installation).
 upgrade all of the nodes in the cluster to get the extension
+
 ```bash
 talosctl -e <endpoint ip/hostname> -n <node ip/hostname> upgrade --image=ghcr.io/siderolabs/installer:v1.1.1
 ```
 
 in your `values.yaml` file make sure to enable these settings
-```yaml
 
+```yaml
 node:
   hostPID: true
   driver:
@@ -172,17 +181,33 @@ node:
     iscsiDirHostPath: /usr/local/etc/iscsi
     iscsiDirHostPathType: ""
 ```
+
 and continue your democratic installation as usuall with other iscsi drivers.
 
+### nvmeof
 
-### freenas-smb
+```bash
+# not required but likely helpful (tools are included in the democratic images
+# so not needed on the host)
+apt-get install -y nvme-cli
 
-If using with Windows based machines you may need to enable guest access (even
-if you are connecting with credentials)
+# get the nvme fabric modules
+apt-get install linux-generic
 
-```
-Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters AllowInsecureGuestAuth -Value 1
-Restart-Service LanmanWorkstation -Force
+# ensure the nvmeof modules get loaded at boot
+cat <<EOF > /etc/modules-load.d/nvme.conf
+nvme
+nvme-tcp
+nvme-fc
+nvme-rdma
+EOF
+
+# nvme has native multipath or can use DM multipath.
+# RedHat recommends DM multipath (nvme_core.multipath=N)
+cat /sys/module/nvme_core/parameters/multipath
+
+# kernel arg to enable/disable native multipath
+nvme_core.multipath=Y
 ```
 
 ### zfs-local-ephemeral-inline
@@ -237,17 +262,43 @@ linux nodes as well (using the `ntfs3` driver) so volumes created can be
 utilized by nodes with either operating system (in the case of `cifs` by both
 simultaneously).
 
+If using any `-iscsi` driver be sure your iqns are always fully lower-case by
+default (https://github.com/PowerShell/PowerShell/issues/17306).
+
 Due to current limits in the kubernetes tooling it is not possible to use the
 `local-hostpath` driver but support is implemented in this project and will
 work as soon as kubernetes support is available.
 
-```
+```powershell
 # ensure all updates are installed
 
 # enable the container feature
 Enable-WindowsOptionalFeature -Online -FeatureName Containers –All
 
 # install a HostProcess compatible kubernetes
+
+# smb support
+# If using with Windows based machines you may need to enable guest access
+# (even if you are connecting with credentials)
+Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters AllowInsecureGuestAuth -Value 1
+Restart-Service LanmanWorkstation -Force
+
+# iscsi
+# enable iscsi service and mpio as appropriate
+Get-Service -Name MSiSCSI
+Set-Service -Name MSiSCSI -StartupType Automatic
+Start-Service -Name MSiSCSI
+Get-Service -Name MSiSCSI
+
+# mpio
+Get-WindowsFeature -Name 'Multipath-IO'
+Add-WindowsFeature -Name 'Multipath-IO'
+
+Enable-MSDSMAutomaticClaim -BusType "iSCSI"
+Disable-MSDSMAutomaticClaim -BusType "iSCSI"
+
+Get-MSDSMGlobalDefaultLoadBalancePolicy
+Set-MSDSMGlobalLoadBalancePolicy -Policy RR
 ```
 
 - https://kubernetes.io/blog/2021/08/16/windows-hostprocess-containers/
@@ -353,7 +404,7 @@ Issues to review:
 - https://jira.ixsystems.com/browse/NAS-108522
 - https://jira.ixsystems.com/browse/NAS-107219
 
-### ZoL (zfs-generic-nfs, zfs-generic-iscsi, zfs-generic-smb)
+### ZoL (zfs-generic-nfs, zfs-generic-iscsi, zfs-generic-smb, zfs-generic-nvmeof)
 
 Ensure ssh and zfs is installed on the nfs/iscsi server and that you have installed
 `targetcli`.
@@ -367,7 +418,7 @@ unecessarily:
 - https://github.com/democratic-csi/democratic-csi/issues/151 (some notes on
   using delegated zfs permissions)
 
-```
+```bash
 ####### nfs
 yum install -y nfs-utils
 systemctl enable --now nfs-server.service
@@ -389,6 +440,71 @@ passwd smbroot (optional)
 
 # create smb user and set password
 smbpasswd -L -a smbroot
+
+####### nvmeof
+# install nvmetcli and systemd services
+git clone git://git.infradead.org/users/hch/nvmetcli.git
+cd nvmetcli
+
+## install globally
+python3 setup.py install --prefix=/usr
+pip install configshell_fb
+
+## install to root home dir
+python3 setup.py install --user
+pip install configshell_fb --user
+
+# prevent log files from filling up disk
+ln -sf /dev/null ~/.nvmetcli/log.txt
+ln -sf /dev/null ~/.nvmetcli/history.txt
+
+# install systemd unit and enable/start
+## optionally to ensure the config file is loaded before we start
+## reading/writing to it add an ExecStartPost= to the unit file
+##
+## ExecStartPost=/usr/bin/touch /var/run/nvmet-config-loaded
+##
+## in your dirver config set nvmeof.shareStrategyNvmetCli.configIsImportedFilePath=/var/run/nvmet-config-loaded
+## which will prevent the driver from making any changes until the configured
+## file is present
+vi nvmet.service
+
+cp nvmet.service /etc/systemd/system/
+mkdir -p /etc/nvmet
+systemctl daemon-reload
+systemctl enable --now nvmet.service
+systemctl status nvmet.service
+
+# ensure nvmeof target modules are loaded at startup
+cat <<EOF > /etc/modules-load.d/nvmet.conf
+nvmet
+nvmet-tcp
+nvmet-fc
+nvmet-rdma
+EOF
+
+# create the port(s) configuration manually
+echo "
+cd /
+ls
+" | nvmetcli
+
+# do this multiple times altering as appropriate if you have/want multipath
+# change the port to 2, 3.. each additional path
+# the below example creates a tcp port listening on all IPs on port 4420
+echo "
+cd /ports
+create 1
+cd 1
+set addr adrfam=ipv4 trtype=tcp traddr=0.0.0.0 trsvcid=4420
+
+saveconfig /etc/nvmet/config.json
+" | nvmetcli
+
+# if running TrueNAS SCALE you can skip the above and simply copy
+# contrib/scale-nvmet-start.sh to your machine and add it as a startup script
+# to launch POSTINIT type COMMAND
+# and then create the port(s) as mentioned above
 ```
 
 ### Synology (synology-iscsi)
@@ -397,7 +513,7 @@ Ensure iscsi manager has been installed and is generally setup/configured. DSM 6
 
 ## Helm Installation
 
-```
+```bash
 helm repo add democratic-csi https://democratic-csi.github.io/charts/
 helm repo update
 # helm v2
@@ -441,13 +557,14 @@ microk8s helm upgrade \
 
 - microk8s - `/var/snap/microk8s/common/var/lib/kubelet`
 - pivotal - `/var/vcap/data/kubelet`
+- k0s - `/var/lib/k0s/kubelet`
 
 ### openshift
 
 `democratic-csi` generally works fine with openshift. Some special parameters
 need to be set with helm (support added in chart version `0.6.1`):
 
-```
+```bash
 # for sure required
 --set node.rbac.openshift.privileged=true
 --set node.driver.localtimeHostPath=false
@@ -460,6 +577,11 @@ need to be set with helm (support added in chart version `0.6.1`):
 
 `democratic-csi` works with Nomad in a functioning but limted capacity. See the
 [Nomad docs](docs/nomad.md) for details.
+
+### Docker Swarm
+
+- https://github.com/moby/moby/blob/master/docs/cluster_volumes.md
+- https://github.com/olljanat/csi-plugins-for-docker-swarm
 
 ## Multiple Deployments
 
@@ -479,25 +601,14 @@ following:
 
 # Snapshot Support
 
-Install beta (v1.17+) CRDs (once per cluster):
-
-- https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
-
-```
-kubectl apply -f snapshot.storage.k8s.io_volumesnapshotclasses.yaml
-kubectl apply -f snapshot.storage.k8s.io_volumesnapshotcontents.yaml
-kubectl apply -f snapshot.storage.k8s.io_volumesnapshots.yaml
-```
-
 Install snapshot controller (once per cluster):
 
-- https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/snapshot-controller
+- https://github.com/democratic-csi/charts/tree/master/stable/snapshot-controller
 
-```
-# replace namespace references to your liking
-kubectl apply -f rbac-snapshot-controller.yaml
-kubectl apply -f setup-snapshot-controller.yaml
-```
+OR
+
+- https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
+- https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/snapshot-controller
 
 Install `democratic-csi` as usual with `volumeSnapshotClasses` defined as appropriate.
 

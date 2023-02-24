@@ -1,0 +1,102 @@
+driver: zfs-generic-nvmeof
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+
+zfs:
+  # can be used to override defaults if necessary
+  # the example below is useful for TrueNAS 12
+  #cli:
+  #  sudoEnabled: true
+  #  paths:
+  #    zfs: /usr/local/sbin/zfs
+  #    zpool: /usr/local/sbin/zpool
+  #    sudo: /usr/local/bin/sudo
+  #    chroot: /usr/sbin/chroot
+  
+  # can be used to set arbitrary values on the dataset/zvol
+  # can use handlebars templates with the parameters from the storage class/CO
+  #datasetProperties:
+  #  "org.freenas:description": "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+  #  "org.freenas:test": "{{ parameters.foo }}"
+  #  "org.freenas:test2": "some value"
+
+  datasetParentName: tank/k8s/test
+  # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
+  # they may be siblings, but neither should be nested in the other
+  detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
+
+  # "" (inherit), lz4, gzip-9, etc
+  zvolCompression:
+  # "" (inherit), on, off, verify
+  zvolDedup:
+  zvolEnableReservation: false
+  # 512, 1K, 2K, 4K, 8K, 16K, 64K, 128K default is 16K
+  zvolBlocksize:
+
+nvmeof:
+  # these are for the node/client aspect
+  transports:
+    - tcp://server:port
+    #- "tcp://127.0.0.1:4420?host-iface=eth0"
+    #- "tcp://[2001:123:456::1]:4420"
+    #- "rdma://127.0.0.1:4420"
+    #- "fc://[nn-0x203b00a098cbcac6:pn-0x203d00a098cbcac6]"
+
+  # MUST ensure uniqueness
+  # full iqn limit is 223 bytes, plan accordingly
+  # default is "{{ name }}"
+  #nameTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+  namePrefix:
+  nameSuffix:
+
+  shareStrategy: "nvmetCli"
+  #shareStrategy: "spdkCli"
+
+  # https://documentation.suse.com/es-es/sles/15-SP1/html/SLES-all/cha-nvmeof.html
+  # https://www.linuxjournal.com/content/data-flash-part-iii-nvme-over-fabrics-using-tcp
+  # http://git.infradead.org/users/hch/nvmetcli.git
+  shareStrategyNvmetCli:
+    #sudoEnabled: true
+    #nvmetcliPath: nvmetcli
+    # prevent startup race conditions by ensuring the config on disk has been imported
+    # before we start messing with things
+    #configIsImportedFilePath: /var/run/nvmet-config-loaded
+    #configPath: /etc/nvmet/config.json
+    basename: "nqn.2003-01.org.linux-nvme"
+    # add more ports here as appropriate if you have multipath
+    ports:
+    - "1"
+    subsystem:
+      attributes:
+        allow_any_host: 1
+    # not supported yet in nvmetcli
+    #namespace:
+    #  attributes:
+    #    buffered_io: 1
+
+  shareStrategySpdkCli:
+    # spdkcli.py
+    #spdkcliPath: spdkcli
+    configPath: /etc/spdk/spdk.json
+    basename: "nqn.2003-01.org.linux-nvmeof"
+    bdev:
+      type: uring
+      #type: aio
+      attributes:
+        block_size: 512
+    subsystem:
+      attributes:
+        allow_any_host: "true"
+    listeners:
+    - trtype: tcp
+      traddr: server
+      trsvcid: port
+      adrfam: ipv4

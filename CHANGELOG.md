@@ -1,3 +1,16 @@
+# v1.8.0
+
+Released 2023-02-23
+
+- `nvmeof` support
+
+# v1.7.7
+
+Released 2022-10-17
+
+- support `csi.access_modes` config value in all zfs-based drivers
+- bump deps
+
 # v1.7.6
 
 Released 2022-08-06
