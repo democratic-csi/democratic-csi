@@ -9,10 +9,12 @@ const { Mount } = require("../utils/mount");
 const { OneClient } = require("../utils/oneclient");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
+const { NVMEoF } = require("../utils/nvmeof");
 const registry = require("../utils/registry");
 const semver = require("semver");
 const GeneralUtils = require("../utils/general");
 const { Zetabyte } = require("../utils/zfs");
+const { transport } = require("winston");
 
 const __REGISTRY_NS__ = "CsiBaseDriver";
 
@@ -136,6 +138,18 @@ class CsiBaseDriver {
   getDefaultISCSIInstance() {
     return registry.get(`${__REGISTRY_NS__}:default_iscsi_instance`, () => {
       return new ISCSI();
+    });
+  }
+
+  /**
+   * Get an instance of the NVMEoF class
+   *
+   * @returns NVMEoF
+   */
+  getDefaultNVMEoFInstance() {
+    const driver = this;
+    return registry.get(`${__REGISTRY_NS__}:default_nvmeof_instance`, () => {
+      return new NVMEoF({ logger: driver.ctx.logger });
     });
   }
 
@@ -560,6 +574,7 @@ class CsiBaseDriver {
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
     const iscsi = driver.getDefaultISCSIInstance();
+    const nvmeof = driver.getDefaultNVMEoFInstance();
     let result;
     let device;
     let block_device_info;
@@ -792,7 +807,11 @@ class CsiBaseDriver {
               await iscsi.iscsiadm.rescanSession(session);
 
               // find device name
-              device = iscsi.devicePathByPortalIQNLUN(iscsiConnection.portal, iscsiConnection.iqn, iscsiConnection.lun)
+              device = iscsi.devicePathByPortalIQNLUN(
+                iscsiConnection.portal,
+                iscsiConnection.iqn,
+                iscsiConnection.lun
+              );
               let deviceByPath = device;
 
               // can take some time for device to show up, loop for some period
@@ -887,6 +906,242 @@ class CsiBaseDriver {
             }
 
             break;
+
+          case "nvmeof":
+            {
+              let transports = [];
+              if (volume_context.transport) {
+                transports.push(volume_context.transport.trim());
+              }
+
+              if (volume_context.transports) {
+                volume_context.transports.split(",").forEach((transport) => {
+                  transports.push(transport.trim());
+                });
+              }
+
+              // ensure unique entries only
+              transports = [...new Set(transports)];
+
+              // stores actual device paths after nvmeof login
+              let nvmeofControllerDevices = [];
+              let nvmeofNamespaceDevices = [];
+
+              // stores configuration of targets/iqn/luns to connect to
+              let nvmeofConnections = [];
+              for (let transport of transports) {
+                nvmeofConnections.push({
+                  transport,
+                  nqn: volume_context.nqn,
+                  nsid: volume_context.nsid,
+                });
+              }
+
+              for (let nvmeofConnection of nvmeofConnections) {
+                // connect
+                try {
+                  await GeneralUtils.retry(15, 2000, async () => {
+                    await nvmeof.connectByNQNTransport(
+                      nvmeofConnection.nqn,
+                      nvmeofConnection.transport
+                    );
+                  });
+                } catch (err) {
+                  driver.ctx.logger.warn(
+                    `error: ${JSON.stringify(err)} connecting to transport: ${
+                      nvmeofConnection.transport
+                    }`
+                  );
+                  continue;
+                }
+
+                // find controller device
+                let controllerDevice;
+                try {
+                  await GeneralUtils.retry(15, 2000, async () => {
+                    controllerDevice =
+                      await nvmeof.controllerDevicePathByTransportNQN(
+                        nvmeofConnection.transport,
+                        nvmeofConnection.nqn,
+                        nvmeofConnection.nsid
+                      );
+
+                    if (!controllerDevice) {
+                      throw new Error(`failed to find controller device`);
+                    }
+                  });
+                } catch (err) {
+                  driver.ctx.logger.warn(
+                    `error finding nvme controller device: ${JSON.stringify(
+                      err
+                    )}`
+                  );
+                  continue;
+                }
+
+                // find namespace device
+                let namespaceDevice;
+                try {
+                  await GeneralUtils.retry(15, 2000, async () => {
+                    // rescan in scenarios when login previously occurred but volumes never appeared
+                    // must be the NVMe char device, not the namespace device
+                    await nvmeof.rescanNamespace(controllerDevice);
+
+                    namespaceDevice =
+                      await nvmeof.namespaceDevicePathByTransportNQNNamespace(
+                        nvmeofConnection.transport,
+                        nvmeofConnection.nqn,
+                        nvmeofConnection.nsid
+                      );
+                    if (!controllerDevice) {
+                      throw new Error(`failed to find namespace device`);
+                    }
+                  });
+                } catch (err) {
+                  driver.ctx.logger.warn(
+                    `error finding nvme namespace device: ${JSON.stringify(
+                      err
+                    )}`
+                  );
+                  continue;
+                }
+
+                // sanity check for device files
+                if (!namespaceDevice) {
+                  continue;
+                }
+
+                // sanity check for device files
+                if (!controllerDevice) {
+                  continue;
+                }
+
+                // can take some time for device to show up, loop for some period
+                result = await filesystem.pathExists(namespaceDevice);
+                let timer_start = Math.round(new Date().getTime() / 1000);
+                let timer_max = 30;
+                let deviceCreated = result;
+                while (!result) {
+                  await GeneralUtils.sleep(2000);
+                  result = await filesystem.pathExists(namespaceDevice);
+
+                  if (result) {
+                    deviceCreated = true;
+                    break;
+                  }
+
+                  let current_time = Math.round(new Date().getTime() / 1000);
+                  if (!result && current_time - timer_start > timer_max) {
+                    driver.ctx.logger.warn(
+                      `hit timeout waiting for namespace device node to appear: ${namespaceDevice}`
+                    );
+                    break;
+                  }
+                }
+
+                if (deviceCreated) {
+                  device = await filesystem.realpath(namespaceDevice);
+                  nvmeofControllerDevices.push(controllerDevice);
+                  nvmeofNamespaceDevices.push(namespaceDevice);
+
+                  driver.ctx.logger.info(
+                    `successfully logged into nvmeof transport ${nvmeofConnection.transport} and created controller device: ${controllerDevice}, namespace device: ${namespaceDevice}`
+                  );
+                }
+              }
+
+              // let things settle
+              // this will help in dm scenarios
+              await GeneralUtils.sleep(2000);
+
+              // filter duplicates
+              nvmeofNamespaceDevices = nvmeofNamespaceDevices.filter(
+                (value, index, self) => {
+                  return self.indexOf(value) === index;
+                }
+              );
+
+              nvmeofControllerDevices = nvmeofControllerDevices.filter(
+                (value, index, self) => {
+                  return self.indexOf(value) === index;
+                }
+              );
+
+              // only throw an error if we were not able to attach to *any* devices
+              if (nvmeofNamespaceDevices.length < 1) {
+                throw new GrpcError(
+                  grpc.status.UNKNOWN,
+                  `unable to attach any nvme devices`
+                );
+              }
+
+              if (nvmeofControllerDevices.length != nvmeofConnections.length) {
+                driver.ctx.logger.warn(
+                  `failed to attach all nvmeof devices/subsystems/transports`
+                );
+
+                // TODO: allow a parameter to control this behavior in some form
+                if (false) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `unable to attach all iscsi devices`
+                  );
+                }
+              }
+
+              /**
+               * NVMEoF has native multipath capabilities without using device mapper
+               * You can disable the built-in using kernel param nvme_core.multipath=N/Y
+               */
+              let useNativeMultipath = await nvmeof.nativeMultipathEnabled();
+
+              if (useNativeMultipath) {
+                // only throw an error if we were not able to attach to *any* devices
+                if (nvmeofNamespaceDevices.length > 1) {
+                  throw new GrpcError(
+                    grpc.status.UNKNOWN,
+                    `too many nvme namespace devices, native multipath enabled therefore should only have 1`
+                  );
+                }
+              } else {
+                // compare all device-mapper slaves with the newly created devices
+                // if any of the new devices are device-mapper slaves treat this as a
+                // multipath scenario
+                let allDeviceMapperSlaves =
+                  await filesystem.getAllDeviceMapperSlaveDevices();
+                let commonDevices = allDeviceMapperSlaves.filter((value) =>
+                  nvmeofNamespaceDevices.includes(value)
+                );
+
+                const useDMMultipath =
+                  nvmeofConnections.length > 1 || commonDevices.length > 0;
+
+                // discover multipath device to use
+                if (useDMMultipath) {
+                  device = await filesystem.getDeviceMapperDeviceFromSlaves(
+                    nvmeofNamespaceDevices,
+                    false
+                  );
+
+                  if (!device) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `failed to discover multipath device`
+                    );
+                  }
+                } else {
+                  // only throw an error if we were not able to attach to *any* devices
+                  if (nvmeofNamespaceDevices.length > 1) {
+                    throw new GrpcError(
+                      grpc.status.UNKNOWN,
+                      `too many nvme namespace devices, neither DM nor native multipath enabled`
+                    );
+                  }
+                }
+              }
+            }
+            break;
+
           case "hostpath":
             result = await mount.pathIsMounted(staging_target_path);
             // if not mounted, mount
@@ -989,6 +1244,7 @@ class CsiBaseDriver {
             let is_block = false;
             switch (node_attach_driver) {
               case "iscsi":
+              case "nvmeof":
                 is_block = true;
                 break;
               case "zfs-local":
@@ -1053,6 +1309,16 @@ class CsiBaseDriver {
                   if (!Array.isArray(formatOptions)) {
                     formatOptions = [];
                   }
+
+                  switch (fs_type) {
+                    case "ext3":
+                    case "ext4":
+                    case "ext4dev":
+                      // disable reserved blocks in this scenario
+                      formatOptions.unshift("-m", "0");
+                      break;
+                  }
+
                   await filesystem.formatDevice(device, fs_type, formatOptions);
                 }
 
@@ -1093,6 +1359,7 @@ class CsiBaseDriver {
                   fs_type = "cifs";
                   break;
                 case "iscsi":
+                case "nvmeof":
                   fs_type = "ext4";
                   break;
                 default:
@@ -1988,6 +2255,7 @@ class CsiBaseDriver {
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
     const iscsi = driver.getDefaultISCSIInstance();
+    const nvmeof = driver.getDefaultNVMEoFInstance();
     let result;
     let is_block = false;
     let is_device_mapper = false;
@@ -2101,6 +2369,7 @@ class CsiBaseDriver {
         }
 
         if (is_block) {
+          let breakdeviceloop = false;
           let realBlockDeviceInfos = [];
           // detect if is a multipath device
           is_device_mapper = await filesystem.isDeviceMapperDevice(
@@ -2122,94 +2391,127 @@ class CsiBaseDriver {
 
           // TODO: this could be made async to detach all simultaneously
           for (const block_device_info_i of realBlockDeviceInfos) {
-            if (await filesystem.deviceIsIscsi(block_device_info_i.path)) {
-              let parent_block_device = await filesystem.getBlockDeviceParent(
-                block_device_info_i.path
-              );
+            if (breakdeviceloop) {
+              break;
+            }
+            switch (block_device_info_i.tran) {
+              case "iscsi":
+                {
+                  if (
+                    await filesystem.deviceIsIscsi(block_device_info_i.path)
+                  ) {
+                    let parent_block_device =
+                      await filesystem.getBlockDeviceParent(
+                        block_device_info_i.path
+                      );
 
-              // figure out which iscsi session this belongs to and logout
-              // scan /dev/disk/by-path/ip-*?
-              // device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
-              // parse output from `iscsiadm -m session -P 3`
-              let sessions = await iscsi.iscsiadm.getSessionsDetails();
-              for (let i = 0; i < sessions.length; i++) {
-                let session = sessions[i];
-                let is_attached_to_session = false;
+                    // figure out which iscsi session this belongs to and logout
+                    // scan /dev/disk/by-path/ip-*?
+                    // device = `/dev/disk/by-path/ip-${volume_context.portal}-iscsi-${volume_context.iqn}-lun-${volume_context.lun}`;
+                    // parse output from `iscsiadm -m session -P 3`
+                    let sessions = await iscsi.iscsiadm.getSessionsDetails();
+                    for (let i = 0; i < sessions.length; i++) {
+                      let session = sessions[i];
+                      let is_attached_to_session = false;
 
-                if (
-                  session.attached_scsi_devices &&
-                  session.attached_scsi_devices.host &&
-                  session.attached_scsi_devices.host.devices
-                ) {
-                  is_attached_to_session =
-                    session.attached_scsi_devices.host.devices.some(
-                      (device) => {
-                        if (
-                          device.attached_scsi_disk == parent_block_device.name
-                        ) {
-                          return true;
+                      if (
+                        session.attached_scsi_devices &&
+                        session.attached_scsi_devices.host &&
+                        session.attached_scsi_devices.host.devices
+                      ) {
+                        is_attached_to_session =
+                          session.attached_scsi_devices.host.devices.some(
+                            (device) => {
+                              if (
+                                device.attached_scsi_disk ==
+                                parent_block_device.name
+                              ) {
+                                return true;
+                              }
+                              return false;
+                            }
+                          );
+                      }
+
+                      if (is_attached_to_session) {
+                        let timer_start;
+                        let timer_max;
+
+                        timer_start = Math.round(new Date().getTime() / 1000);
+                        timer_max = 30;
+                        let loggedOut = false;
+                        while (!loggedOut) {
+                          try {
+                            await iscsi.iscsiadm.logout(session.target, [
+                              session.persistent_portal,
+                            ]);
+                            loggedOut = true;
+                          } catch (err) {
+                            await GeneralUtils.sleep(2000);
+                            let current_time = Math.round(
+                              new Date().getTime() / 1000
+                            );
+                            if (current_time - timer_start > timer_max) {
+                              // not throwing error for now as future invocations would not enter code path anyhow
+                              loggedOut = true;
+                              //throw new GrpcError(
+                              //  grpc.status.UNKNOWN,
+                              //  `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
+                              //);
+                            }
+                          }
                         }
-                        return false;
+
+                        timer_start = Math.round(new Date().getTime() / 1000);
+                        timer_max = 30;
+                        let deletedEntry = false;
+                        while (!deletedEntry) {
+                          try {
+                            await iscsi.iscsiadm.deleteNodeDBEntry(
+                              session.target,
+                              session.persistent_portal
+                            );
+                            deletedEntry = true;
+                          } catch (err) {
+                            await GeneralUtils.sleep(2000);
+                            let current_time = Math.round(
+                              new Date().getTime() / 1000
+                            );
+                            if (current_time - timer_start > timer_max) {
+                              // not throwing error for now as future invocations would not enter code path anyhow
+                              deletedEntry = true;
+                              //throw new GrpcError(
+                              //  grpc.status.UNKNOWN,
+                              //  `hit timeout trying to delete iscsi node DB entry: ${session.target}, ${session.persistent_portal}`
+                              //);
+                            }
+                          }
+                        }
                       }
+                    }
+                  }
+                }
+                break;
+              case "nvme":
+                {
+                  if (
+                    await filesystem.deviceIsNVMEoF(block_device_info_i.path)
+                  ) {
+                    let nqn = await nvmeof.nqnByNamespaceDeviceName(
+                      block_device_info_i.name
                     );
-                }
-
-                if (is_attached_to_session) {
-                  let timer_start;
-                  let timer_max;
-
-                  timer_start = Math.round(new Date().getTime() / 1000);
-                  timer_max = 30;
-                  let loggedOut = false;
-                  while (!loggedOut) {
-                    try {
-                      await iscsi.iscsiadm.logout(session.target, [
-                        session.persistent_portal,
-                      ]);
-                      loggedOut = true;
-                    } catch (err) {
-                      await GeneralUtils.sleep(2000);
-                      let current_time = Math.round(
-                        new Date().getTime() / 1000
-                      );
-                      if (current_time - timer_start > timer_max) {
-                        // not throwing error for now as future invocations would not enter code path anyhow
-                        loggedOut = true;
-                        //throw new GrpcError(
-                        //  grpc.status.UNKNOWN,
-                        //  `hit timeout trying to logout of iscsi target: ${session.persistent_portal}`
-                        //);
-                      }
-                    }
-                  }
-
-                  timer_start = Math.round(new Date().getTime() / 1000);
-                  timer_max = 30;
-                  let deletedEntry = false;
-                  while (!deletedEntry) {
-                    try {
-                      await iscsi.iscsiadm.deleteNodeDBEntry(
-                        session.target,
-                        session.persistent_portal
-                      );
-                      deletedEntry = true;
-                    } catch (err) {
-                      await GeneralUtils.sleep(2000);
-                      let current_time = Math.round(
-                        new Date().getTime() / 1000
-                      );
-                      if (current_time - timer_start > timer_max) {
-                        // not throwing error for now as future invocations would not enter code path anyhow
-                        deletedEntry = true;
-                        //throw new GrpcError(
-                        //  grpc.status.UNKNOWN,
-                        //  `hit timeout trying to delete iscsi node DB entry: ${session.target}, ${session.persistent_portal}`
-                        //);
-                      }
+                    if (nqn) {
+                      await nvmeof.disconnectByNQN(nqn);
+                      /**
+                       * the above disconnects *all* devices with the nqn so we
+                       * do NOT want to keep iterating all the 'real' devices
+                       * in the case of DM multipath
+                       */
+                      breakdeviceloop = true;
                     }
                   }
                 }
-              }
+                break;
             }
           }
         }
@@ -2539,6 +2841,7 @@ class CsiBaseDriver {
           case "oneclient":
           case "hostpath":
           case "iscsi":
+          case "nvmeof":
           case "zfs-local":
             // ensure appropriate directories/files
             switch (access_type) {
@@ -3205,6 +3508,8 @@ class CsiBaseDriver {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
+    const nvmeof = driver.getDefaultNVMEoFInstance();
+
     let device;
     let fs_info;
     let device_path;
@@ -3267,6 +3572,14 @@ class CsiBaseDriver {
           rescan_devices.push(device);
 
           for (let sdevice of rescan_devices) {
+            let is_nvmeof = await filesystem.deviceIsNVMEoF(sdevice);
+            if (is_nvmeof) {
+              let controllers =
+                await nvmeof.getControllersByNamespaceDeviceName(sdevice);
+              for (let controller of controllers) {
+                await nvmeof.rescanNamespace(`/dev/${controller.Controller}`);
+              }
+            }
             // TODO: technically rescan is only relevant/available for remote drives
             // such as iscsi etc, should probably limit this call as appropriate
             // for now crudely checking the scenario inside the method itself

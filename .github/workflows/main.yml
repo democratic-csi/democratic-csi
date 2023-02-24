@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.6.0
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
   build-npm-linux-amd64:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
           node-version: 16
@@ -29,7 +29,7 @@ jobs:
         run: |
           ci/bin/build.sh
       - name: upload build
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: node-modules-linux-amd64
           path: node_modules-linux-amd64.tar.gz
@@ -38,7 +38,7 @@ jobs:
   build-npm-windows-amd64:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
           node-version: 16
@@ -47,7 +47,7 @@ jobs:
         run: |
           ci\bin\build.ps1
       - name: upload build
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: node-modules-windows-amd64
           path: node_modules-windows-amd64.tar.gz
@@ -67,8 +67,8 @@ jobs:
       - X64
       - csi-sanity-synology
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -97,8 +97,8 @@ jobs:
       - X64
       - csi-sanity-synology
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -129,11 +129,11 @@ jobs:
       - self-hosted
       - Linux
       - X64
-      - csi-sanity-truenas
-      #- csi-sanity-zfs-generic
+      #- csi-sanity-truenas
+      - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -164,8 +164,8 @@ jobs:
       #- csi-sanity-truenas
       - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -198,8 +198,8 @@ jobs:
       #- csi-sanity-truenas
       - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -231,8 +231,8 @@ jobs:
       #- csi-sanity-truenas
       - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -256,14 +256,15 @@ jobs:
           - zfs-generic/iscsi.yaml
           - zfs-generic/nfs.yaml
           - zfs-generic/smb.yaml
+          - zfs-generic/nvmeof.yaml
     runs-on:
       - self-hosted
       - Linux
       - X64
       - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -292,8 +293,8 @@ jobs:
       - X64
       - csi-sanity-client
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -320,8 +321,8 @@ jobs:
       - X64
       - csi-sanity-client
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-windows-amd64
       - name: csi-sanity
@@ -350,8 +351,8 @@ jobs:
       - X64
       - csi-sanity-zfs-local
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -389,8 +390,8 @@ jobs:
       - X64
       - csi-sanity-local-hostpath
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: ${{ matrix.npmartifact }}
       - name: csi-sanity
@@ -413,8 +414,8 @@ jobs:
       - Windows
       - X64
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
         with:
           name: node-modules-windows-amd64
       - name: csi-sanity
@@ -458,6 +459,7 @@ jobs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
       - csi-sanity-truenas-scale-22_02
+      - csi-sanity-truenas-scale-22_12
       - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
@@ -468,7 +470,7 @@ jobs:
       - csi-sanity-windows-node
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: docker build
         run: |
           export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
@@ -497,6 +499,7 @@ jobs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
       - csi-sanity-truenas-scale-22_02
+      - csi-sanity-truenas-scale-22_12
       - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
@@ -519,7 +522,7 @@ jobs:
             nano_base_tag: ltsc2022
             file: Dockerfile.Windows
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: docker build
         shell: bash
         run: |
@@ -531,7 +534,7 @@ jobs:
           docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }}
           docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} -o democratic-csi-windows-${{ matrix.core_base_tag }}.tar
       - name: upload image tar
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
           path: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
@@ -546,7 +549,7 @@ jobs:
       - self-hosted
       - buildah
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/download-artifact@v3
         with:
           name: democratic-csi-windows-ltsc2019.tar

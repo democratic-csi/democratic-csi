@@ -129,6 +129,7 @@ class NodeManualDriver extends CsiBaseDriver {
         driverResourceType = "filesystem";
         break;
       case "iscsi":
+      case "nvmeof":
         driverResourceType = "volume";
         fs_types = ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
         break;

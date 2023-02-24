@@ -2,7 +2,8 @@ const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const GeneralUtils = require("../../utils/general");
-const LocalCliExecClient = require("./exec").LocalCliClient;
+const LocalCliExecClient =
+  require("../../utils/zfs_local_exec_client").LocalCliClient;
 const registry = require("../../utils/registry");
 const { Zetabyte } = require("../../utils/zfs");
 

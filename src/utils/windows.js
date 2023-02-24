@@ -118,6 +118,9 @@ class Windows {
     // -UseWriteThrough $true
     // cannot have trailing slash nor a path
     // must be \\<server>\<share>
+    //
+    // https://github.com/kubernetes-csi/csi-driver-smb/issues/219#issuecomment-781952587
+    // -Persistent $false
     remotePath = this.uncPathToShare(remotePath);
     command =
       "$PWord = ConvertTo-SecureString -String $Env:smbpassword -AsPlainText -Force;$Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $Env:smbuser, $PWord;New-SmbGlobalMapping -RemotePath $Env:smbremotepath -Credential $Credential -RequirePrivacy $true";

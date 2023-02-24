@@ -1,0 +1,30 @@
+driver: zfs-generic-nvmeof
+
+sshConnection:
+  host: ${SERVER_HOST}
+  port: 22
+  username: ${SERVER_USERNAME}
+  password: ${SERVER_PASSWORD}
+
+zfs:
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  zvolCompression:
+  zvolDedup:
+  zvolEnableReservation: false
+  zvolBlocksize:
+
+nvmeof:
+  transports:
+    - "tcp://${SERVER_HOST}:4420"
+  namePrefix: "csi-ci-${CI_BUILD_KEY}-"
+  nameSuffix: ""
+  shareStrategy: "nvmetCli"
+  shareStrategyNvmetCli:
+    basename: "nqn.2003-01.org.linux-nvmeof.ubuntu-19.x8664"
+    ports:
+      - "1"
+    subsystem:
+      attributes:
+        allow_any_host: 1
