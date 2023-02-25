@@ -1,3 +1,10 @@
+# v1.8.1
+
+Released 2023-02-25
+
+- minor fixes
+- updated `nvmeof` docs
+
 # v1.8.0
 
 Released 2023-02-23

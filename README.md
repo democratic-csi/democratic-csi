@@ -24,6 +24,7 @@ have access to resizing, snapshots, clones, etc functionality.
   - `freenas-api-smb` experimental use with SCALE only (manages zfs datasets to share over smb)
   - `zfs-generic-nfs` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
+  - `zfs-generic-smb` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-nvmeof` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
   - `zfs-local-dataset` (provision node-local volume as dataset)
@@ -202,12 +203,19 @@ nvme-fc
 nvme-rdma
 EOF
 
-# nvme has native multipath or can use DM multipath.
+# load the modules immediately
+modprobe nvme
+modprobe nvme-tcp
+modprobe nvme-fc
+modprobe nvme-rdma
+
+# nvme has native multipath or can use DM multipath
+# democratic-csi will gracefully handle either configuration
 # RedHat recommends DM multipath (nvme_core.multipath=N)
 cat /sys/module/nvme_core/parameters/multipath
 
 # kernel arg to enable/disable native multipath
-nvme_core.multipath=Y
+nvme_core.multipath=N
 ```
 
 ### zfs-local-ephemeral-inline
@@ -442,6 +450,20 @@ passwd smbroot (optional)
 smbpasswd -L -a smbroot
 
 ####### nvmeof
+# ensure nvmeof target modules are loaded at startup
+cat <<EOF > /etc/modules-load.d/nvmet.conf
+nvmet
+nvmet-tcp
+nvmet-fc
+nvmet-rdma
+EOF
+
+# load the modules immediately
+modprobe nvmet
+modprobe nvmet-tcp
+modprobe nvmet-fc
+modprobe nvmet-rdma
+
 # install nvmetcli and systemd services
 git clone git://git.infradead.org/users/hch/nvmetcli.git
 cd nvmetcli
@@ -474,14 +496,6 @@ mkdir -p /etc/nvmet
 systemctl daemon-reload
 systemctl enable --now nvmet.service
 systemctl status nvmet.service
-
-# ensure nvmeof target modules are loaded at startup
-cat <<EOF > /etc/modules-load.d/nvmet.conf
-nvmet
-nvmet-tcp
-nvmet-fc
-nvmet-rdma
-EOF
 
 # create the port(s) configuration manually
 echo "

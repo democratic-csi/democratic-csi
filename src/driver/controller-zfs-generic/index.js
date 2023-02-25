@@ -846,7 +846,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     if (
       _.get(this.options, "iscsi.shareStrategyTargetCli.sudoEnabled", false)
     ) {
-      targetCliArgs.unshift("sudo");
+      cliArgs.unshift("sudo");
     }
 
     let cliCommand = [];
