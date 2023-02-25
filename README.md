@@ -38,7 +38,8 @@ have access to resizing, snapshots, clones, etc functionality.
     for all volumes)
   - `local-hostpath` (crudely provisions node-local directories)
   - `node-manual` (allows connecting to manually created smb, nfs, lustre,
-    oneclient, and iscsi volumes, see sample PVs in the `examples` directory)
+    oneclient, nvmeof, and iscsi volumes, see sample PVs in the `examples`
+    directory)
 - framework for developing `csi` drivers
 
 If you have any interest in providing a `csi` driver, simply open an issue to
