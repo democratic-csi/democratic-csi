@@ -186,6 +186,13 @@ node:
 
 and continue your democratic installation as usuall with other iscsi drivers.
 
+#### Privilged Namespace
+democratic-csi requires privileged access to the nodes, so the namespace should allow for privileged pods. One way of doing it is via [namespace labels](https://kubernetes.io/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/).
+Add the followin label to the democratic-csi installation namespace `pod-security.kubernetes.io/enforce=privileged`
+```
+kubectl label --overwrite namespace democratic-csi pod-security.kubernetes.io/enforce=privileged
+```
+
 ### nvmeof
 
 ```bash
