@@ -30,6 +30,8 @@ Write-Output "connecting to: ${endpoint}"
 Write-Output "failfast: ${env:CSI_SANITY_FAILFAST}"
 Write-Output "skip: ${env:CSI_SANITY_SKIP}"
 Write-Output "focus: ${env:CSI_SANITY_FOCUS}"
+Write-Output "csi.mountdir: ${env:CSI_SANITY_TEMP_DIR}\mnt"
+Write-Output "csi.stagingdir: ${env:CSI_SANITY_TEMP_DIR}\stage"
 
 $skip = '"' + ${env:CSI_SANITY_SKIP} + '"'
 $focus = '"' + ${env:CSI_SANITY_FOCUS} + '"'
