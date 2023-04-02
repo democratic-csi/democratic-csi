@@ -1,11 +1,12 @@
 # v1.8.2
 
-Released 2023-04-01
+Released 2023-04-02
 
 - more comprehensive support to manually set `access_modes`
 - more intelligent handling of `access_modes` when `access_type=block`
   - https://github.com/ceph/ceph-csi/blob/devel/examples/README.md#how-to-test-rbd-multi_node_multi_writer-block-feature
   - others? allow this by default
+- remove older versions of TrueNAS from ci
 
 # v1.8.1
 
