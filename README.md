@@ -38,7 +38,8 @@ have access to resizing, snapshots, clones, etc functionality.
     for all volumes)
   - `local-hostpath` (crudely provisions node-local directories)
   - `node-manual` (allows connecting to manually created smb, nfs, lustre,
-    oneclient, and iscsi volumes, see sample PVs in the `examples` directory)
+    oneclient, nvmeof, and iscsi volumes, see sample PVs in the `examples`
+    directory)
 - framework for developing `csi` drivers
 
 If you have any interest in providing a `csi` driver, simply open an issue to
@@ -184,6 +185,13 @@ node:
 ```
 
 and continue your democratic installation as usuall with other iscsi drivers.
+
+#### Privilged Namespace
+democratic-csi requires privileged access to the nodes, so the namespace should allow for privileged pods. One way of doing it is via [namespace labels](https://kubernetes.io/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/).
+Add the followin label to the democratic-csi installation namespace `pod-security.kubernetes.io/enforce=privileged`
+```
+kubectl label --overwrite namespace democratic-csi pod-security.kubernetes.io/enforce=privileged
+```
 
 ### nvmeof
 

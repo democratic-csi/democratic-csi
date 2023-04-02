@@ -104,6 +104,33 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     }
   }
 
+  getAccessModes(capability) {
+    let access_modes = _.get(this.options, "csi.access_modes", null);
+    if (access_modes !== null) {
+      return access_modes;
+    }
+
+    access_modes = [
+      "UNKNOWN",
+      "SINGLE_NODE_WRITER",
+      "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+      "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
+      "SINGLE_NODE_READER_ONLY",
+      "MULTI_NODE_READER_ONLY",
+      "MULTI_NODE_SINGLE_WRITER",
+      "MULTI_NODE_MULTI_WRITER",
+    ];
+
+    if (
+      capability.access_type == "block" &&
+      !access_modes.includes("MULTI_NODE_MULTI_WRITER")
+    ) {
+      access_modes.push("MULTI_NODE_MULTI_WRITER");
+    }
+
+    return access_modes;
+  }
+
   assertCapabilities(capabilities) {
     const driver = this;
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
@@ -126,16 +153,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       }
 
       if (
-        ![
-          "UNKNOWN",
-          "SINGLE_NODE_WRITER",
-          "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
-          "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
-          "SINGLE_NODE_READER_ONLY",
-          "MULTI_NODE_READER_ONLY",
-          "MULTI_NODE_SINGLE_WRITER",
-          "MULTI_NODE_MULTI_WRITER",
-        ].includes(capability.access_mode.mode)
+        !this.getAccessModes(capability).includes(capability.access_mode.mode)
       ) {
         message = `invalid access_mode, ${capability.access_mode.mode}`;
         return false;

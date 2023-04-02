@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nvmeof-manual
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions: []
+  csi:
+    driver: org.democratic-csi.node-manual
+    readOnly: false
+    # can be ext4 or xfs
+    fsType: ext4
+    volumeHandle: unique-volumeid  # make sure it's a unique id in the cluster
+    volumeAttributes:
+      # rdma and fc are also available
+      transport: tcp://<ip:port>,
+      #transports: <transport>,<transport>,...
+      nqn: <nqn>
+      nsid: <nsid>
+      node_attach_driver: "nvmeof"
+      provisioner_driver: node-manual

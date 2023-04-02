@@ -1,3 +1,5 @@
+# https://www.truenas.com/software-status/
+
 name: CI
 
 on:
@@ -113,39 +115,6 @@ jobs:
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
-  # api-based drivers
-  csi-sanity-truenas-scale-22_02:
-    needs:
-      - build-npm-linux-amd64
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - truenas/scale/22.02/scale-iscsi.yaml
-          - truenas/scale/22.02/scale-nfs.yaml
-          # 80 char limit
-          - truenas/scale/22.02/scale-smb.yaml
-    runs-on:
-      - self-hosted
-      - Linux
-      - X64
-      #- csi-sanity-truenas
-      - csi-sanity-zfs-generic
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: node-modules-linux-amd64
-      - name: csi-sanity
-        run: |
-          # run tests
-          ci/bin/run.sh
-        env:
-          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_22_02_HOST }}
-          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
-          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
-
   csi-sanity-truenas-scale-22_12:
     needs:
       - build-npm-linux-amd64
@@ -175,40 +144,6 @@ jobs:
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
           TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_22_12_HOST }}
-          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
-          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
-
-  # ssh-based drivers
-  csi-sanity-truenas-core-12_0:
-    needs:
-      - build-npm-linux-amd64
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          # 63 char limit
-          - truenas/core/12.0/core-iscsi.yaml
-          - truenas/core/12.0/core-nfs.yaml
-          # 80 char limit
-          - truenas/core/12.0/core-smb.yaml
-    runs-on:
-      - self-hosted
-      - Linux
-      - X64
-      #- csi-sanity-truenas
-      - csi-sanity-zfs-generic
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: node-modules-linux-amd64
-      - name: csi-sanity
-        run: |
-          # run tests
-          ci/bin/run.sh
-        env:
-          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_12_0_HOST }}
           TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
           TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
 
@@ -458,9 +393,7 @@ jobs:
       - determine-image-tag
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-22_02
       - csi-sanity-truenas-scale-22_12
-      - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-client
@@ -498,9 +431,7 @@ jobs:
     needs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-22_02
       - csi-sanity-truenas-scale-22_12
-      - csi-sanity-truenas-core-12_0
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-client

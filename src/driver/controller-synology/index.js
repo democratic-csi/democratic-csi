@@ -208,6 +208,47 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     return location;
   }
 
+  getAccessModes(capability) {
+    let access_modes = _.get(this.options, "csi.access_modes", null);
+    if (access_modes !== null) {
+      return access_modes;
+    }
+
+    const driverResourceType = this.getDriverResourceType();
+    switch (driverResourceType) {
+      case "filesystem":
+        access_modes = [
+          "UNKNOWN",
+          "SINGLE_NODE_WRITER",
+          "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+          "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
+          "SINGLE_NODE_READER_ONLY",
+          "MULTI_NODE_READER_ONLY",
+          "MULTI_NODE_SINGLE_WRITER",
+          "MULTI_NODE_MULTI_WRITER",
+        ];
+      case "volume":
+        access_modes = [
+          "UNKNOWN",
+          "SINGLE_NODE_WRITER",
+          "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
+          "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
+          "SINGLE_NODE_READER_ONLY",
+          "MULTI_NODE_READER_ONLY",
+          "MULTI_NODE_SINGLE_WRITER",
+        ];
+    }
+
+    if (
+      capability.access_type == "block" &&
+      !access_modes.includes("MULTI_NODE_MULTI_WRITER")
+    ) {
+      access_modes.push("MULTI_NODE_MULTI_WRITER");
+    }
+
+    return access_modes;
+  }
+
   assertCapabilities(capabilities) {
     const driverResourceType = this.getDriverResourceType();
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
@@ -233,16 +274,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
 
           if (
-            ![
-              "UNKNOWN",
-              "SINGLE_NODE_WRITER",
-              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
-              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
-              "SINGLE_NODE_READER_ONLY",
-              "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER",
-              "MULTI_NODE_MULTI_WRITER",
-            ].includes(capability.access_mode.mode)
+            !this.getAccessModes(capability).includes(
+              capability.access_mode.mode
+            )
           ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
             return false;
@@ -263,15 +297,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
           }
 
           if (
-            ![
-              "UNKNOWN",
-              "SINGLE_NODE_WRITER",
-              "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
-              "SINGLE_NODE_MULTI_WRITER", // added in v1.5.0
-              "SINGLE_NODE_READER_ONLY",
-              "MULTI_NODE_READER_ONLY",
-              "MULTI_NODE_SINGLE_WRITER",
-            ].includes(capability.access_mode.mode)
+            !this.getAccessModes(capability).includes(
+              capability.access_mode.mode
+            )
           ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
             return false;
