@@ -29,13 +29,13 @@ Write-Output "csi.stagingdir: ${env:CSI_SANITY_TEMP_DIR}\stage"
 
 $exe = "csi-sanity.exe"
 $exeargs = @()
-$xecargs += "-csi.endpoint", "unix://${endpoint}"
-$xecargs += "-csi.mountdir", "${env:CSI_SANITY_TEMP_DIR}\mnt"
-$xecargs += "-csi.stagingdir", "${env:CSI_SANITY_TEMP_DIR}\stage"
-$xecargs += "-csi.testvolumeexpandsize", "2147483648"
-$xecargs += "-csi.testvolumesize", "1073741824"
-$xecargs += "-ginkgo.skip", "${env:CSI_SANITY_SKIP}"
-$xecargs += "-ginkgo.focus", "${env:CSI_SANITY_FOCUS}"
+$exeargs += "-csi.endpoint", "unix://${endpoint}"
+$exeargs += "-csi.mountdir", "${env:CSI_SANITY_TEMP_DIR}\mnt"
+$exeargs += "-csi.stagingdir", "${env:CSI_SANITY_TEMP_DIR}\stage"
+$exeargs += "-csi.testvolumeexpandsize", "2147483648"
+$exeargs += "-csi.testvolumesize", "1073741824"
+$exeargs += "-ginkgo.skip", "${env:CSI_SANITY_SKIP}"
+$exeargs += "-ginkgo.focus", "${env:CSI_SANITY_FOCUS}"
 
 if ($env:CSI_SANITY_FAILFAST -eq "true") {
   $exeargs += "-ginkgo.fail-fast"
