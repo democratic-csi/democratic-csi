@@ -129,6 +129,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
           "MULTI_NODE_SINGLE_WRITER",
           "MULTI_NODE_MULTI_WRITER",
         ];
+        break;
       case "volume":
         access_modes = [
           "UNKNOWN",
@@ -140,6 +141,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
           "MULTI_NODE_SINGLE_WRITER",
           "MULTI_NODE_MULTI_WRITER",
         ];
+        break;
     }
 
     if (
