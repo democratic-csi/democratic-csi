@@ -2036,6 +2036,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           "MULTI_NODE_SINGLE_WRITER",
           "MULTI_NODE_MULTI_WRITER",
         ];
+        break;
       case "volume":
         access_modes = [
           "UNKNOWN",
@@ -2046,6 +2047,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           "MULTI_NODE_READER_ONLY",
           "MULTI_NODE_SINGLE_WRITER",
         ];
+        break;
     }
 
     if (
