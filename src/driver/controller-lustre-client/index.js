@@ -13,13 +13,13 @@ class ControllerLustreClientDriver extends ControllerClientCommonDriver {
     return "lustre";
   }
 
-  getVolumeContext(name) {
+  getVolumeContext(volume_id) {
     const driver = this;
     const config_key = driver.getConfigKey();
     return {
       node_attach_driver: "lustre",
       server: this.options[config_key].shareHost,
-      share: driver.getShareVolumePath(name),
+      share: driver.getShareVolumePath(volume_id),
     };
   }
 

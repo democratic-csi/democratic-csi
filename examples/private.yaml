@@ -8,10 +8,20 @@
 _private:
   csi:
     volume:
-      derivedContext:
+      volumeContext:
         # driver left blank is used to auto select
         driver: memory # strictly to facilitate testing
         #driver: kubernetes
+
+      # THIS IS UNSUPPORTED, BAD THINGS WILL HAPPEN IF NOT CONFIGURED PROPERLY
+      #
+      # note the volume length must *always* be the same for every call for the same volume by the CO
+      # the length must NOT execeed 128 characters
+      # must start with an alphanumeric character
+      # must only contain alphnumeric characters or `-` or `_`
+      idTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+
+      # if set, this hash is applied *after* the templating above
       idHash:
         strategy: crc16
         #strategy: crc32

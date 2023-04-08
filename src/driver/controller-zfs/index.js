@@ -644,20 +644,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
     let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
-    let volume_id = await driver.getVolumeIdFromName(name);
+    let volume_id = await driver.getVolumeIdFromCall(call);
     let volume_content_source = call.request.volume_content_source;
 
     if (!datasetParentName) {
       throw new GrpcError(
         grpc.status.FAILED_PRECONDITION,
         `invalid configuration: missing datasetParentName`
-      );
-    }
-
-    if (!name) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `volume name is required`
       );
     }
 

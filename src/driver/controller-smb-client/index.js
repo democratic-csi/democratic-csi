@@ -13,13 +13,13 @@ class ControllerSmbClientDriver extends ControllerClientCommonDriver {
     return "smb";
   }
 
-  getVolumeContext(name) {
+  getVolumeContext(volume_id) {
     const driver = this;
     const config_key = driver.getConfigKey();
     return {
       node_attach_driver: "smb",
       server: this.options[config_key].shareHost,
-      share: driver.stripLeadingSlash(driver.getShareVolumePath(name)),
+      share: driver.stripLeadingSlash(driver.getShareVolumePath(volume_id)),
     };
   }
 

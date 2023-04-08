@@ -5,6 +5,7 @@ const fs = require("fs");
 const CsiProxyClient = require("../utils/csi_proxy_client").CsiProxyClient;
 const k8s = require("@kubernetes/client-node");
 const { GrpcError, grpc } = require("../utils/grpc");
+const Handlebars = require("handlebars");
 const { Mount } = require("../utils/mount");
 const { OneClient } = require("../utils/oneclient");
 const { Filesystem } = require("../utils/filesystem");
@@ -14,7 +15,6 @@ const registry = require("../utils/registry");
 const semver = require("semver");
 const GeneralUtils = require("../utils/general");
 const { Zetabyte } = require("../utils/zfs");
-const { transport } = require("winston");
 
 const __REGISTRY_NS__ = "CsiBaseDriver";
 
@@ -366,26 +366,120 @@ class CsiBaseDriver {
    * the value of `volume_id` to play nicely with scenarios that do not support
    * long names (ie: smb share, etc)
    *
-   * @param {*} name
+   * per csi, strings have a max size of 128 bytes, volume_id should NOT
+   * execeed this limit
+   *
+   * Any Unicode string that conforms to the length limit is allowed
+   * except those containing the following banned characters:
+   * U+0000-U+0008, U+000B, U+000C, U+000E-U+001F, U+007F-U+009F.
+   * (These are control characters other than commonly used whitespace.)
+   *
+   * https://github.com/container-storage-interface/spec/blob/master/spec.md#size-limits
+   * https://docs.oracle.com/cd/E26505_01/html/E37384/gbcpt.html
+   *
+   * @param {*} call
    * @returns
    */
-  async getVolumeIdFromName(name) {
+  async getVolumeIdFromCall(call) {
     const driver = this;
-    const strategy = _.get(
+    let volume_id = call.request.name;
+
+    if (!volume_id) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `volume name is required`
+      );
+    }
+
+    const idTemplate = _.get(
+      driver.options,
+      "_private.csi.volume.idTemplate",
+      ""
+    );
+    if (idTemplate) {
+      volume_id = Handlebars.compile(idTemplate)({
+        name: call.request.name,
+        parameters: call.request.parameters,
+      });
+
+      if (!volume_id) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `generated volume_id is empty, idTemplate may be invalid`
+        );
+      }
+    }
+
+    const hash_strategy = _.get(
       driver.options,
       "_private.csi.volume.idHash.strategy",
       ""
     );
-    switch (strategy.toLowerCase()) {
-      case "md5":
-        return GeneralUtils.md5(name);
-      case "crc32":
-        return GeneralUtils.crc32(name);
-      case "crc16":
-        return GeneralUtils.crc16(name);
-      default:
-        return name;
+
+    if (hash_strategy) {
+      switch (hash_strategy.toLowerCase()) {
+        case "md5":
+          volume_id = GeneralUtils.md5(volume_id);
+          break;
+        case "crc8":
+          volume_id = GeneralUtils.crc8(volume_id);
+          break;
+        case "crc16":
+          volume_id = GeneralUtils.crc16(volume_id);
+          break;
+        case "crc32":
+          volume_id = GeneralUtils.crc32(volume_id);
+          break;
+        default:
+          throw new GrpcError(
+            grpc.status.INVALID_ARGUMENT,
+            `unkown hash strategy: ${hash_strategy}`
+          );
+      }
     }
+
+    volume_id = String(volume_id);
+
+    if (volume_id.length > 128) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `generated volume_id '${volume_id}' is too large`
+      );
+    }
+
+    if (volume_id.length < 1) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `generated volume_id '${volume_id}' is too small`
+      );
+    }
+
+    /**
+     * technically zfs allows `:` and `.` in addition to `_` and `-`
+     */
+    let invalid_chars;
+    invalid_chars = volume_id.match(/[^a-z0-9_\-]/gi);
+    if (invalid_chars) {
+      invalid_chars = String.prototype.concat(
+        ...new Set(invalid_chars.join(""))
+      );
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `generated volume_id '${volume_id}' contains invalid characters: '${invalid_chars}'`
+      );
+    }
+
+    /**
+     * Dataset names must begin with an alphanumeric character.
+     */
+    if (!/^[a-z0-9]/gi.test(volume_id)) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `generated volume_id '${volume_id}' must begin with alphanumeric character`
+      );
+    }
+
+    return volume_id;
   }
 
   async GetPluginInfo(call) {

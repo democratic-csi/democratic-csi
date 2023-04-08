@@ -1,6 +1,12 @@
+# v1.8.4
+
+Released 2023-04-08
+
+- minor improvements
+
 # v1.8.3
 
-Released 2023-04-02
+Released 2023-04-05
 
 - fix invalid `access_mode` logic (see #287)
 
