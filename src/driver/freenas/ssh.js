@@ -1982,6 +1982,9 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           this.ctx.logger.debug("zfs props data: %j", properties);
           let iscsiName =
             properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+          
+          // name correlates to the extent NOT the target
+          let kName = iscsiName.replaceAll(".", "_");
 
           /**
            * command = execClient.buildCommand("systemctl", ["reload", "scst"]);
@@ -1998,7 +2001,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
            */
           command = execClient.buildCommand("sh", [
             "-c",
-            `echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size`,
+            `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
           ]);
           reload = true;
         } else {
