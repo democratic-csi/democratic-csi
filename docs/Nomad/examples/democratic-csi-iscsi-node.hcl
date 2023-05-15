@@ -11,6 +11,10 @@ job "democratic-csi-iscsi-node" {
 
       env {
         CSI_NODE_ID = "${attr.unique.hostname}"
+        
+        # if you run into a scenario where your iscsi volumes are zeroed each time they are mounted,
+        # you can configure the fs detection system used with the following envvar:
+        #FILESYSTEM_TYPE_DETECTION_STRATEGY = "blkid"
       }
 
       config {
@@ -38,6 +42,15 @@ job "democratic-csi-iscsi-node" {
           source = "/"
           readonly=false
         }
+        
+        # if you run into a scenario where your iscsi volumes are zeroed each time they are mounted,
+        # you can try uncommenting the following additional mount block:
+        #mount {
+        #  type     = "bind"
+        #  target   = "/run/udev"
+        #  source   = "/run/udev"
+        #  readonly = true
+        #}
       }
 
       template {
