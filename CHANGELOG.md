@@ -1,3 +1,39 @@
+# v1.8.3
+
+Released 2023-04-02
+
+- fix invalid `access_mode` logic (see #287)
+
+# v1.8.2
+
+Released 2023-04-02
+
+- more comprehensive support to manually set `access_modes`
+- more intelligent handling of `access_modes` when `access_type=block`
+  - https://github.com/ceph/ceph-csi/blob/devel/examples/README.md#how-to-test-rbd-multi_node_multi_writer-block-feature
+  - others? allow this by default
+- remove older versions of TrueNAS from ci
+
+# v1.8.1
+
+Released 2023-02-25
+
+- minor fixes
+- updated `nvmeof` docs
+
+# v1.8.0
+
+Released 2023-02-23
+
+- `nvmeof` support
+
+# v1.7.7
+
+Released 2022-10-17
+
+- support `csi.access_modes` config value in all zfs-based drivers
+- bump deps
+
 # v1.7.6
 
 Released 2022-08-06

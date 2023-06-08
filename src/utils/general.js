@@ -1,11 +1,23 @@
 const _ = require("lodash");
 const axios = require("axios");
 const crypto = require("crypto");
+const dns = require("dns");
 
 function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function trimchar(str, ch) {
+  var start = 0,
+    end = str.length;
+
+  while (start < end && str[start] === ch) ++start;
+
+  while (end > start && str[end - 1] === ch) --end;
+
+  return start > 0 || end < str.length ? str.substring(start, end) : str;
 }
 
 function md5(val) {
@@ -87,10 +99,10 @@ function lockKeysFromRequest(call, serviceMethodName) {
     case "NodeUnstageVolume":
     case "NodePublishVolume":
     case "NodeUnpublishVolume":
-    case "NodeGetVolumeStats":
     case "NodeExpandVolume":
       return ["volume_id_" + call.request.volume_id];
 
+    case "NodeGetVolumeStats":
     default:
       return [];
   }
@@ -250,6 +262,18 @@ async function retry(retries, retriesDelay, code, options = {}) {
   } while (true);
 }
 
+async function hostname_lookup(hostname) {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, function (err, result) {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(result);
+    });
+  });
+}
+
 module.exports.sleep = sleep;
 module.exports.md5 = md5;
 module.exports.crc32 = crc32;
@@ -265,3 +289,5 @@ module.exports.default_supported_block_filesystems =
 module.exports.default_supported_file_filesystems =
   default_supported_file_filesystems;
 module.exports.retry = retry;
+module.exports.trimchar = trimchar;
+module.exports.hostname_lookup = hostname_lookup;

@@ -2,7 +2,8 @@ const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const GeneralUtils = require("../../utils/general");
-const LocalCliExecClient = require("./exec").LocalCliClient;
+const LocalCliExecClient =
+  require("../../utils/zfs_local_exec_client").LocalCliClient;
 const registry = require("../../utils/registry");
 const { Zetabyte } = require("../../utils/zfs");
 
@@ -109,7 +110,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
    *
    * @returns Array
    */
-  getAccessModes() {
+  getAccessModes(capability) {
     let access_modes = _.get(this.options, "csi.access_modes", null);
     if (access_modes !== null) {
       return access_modes;
@@ -118,7 +119,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     switch (driverZfsResourceType) {
       case "filesystem":
-        return [
+        access_modes = [
           "UNKNOWN",
           "SINGLE_NODE_WRITER",
           "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
@@ -128,8 +129,9 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
           "MULTI_NODE_SINGLE_WRITER",
           "MULTI_NODE_MULTI_WRITER",
         ];
+        break;
       case "volume":
-        return [
+        access_modes = [
           "UNKNOWN",
           "SINGLE_NODE_WRITER",
           "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
@@ -139,7 +141,17 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
           "MULTI_NODE_SINGLE_WRITER",
           "MULTI_NODE_MULTI_WRITER",
         ];
+        break;
     }
+
+    if (
+      capability.access_type == "block" &&
+      !access_modes.includes("MULTI_NODE_MULTI_WRITER")
+    ) {
+      access_modes.push("MULTI_NODE_MULTI_WRITER");
+    }
+
+    return access_modes;
   }
 
   /**

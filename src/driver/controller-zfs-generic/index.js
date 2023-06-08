@@ -3,20 +3,29 @@ const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const GeneralUtils = require("../../utils/general");
 const registry = require("../../utils/registry");
-const SshClient = require("../../utils/ssh").SshClient;
+const LocalCliExecClient =
+  require("../../utils/zfs_local_exec_client").LocalCliClient;
+const SshClient = require("../../utils/zfs_ssh_exec_client").SshClient;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
 const Handlebars = require("handlebars");
 
 const ISCSI_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:iscsi_assets_name";
+const NVMEOF_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:nvmeof_assets_name";
 const __REGISTRY_NS__ = "ControllerZfsGenericDriver";
 class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getExecClient() {
     return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
-      return new SshClient({
-        logger: this.ctx.logger,
-        connection: this.options.sshConnection,
-      });
+      if (this.options.sshConnection) {
+        return new SshClient({
+          logger: this.ctx.logger,
+          connection: this.options.sshConnection,
+        });
+      } else {
+        return new LocalCliExecClient({
+          logger: this.ctx.logger,
+        });
+      }
     });
   }
 
@@ -24,7 +33,11 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
     return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
       const execClient = this.getExecClient();
       const options = {};
-      options.executor = new ZfsSshProcessManager(execClient);
+      if (this.options.sshConnection) {
+        options.executor = new ZfsSshProcessManager(execClient);
+      } else {
+        options.executor = execClient;
+      }
       options.idempotent = true;
 
       if (
@@ -55,6 +68,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       case "zfs-generic-smb":
         return "filesystem";
       case "zfs-generic-iscsi":
+      case "zfs-generic-nvmeof":
         return "volume";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
@@ -164,28 +178,28 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
         };
         return volume_context;
 
-      case "zfs-generic-iscsi":
+      case "zfs-generic-iscsi": {
         let basename;
-        let iscsiName;
+        let assetName;
 
         if (this.options.iscsi.nameTemplate) {
-          iscsiName = Handlebars.compile(this.options.iscsi.nameTemplate)({
+          assetName = Handlebars.compile(this.options.iscsi.nameTemplate)({
             name: call.request.name,
             parameters: call.request.parameters,
           });
         } else {
-          iscsiName = zb.helpers.extractLeafName(datasetName);
+          assetName = zb.helpers.extractLeafName(datasetName);
         }
 
         if (this.options.iscsi.namePrefix) {
-          iscsiName = this.options.iscsi.namePrefix + iscsiName;
+          assetName = this.options.iscsi.namePrefix + assetName;
         }
 
         if (this.options.iscsi.nameSuffix) {
-          iscsiName += this.options.iscsi.nameSuffix;
+          assetName += this.options.iscsi.nameSuffix;
         }
 
-        iscsiName = iscsiName.toLowerCase();
+        assetName = assetName.toLowerCase();
 
         let extentDiskName = "zvol/" + datasetName;
 
@@ -239,20 +253,20 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
                   `
 # create target
 cd /iscsi
-create ${basename}:${iscsiName}
+create ${basename}:${assetName}
 
 # setup tpg
-cd /iscsi/${basename}:${iscsiName}/tpg1
+cd /iscsi/${basename}:${assetName}/tpg1
 ${setAttributesText}
 ${setAuthText}
 
 # create extent
 cd /backstores/block
-create ${iscsiName} /dev/${extentDiskName}
+create ${assetName} /dev/${extentDiskName}
 
 # add extent to target/tpg
-cd /iscsi/${basename}:${iscsiName}/tpg1/luns
-create /backstores/block/${iscsiName}
+cd /iscsi/${basename}:${assetName}/tpg1/luns
+create /backstores/block/${assetName}
 `
                 );
               },
@@ -271,12 +285,12 @@ create /backstores/block/${iscsiName}
         }
 
         // iqn = target
-        let iqn = basename + ":" + iscsiName;
+        let iqn = basename + ":" + assetName;
         this.ctx.logger.info("iqn: " + iqn);
 
         // store this off to make delete process more bullet proof
         await zb.zfs.set(datasetName, {
-          [ISCSI_ASSETS_NAME_PROPERTY_NAME]: iscsiName,
+          [ISCSI_ASSETS_NAME_PROPERTY_NAME]: assetName,
         });
 
         volume_context = {
@@ -290,6 +304,231 @@ create /backstores/block/${iscsiName}
           lun: 0,
         };
         return volume_context;
+      }
+
+      case "zfs-generic-nvmeof": {
+        let basename;
+        let assetName;
+
+        if (this.options.nvmeof.nameTemplate) {
+          assetName = Handlebars.compile(this.options.nvmeof.nameTemplate)({
+            name: call.request.name,
+            parameters: call.request.parameters,
+          });
+        } else {
+          assetName = zb.helpers.extractLeafName(datasetName);
+        }
+
+        if (this.options.nvmeof.namePrefix) {
+          assetName = this.options.nvmeof.namePrefix + assetName;
+        }
+
+        if (this.options.nvmeof.nameSuffix) {
+          assetName += this.options.nvmeof.nameSuffix;
+        }
+
+        assetName = assetName.toLowerCase();
+
+        let extentDiskName = "zvol/" + datasetName;
+
+        /**
+         * limit is a FreeBSD limitation
+         * https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
+         */
+        //if (extentDiskName.length > 63) {
+        //  throw new GrpcError(
+        //    grpc.status.FAILED_PRECONDITION,
+        //    `extent disk name cannot exceed 63 characters:  ${extentDiskName}`
+        //  );
+        //}
+
+        let namespace = 1;
+
+        switch (this.options.nvmeof.shareStrategy) {
+          case "nvmetCli":
+            {
+              basename = this.options.nvmeof.shareStrategyNvmetCli.basename;
+              let savefile = _.get(
+                this.options,
+                "nvmeof.shareStrategyNvmetCli.configPath",
+                ""
+              );
+              if (savefile) {
+                savefile = `savefile=${savefile}`;
+              }
+              let setSubsystemAttributesText = "";
+              if (this.options.nvmeof.shareStrategyNvmetCli.subsystem) {
+                if (
+                  this.options.nvmeof.shareStrategyNvmetCli.subsystem.attributes
+                ) {
+                  for (const attributeName in this.options.nvmeof
+                    .shareStrategyNvmetCli.subsystem.attributes) {
+                    const attributeValue =
+                      this.options.nvmeof.shareStrategyNvmetCli.subsystem
+                        .attributes[attributeName];
+                    setSubsystemAttributesText += "\n";
+                    setSubsystemAttributesText += `set attr ${attributeName}=${attributeValue}`;
+                  }
+                }
+              }
+
+              let portCommands = "";
+              this.options.nvmeof.shareStrategyNvmetCli.ports.forEach(
+                (port) => {
+                  portCommands += `
+cd /ports/${port}/subsystems
+create ${basename}:${assetName}
+`;
+                }
+              );
+
+              await GeneralUtils.retry(
+                3,
+                2000,
+                async () => {
+                  await this.nvmetCliCommand(
+                    `
+# create subsystem
+cd /subsystems
+create ${basename}:${assetName}
+cd ${basename}:${assetName}
+${setSubsystemAttributesText}
+
+# create subsystem namespace
+cd namespaces
+create ${namespace}
+cd ${namespace}
+set device path=/dev/${extentDiskName}
+enable
+
+# associate subsystem/target to port(al)
+${portCommands}
+
+saveconfig ${savefile}
+`
+                  );
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.stdout && err.stdout.includes("Ran out of input")) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
+            }
+            break;
+
+          case "spdkCli":
+            {
+              basename = this.options.nvmeof.shareStrategySpdkCli.basename;
+              let bdevAttributesText = "";
+              if (this.options.nvmeof.shareStrategySpdkCli.bdev) {
+                if (this.options.nvmeof.shareStrategySpdkCli.bdev.attributes) {
+                  for (const attributeName in this.options.nvmeof
+                    .shareStrategySpdkCli.bdev.attributes) {
+                    const attributeValue =
+                      this.options.nvmeof.shareStrategySpdkCli.bdev.attributes[
+                        attributeName
+                      ];
+                    bdevAttributesText += `${attributeName}=${attributeValue}`;
+                  }
+                }
+              }
+
+              let subsystemAttributesText = "";
+              if (this.options.nvmeof.shareStrategySpdkCli.subsystem) {
+                if (
+                  this.options.nvmeof.shareStrategySpdkCli.subsystem.attributes
+                ) {
+                  for (const attributeName in this.options.nvmeof
+                    .shareStrategySpdkCli.subsystem.attributes) {
+                    const attributeValue =
+                      this.options.nvmeof.shareStrategySpdkCli.subsystem
+                        .attributes[attributeName];
+                    subsystemAttributesText += `${attributeName}=${attributeValue}`;
+                  }
+                }
+              }
+
+              let listenerCommands = `cd /nvmf/subsystem/${basename}:${assetName}/listen_addresses\n`;
+              this.options.nvmeof.shareStrategySpdkCli.listeners.forEach(
+                (listener) => {
+                  let listenerAttributesText = "";
+                  for (const attributeName in listener) {
+                    const attributeValue = listener[attributeName];
+                    listenerAttributesText += ` ${attributeName}=${attributeValue} `;
+                  }
+                  listenerCommands += `
+create ${listenerAttributesText}
+`;
+                }
+              );
+
+              await GeneralUtils.retry(
+                3,
+                2000,
+                async () => {
+                  await this.spdkCliCommand(
+                    `
+# create bdev
+cd /bdevs/${this.options.nvmeof.shareStrategySpdkCli.bdev.type}
+create filename=/dev/${extentDiskName} name=${basename}:${assetName} ${bdevAttributesText}
+
+# create subsystem
+cd /nvmf/subsystem
+create nqn=${basename}:${assetName} ${subsystemAttributesText}
+cd ${basename}:${assetName}
+
+# create namespace
+cd /nvmf/subsystem/${basename}:${assetName}/namespaces
+create bdev_name=${basename}:${assetName} nsid=${namespace}
+
+# add listener
+${listenerCommands}
+
+cd /
+save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
+`
+                  );
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.stdout && err.stdout.includes("Ran out of input")) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
+            }
+            break;
+
+          default:
+            break;
+        }
+
+        // iqn = target
+        let nqn = basename + ":" + assetName;
+        this.ctx.logger.info("nqn: " + nqn);
+
+        // store this off to make delete process more bullet proof
+        await zb.zfs.set(datasetName, {
+          [NVMEOF_ASSETS_NAME_PROPERTY_NAME]: assetName,
+        });
+
+        volume_context = {
+          node_attach_driver: "nvmeof",
+          transport: this.options.nvmeof.transport || "",
+          transports: this.options.nvmeof.transports
+            ? this.options.nvmeof.transports.join(",")
+            : "",
+          nqn,
+          nsid: namespace,
+        };
+        return volume_context;
+      }
 
       default:
         throw new GrpcError(
@@ -367,9 +606,9 @@ create /backstores/block/${iscsiName}
         }
         break;
 
-      case "zfs-generic-iscsi":
+      case "zfs-generic-iscsi": {
         let basename;
-        let iscsiName;
+        let assetName;
 
         // Delete iscsi assets
         try {
@@ -386,23 +625,23 @@ create /backstores/block/${iscsiName}
         properties = properties[datasetName];
         this.ctx.logger.debug("zfs props data: %j", properties);
 
-        iscsiName = properties[ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+        assetName = properties[ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
 
-        if (zb.helpers.isPropertyValueSet(iscsiName)) {
+        if (zb.helpers.isPropertyValueSet(assetName)) {
           //do nothing
         } else {
-          iscsiName = zb.helpers.extractLeafName(datasetName);
+          assetName = zb.helpers.extractLeafName(datasetName);
 
           if (this.options.iscsi.namePrefix) {
-            iscsiName = this.options.iscsi.namePrefix + iscsiName;
+            assetName = this.options.iscsi.namePrefix + assetName;
           }
 
           if (this.options.iscsi.nameSuffix) {
-            iscsiName += this.options.iscsi.nameSuffix;
+            assetName += this.options.iscsi.nameSuffix;
           }
         }
 
-        iscsiName = iscsiName.toLowerCase();
+        assetName = assetName.toLowerCase();
         switch (this.options.iscsi.shareStrategy) {
           case "targetCli":
             basename = this.options.iscsi.shareStrategyTargetCli.basename;
@@ -414,11 +653,11 @@ create /backstores/block/${iscsiName}
                   `
 # delete target
 cd /iscsi
-delete ${basename}:${iscsiName}
+delete ${basename}:${assetName}
 
 # delete extent
 cd /backstores/block
-delete ${iscsiName}
+delete ${assetName}
 `
                 );
               },
@@ -437,6 +676,132 @@ delete ${iscsiName}
             break;
         }
         break;
+      }
+
+      case "zfs-generic-nvmeof": {
+        let basename;
+        let assetName;
+
+        // Delete nvmeof assets
+        try {
+          properties = await zb.zfs.get(datasetName, [
+            NVMEOF_ASSETS_NAME_PROPERTY_NAME,
+          ]);
+        } catch (err) {
+          if (err.toString().includes("dataset does not exist")) {
+            return;
+          }
+          throw err;
+        }
+
+        properties = properties[datasetName];
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        assetName = properties[NVMEOF_ASSETS_NAME_PROPERTY_NAME].value;
+
+        if (zb.helpers.isPropertyValueSet(assetName)) {
+          //do nothing
+        } else {
+          assetName = zb.helpers.extractLeafName(datasetName);
+
+          if (this.options.nvmeof.namePrefix) {
+            assetName = this.options.nvmeof.namePrefix + assetName;
+          }
+
+          if (this.options.nvmeof.nameSuffix) {
+            assetName += this.options.nvmeof.nameSuffix;
+          }
+        }
+
+        assetName = assetName.toLowerCase();
+        switch (this.options.nvmeof.shareStrategy) {
+          case "nvmetCli":
+            {
+              basename = this.options.nvmeof.shareStrategyNvmetCli.basename;
+              let savefile = _.get(
+                this.options,
+                "nvmeof.shareStrategyNvmetCli.configPath",
+                ""
+              );
+              if (savefile) {
+                savefile = `savefile=${savefile}`;
+              }
+              let portCommands = "";
+              this.options.nvmeof.shareStrategyNvmetCli.ports.forEach(
+                (port) => {
+                  portCommands += `
+cd /ports/${port}/subsystems
+delete ${basename}:${assetName}
+`;
+                }
+              );
+              await GeneralUtils.retry(
+                3,
+                2000,
+                async () => {
+                  await this.nvmetCliCommand(
+                    `
+# delete subsystem from port
+${portCommands}
+
+# delete subsystem
+cd /subsystems
+delete ${basename}:${assetName}
+
+saveconfig ${savefile}
+`
+                  );
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.stdout && err.stdout.includes("Ran out of input")) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
+            }
+            break;
+          case "spdkCli":
+            {
+              basename = this.options.nvmeof.shareStrategySpdkCli.basename;
+              await GeneralUtils.retry(
+                3,
+                2000,
+                async () => {
+                  await this.spdkCliCommand(
+                    `
+# delete subsystem
+cd /nvmf/subsystem/
+delete subsystem_nqn=${basename}:${assetName}
+
+# delete bdev
+cd /bdevs/${this.options.nvmeof.shareStrategySpdkCli.bdev.type}
+delete name=${basename}:${assetName}
+
+cd /
+save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
+`
+                  );
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.stdout && err.stdout.includes("Ran out of input")) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
+            }
+            break;
+
+          default:
+            break;
+        }
+        break;
+      }
 
       default:
         throw new GrpcError(
@@ -477,18 +842,18 @@ delete ${iscsiName}
     let command = "sh";
     let args = ["-c"];
 
-    let targetCliArgs = ["targetcli"];
+    let cliArgs = ["targetcli"];
     if (
       _.get(this.options, "iscsi.shareStrategyTargetCli.sudoEnabled", false)
     ) {
-      targetCliArgs.unshift("sudo");
+      cliArgs.unshift("sudo");
     }
 
-    let targetCliCommand = [];
-    targetCliCommand.push(`echo "${data}"`.trim());
-    targetCliCommand.push("|");
-    targetCliCommand.push(targetCliArgs.join(" "));
-    args.push("'" + targetCliCommand.join(" ") + "'");
+    let cliCommand = [];
+    cliCommand.push(`echo "${data}"`.trim());
+    cliCommand.push("|");
+    cliCommand.push(cliArgs.join(" "));
+    args.push("'" + cliCommand.join(" ") + "'");
 
     let logCommandTmp = command + " " + args.join(" ");
     let logCommand = "";
@@ -522,6 +887,151 @@ delete ${iscsiName}
     driver.ctx.logger.verbose(
       "TargetCLI response: " + JSON.stringify(response)
     );
+    if (response.code != 0) {
+      throw response;
+    }
+    return response;
+  }
+
+  async nvmetCliCommand(data) {
+    const execClient = this.getExecClient();
+    const driver = this;
+
+    if (
+      _.get(
+        this.options,
+        "nvmeof.shareStrategyNvmetCli.configIsImportedFilePath"
+      )
+    ) {
+      try {
+        let response = await execClient.exec(
+          execClient.buildCommand("test", [
+            "-f",
+            _.get(
+              this.options,
+              "nvmeof.shareStrategyNvmetCli.configIsImportedFilePath"
+            ),
+          ])
+        );
+      } catch (err) {
+        throw new Error("nvmet has not been fully configured");
+      }
+    }
+
+    data = data.trim();
+
+    let command = "sh";
+    let args = ["-c"];
+
+    let cliArgs = [
+      _.get(
+        this.options,
+        "nvmeof.shareStrategyNvmetCli.nvmetcliPath",
+        "nvmetcli"
+      ),
+    ];
+    if (
+      _.get(this.options, "nvmeof.shareStrategyNvmetCli.sudoEnabled", false)
+    ) {
+      cliArgs.unshift("sudo");
+    }
+
+    let cliCommand = [];
+    cliCommand.push(`echo "${data}"`.trim());
+    cliCommand.push("|");
+    cliCommand.push(cliArgs.join(" "));
+    args.push("'" + cliCommand.join(" ") + "'");
+
+    let logCommandTmp = command + " " + args.join(" ");
+    let logCommand = "";
+
+    logCommandTmp.split("\n").forEach((line) => {
+      if (line.startsWith("set auth password=")) {
+        logCommand += "set auth password=<redacted>";
+      } else if (line.startsWith("set auth mutual_password=")) {
+        logCommand += "set auth mutual_password=<redacted>";
+      } else {
+        logCommand += line;
+      }
+
+      logCommand += "\n";
+    });
+
+    driver.ctx.logger.verbose("nvmetCLI command: " + logCommand);
+    //process.exit(0);
+
+    // https://github.com/democratic-csi/democratic-csi/issues/127
+    // https://bugs.launchpad.net/ubuntu/+source/python-configshell-fb/+bug/1776761
+    // can apply the linked patch with some modifications to overcome the
+    // KeyErrors or we can simply start a fake tty which does not seem to have
+    // a detrimental effect, only affects Ubuntu 18.04 and older
+    let options = {
+      pty: true,
+    };
+    let response = await execClient.exec(
+      execClient.buildCommand(command, args),
+      options
+    );
+    driver.ctx.logger.verbose("nvmetCLI response: " + JSON.stringify(response));
+    if (response.code != 0) {
+      throw response;
+    }
+    return response;
+  }
+
+  async spdkCliCommand(data) {
+    const execClient = this.getExecClient();
+    const driver = this;
+
+    data = data.trim();
+
+    let command = "sh";
+    let args = ["-c"];
+
+    let cliArgs = [
+      _.get(this.options, "nvmeof.shareStrategySpdkCli.spdkcliPath", "spdkcli"),
+    ];
+    if (_.get(this.options, "nvmeof.shareStrategySpdkCli.sudoEnabled", false)) {
+      cliArgs.unshift("sudo");
+    }
+
+    let cliCommand = [];
+    cliCommand.push(`echo "${data}"`.trim());
+    cliCommand.push("|");
+    cliCommand.push(cliArgs.join(" "));
+    args.push("'" + cliCommand.join(" ") + "'");
+
+    let logCommandTmp = command + " " + args.join(" ");
+    let logCommand = "";
+
+    logCommandTmp.split("\n").forEach((line) => {
+      if (line.startsWith("set auth password=")) {
+        logCommand += "set auth password=<redacted>";
+      } else if (line.startsWith("set auth mutual_password=")) {
+        logCommand += "set auth mutual_password=<redacted>";
+      } else {
+        logCommand += line;
+      }
+
+      logCommand += "\n";
+    });
+
+    driver.ctx.logger.verbose("spdkCLI command: " + logCommand);
+    //process.exit(0);
+
+    // https://github.com/democratic-csi/democratic-csi/issues/127
+    // https://bugs.launchpad.net/ubuntu/+source/python-configshell-fb/+bug/1776761
+    // can apply the linked patch with some modifications to overcome the
+    // KeyErrors or we can simply start a fake tty which does not seem to have
+    // a detrimental effect, only affects Ubuntu 18.04 and older
+    let options = {
+      pty: true,
+    };
+    let response = await execClient.exec(
+      execClient.buildCommand(command, args),
+      options
+    );
+    driver.ctx.logger.verbose("spdkCLI response: " + JSON.stringify(response));
     if (response.code != 0) {
       throw response;
     }

@@ -39,7 +39,7 @@ const MAX_ZVOL_NAME_LENGTH_CACHE_KEY = "controller-zfs:max_zvol_name_length";
  *  - async setZetabyteCustomOptions(options) // optional
  *  - getDriverZfsResourceType() // return "filesystem" or "volume"
  *  - getFSTypes() // optional
- *  - getAccessModes() // optional
+ *  - getAccessModes(capability) // optional
  *  - async getAccessibleTopology() // optional
  *  - async createShare(call, datasetName) // return appropriate volume_context for Node operations
  *  - async deleteShare(call, datasetName) // no return expected
@@ -207,7 +207,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
   }
 
-  getAccessModes() {
+  getAccessModes(capability) {
     let access_modes = _.get(this.options, "csi.access_modes", null);
     if (access_modes !== null) {
       return access_modes;
@@ -216,7 +216,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     switch (driverZfsResourceType) {
       case "filesystem":
-        return [
+        access_modes = [
           "UNKNOWN",
           "SINGLE_NODE_WRITER",
           "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
@@ -226,8 +226,9 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           "MULTI_NODE_SINGLE_WRITER",
           "MULTI_NODE_MULTI_WRITER",
         ];
+        break;
       case "volume":
-        return [
+        access_modes = [
           "UNKNOWN",
           "SINGLE_NODE_WRITER",
           "SINGLE_NODE_SINGLE_WRITER", // added in v1.5.0
@@ -236,7 +237,17 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           "MULTI_NODE_READER_ONLY",
           "MULTI_NODE_SINGLE_WRITER",
         ];
+        break;
     }
+
+    if (
+      capability.access_type == "block" &&
+      !access_modes.includes("MULTI_NODE_MULTI_WRITER")
+    ) {
+      access_modes.push("MULTI_NODE_MULTI_WRITER");
+    }
+
+    return access_modes;
   }
 
   assertCapabilities(capabilities) {
@@ -261,7 +272,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             return false;
           }
 
-          if (!this.getAccessModes().includes(capability.access_mode.mode)) {
+          if (
+            !this.getAccessModes(capability).includes(
+              capability.access_mode.mode
+            )
+          ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
             return false;
           }
@@ -278,7 +293,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             }
           }
 
-          if (!this.getAccessModes().includes(capability.access_mode.mode)) {
+          if (
+            !this.getAccessModes(capability).includes(
+              capability.access_mode.mode
+            )
+          ) {
             message = `invalid access_mode, ${capability.access_mode.mode}`;
             return false;
           }

@@ -19,32 +19,31 @@ if (! $env:CSI_SANITY_FAILFAST) {
   $env:CSI_SANITY_FAILFAST = "false"
 }
 
-$failfast = ""
-
-if ($env:CSI_SANITY_FAILFAST -eq "true") {
-  $failfast = "-ginkgo.failFast"
-}
-
 Write-Output "launching csi-sanity"
 Write-Output "connecting to: ${endpoint}"
 Write-Output "failfast: ${env:CSI_SANITY_FAILFAST}"
 Write-Output "skip: ${env:CSI_SANITY_SKIP}"
 Write-Output "focus: ${env:CSI_SANITY_FOCUS}"
+Write-Output "csi.mountdir: ${env:CSI_SANITY_TEMP_DIR}\mnt"
+Write-Output "csi.stagingdir: ${env:CSI_SANITY_TEMP_DIR}\stage"
 
-$skip = '"' + ${env:CSI_SANITY_SKIP} + '"'
-$focus = '"' + ${env:CSI_SANITY_FOCUS} + '"'
+$exe = "csi-sanity.exe"
+$exeargs = @()
+$exeargs += "-csi.endpoint", "unix://${endpoint}"
+$exeargs += "-csi.mountdir", "${env:CSI_SANITY_TEMP_DIR}\mnt"
+$exeargs += "-csi.stagingdir", "${env:CSI_SANITY_TEMP_DIR}\stage"
+$exeargs += "-csi.testvolumeexpandsize", "2147483648"
+$exeargs += "-csi.testvolumesize", "1073741824"
+$exeargs += "-ginkgo.skip", "${env:CSI_SANITY_SKIP}"
+$exeargs += "-ginkgo.focus", "${env:CSI_SANITY_FOCUS}"
 
-csi-sanity.exe -"csi.endpoint" "unix://${endpoint}" `
-  $failfast `
-  -"csi.mountdir" "${env:CSI_SANITY_TEMP_DIR}\mnt" `
-  -"csi.stagingdir" "${env:CSI_SANITY_TEMP_DIR}\stage" `
-  -"csi.testvolumeexpandsize" 2147483648 `
-  -"csi.testvolumesize" 1073741824 `
-  -"ginkgo.skip" $skip `
-  -"ginkgo.focus" $focus
+if ($env:CSI_SANITY_FAILFAST -eq "true") {
+  $exeargs += "-ginkgo.fail-fast"
+}
 
-# does not work the same as linux for some reason
-# -"ginkgo.skip" "'" + ${env:CSI_SANITY_SKIP} + "'" `
+Write-Output "csi-sanity command: $exe $($exeargs -join ' ')"
+
+&$exe $exeargs
 
 if (-not $?) {
   $exit_code = $LASTEXITCODE

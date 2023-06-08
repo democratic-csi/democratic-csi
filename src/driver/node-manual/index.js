@@ -129,6 +129,7 @@ class NodeManualDriver extends CsiBaseDriver {
         driverResourceType = "filesystem";
         break;
       case "iscsi":
+      case "nvmeof":
         driverResourceType = "volume";
         fs_types = ["btrfs", "ext3", "ext4", "ext4dev", "xfs"];
         break;
@@ -164,6 +165,14 @@ class NodeManualDriver extends CsiBaseDriver {
               "MULTI_NODE_MULTI_WRITER",
             ];
           }
+
+          if (
+            capability.access_type == "block" &&
+            !access_modes.includes("MULTI_NODE_MULTI_WRITER")
+          ) {
+            access_modes.push("MULTI_NODE_MULTI_WRITER");
+          }
+
           if (capability.access_type != "mount") {
             message = `invalid access_type ${capability.access_type}`;
             return false;
@@ -195,6 +204,14 @@ class NodeManualDriver extends CsiBaseDriver {
               "MULTI_NODE_SINGLE_WRITER",
             ];
           }
+
+          if (
+            capability.access_type == "block" &&
+            !access_modes.includes("MULTI_NODE_MULTI_WRITER")
+          ) {
+            access_modes.push("MULTI_NODE_MULTI_WRITER");
+          }
+
           if (capability.access_type == "mount") {
             if (
               capability.mount.fs_type &&

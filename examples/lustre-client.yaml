@@ -1,6 +1,7 @@
 driver: lustre-client
 instance_id:
 lustre:
+  # <MGS NID>[:<MGS NID>]
   shareHost: server address
   shareBasePath: "/some/path"
   # shareHost:shareBasePath should be mounted at this location in the controller container
