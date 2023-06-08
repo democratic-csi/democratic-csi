@@ -63,6 +63,7 @@ Predominantly 3 things are needed:
   from `nfs-client-provisioner` to `democratic-csi`)
 - https://gist.github.com/deefdragon/d58a4210622ff64088bd62a5d8a4e8cc
   (migrating between storage classes using `velero`)
+- https://github.com/fenio/k8s-truenas (NFS/iSCSI over API with TrueNAS Scale)
 
 ## Node Prep
 
@@ -186,7 +187,7 @@ node:
 
 and continue your democratic installation as usuall with other iscsi drivers.
 
-#### Privilged Namespace
+#### Privileged Namespace
 democratic-csi requires privileged access to the nodes, so the namespace should allow for privileged pods. One way of doing it is via [namespace labels](https://kubernetes.io/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/).
 Add the followin label to the democratic-csi installation namespace `pod-security.kubernetes.io/enforce=privileged`
 ```
