@@ -32,6 +32,7 @@ zfs:
   datasetParentName: tank/k8s/test
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
   # they may be siblings, but neither should be nested in the other
+  # do NOT comment this option out even if you don't plan to use snapshots, just leave it with dummy value
   detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
 
   datasetEnableQuotas: true
