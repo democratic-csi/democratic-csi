@@ -29,3 +29,10 @@ iscsi:
       targetGroupAuthGroup:
   # 0-100 (0 == ignore)
   extentAvailThreshold: 0
+
+# https://github.com/SCST-project/scst/blob/master/scst/src/dev_handlers/scst_vdisk.c#L203
+_private:
+  csi:
+    volume:
+      idHash:
+        strategy: crc16
