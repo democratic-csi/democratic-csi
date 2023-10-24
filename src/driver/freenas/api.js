@@ -265,6 +265,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
+              if (isScale && semver.satisfies(truenasVersion, ">=23.10")) {
+                delete share.quiet;
+                delete share.nfs_quiet;
+              }
+
               if (isScale && semver.satisfies(truenasVersion, ">=22.12")) {
                 share.path = share.paths[0];
                 delete share.paths;
