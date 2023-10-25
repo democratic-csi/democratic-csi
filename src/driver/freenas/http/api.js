@@ -698,15 +698,16 @@ class Api {
 
     // wait for job to finish
     do {
+      currentTime = Date.now() / 1000;
+      if (timeout > 0 && currentTime > startTime + timeout) {
+        throw new Error("timeout waiting for job to complete");
+      }
+
       if (job) {
         await sleep(check_interval);
       }
       job = await this.CoreGetJobs({ id: job_id });
       job = job[0];
-      currentTime = Date.now() / 1000;
-      if (timeout > 0 && currentTime > startTime + timeout) {
-        throw new Error("timeout waiting for job to complete");
-      }
     } while (!["SUCCESS", "ABORTED", "FAILED"].includes(job.state));
 
     return job;
