@@ -265,6 +265,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
+              if (isScale && semver.satisfies(truenasVersion, ">=23.10")) {
+                delete share.quiet;
+                delete share.nfs_quiet;
+              }
+
               if (isScale && semver.satisfies(truenasVersion, ">=22.12")) {
                 share.path = share.paths[0];
                 delete share.paths;
@@ -680,6 +685,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         // According to RFC3270, 'Each iSCSI node, whether an initiator or target, MUST have an iSCSI name. Initiators and targets MUST support the receipt of iSCSI names of up to the maximum length of 223 bytes.'
         // https://kb.netapp.com/Advice_and_Troubleshooting/Miscellaneous/What_is_the_maximum_length_of_a_iSCSI_iqn_name
         // https://tools.ietf.org/html/rfc3720
+        // https://github.com/SCST-project/scst/blob/master/scst/src/dev_handlers/scst_vdisk.c#L203
         iscsiName = iscsiName.toLowerCase();
 
         let extentDiskName = "zvol/" + datasetName;
@@ -694,6 +700,14 @@ class FreeNASApiDriver extends CsiBaseDriver {
           throw new GrpcError(
             grpc.status.FAILED_PRECONDITION,
             `extent disk name cannot exceed ${maxZvolNameLength} characters:  ${extentDiskName}`
+          );
+        }
+
+        // https://github.com/SCST-project/scst/blob/master/scst/src/dev_handlers/scst_vdisk.c#L203
+        if (isScale && iscsiName.length > 64) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `extent name cannot exceed 64 characters:  ${iscsiName}`
           );
         }
 
@@ -2207,7 +2221,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
     let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
-    let volume_id = await driver.getVolumeIdFromName(name);
+    let volume_id = await driver.getVolumeIdFromCall(call);
     let volume_content_source = call.request.volume_content_source;
     let minimum_volume_size = await driver.getMinimumVolumeSize();
     let default_required_bytes = 1073741824;
@@ -2216,13 +2230,6 @@ class FreeNASApiDriver extends CsiBaseDriver {
       throw new GrpcError(
         grpc.status.FAILED_PRECONDITION,
         `invalid configuration: missing datasetParentName`
-      );
-    }
-
-    if (!name) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `volume name is required`
       );
     }
 

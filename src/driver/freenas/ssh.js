@@ -314,6 +314,11 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   break;
               }
 
+              if (isScale && semver.satisfies(truenasVersion, ">=23.10")) {
+                delete share.quiet;
+                delete share.nfs_quiet;
+              }
+
               if (isScale && semver.satisfies(truenasVersion, ">=22.12")) {
                 share.path = share.paths[0];
                 delete share.paths;
@@ -728,6 +733,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         // According to RFC3270, 'Each iSCSI node, whether an initiator or target, MUST have an iSCSI name. Initiators and targets MUST support the receipt of iSCSI names of up to the maximum length of 223 bytes.'
         // https://kb.netapp.com/Advice_and_Troubleshooting/Miscellaneous/What_is_the_maximum_length_of_a_iSCSI_iqn_name
         // https://tools.ietf.org/html/rfc3720
+        // https://github.com/SCST-project/scst/blob/master/scst/src/dev_handlers/scst_vdisk.c#L203
         iscsiName = iscsiName.toLowerCase();
 
         let extentDiskName = "zvol/" + datasetName;
@@ -742,7 +748,15 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         if (extentDiskName.length > maxZvolNameLength) {
           throw new GrpcError(
             grpc.status.FAILED_PRECONDITION,
-            `extent disk name cannot exceed ${maxZvolNameLength} characters:  ${extentDiskName}`
+            `extent disk name cannot exceed ${maxZvolNameLength} characters: ${extentDiskName}`
+          );
+        }
+
+        // https://github.com/SCST-project/scst/blob/master/scst/src/dev_handlers/scst_vdisk.c#L203
+        if (isScale && iscsiName.length > 64) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `extent name cannot exceed 64 characters:  ${iscsiName}`
           );
         }
 
@@ -1982,6 +1996,9 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           this.ctx.logger.debug("zfs props data: %j", properties);
           let iscsiName =
             properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
+          
+          // name correlates to the extent NOT the target
+          let kName = iscsiName.replaceAll(".", "_");
 
           /**
            * command = execClient.buildCommand("systemctl", ["reload", "scst"]);
@@ -1998,7 +2015,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
            */
           command = execClient.buildCommand("sh", [
             "-c",
-            `echo 1 > /sys/kernel/scst_tgt/devices/${iscsiName}/resync_size`,
+            `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
           ]);
           reload = true;
         } else {

@@ -443,15 +443,8 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     const driver = this;
 
     let config_key = this.getConfigKey();
-    let name = call.request.name;
+    let volume_id = await driver.getVolumeIdFromCall(call);
     let volume_content_source = call.request.volume_content_source;
-
-    if (!name) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `volume name is required`
-      );
-    }
 
     if (
       call.request.volume_capabilities &&
@@ -513,7 +506,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       );
     }
 
-    const volume_path = driver.getControllerVolumePath(name);
+    const volume_path = driver.getControllerVolumePath(volume_id);
 
     let response;
     let source_path;
@@ -596,7 +589,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       }
     }
 
-    let volume_context = driver.getVolumeContext(name);
+    let volume_context = driver.getVolumeContext(volume_id);
 
     volume_context["provisioner_driver"] = driver.options.driver;
     if (driver.options.instance_id) {
@@ -611,7 +604,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
 
     const res = {
       volume: {
-        volume_id: name,
+        volume_id,
         //capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
         capacity_bytes: 0,
         content_source: volume_content_source,
@@ -634,16 +627,16 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   async DeleteVolume(call) {
     const driver = this;
 
-    let name = call.request.volume_id;
+    let volume_id = call.request.volume_id;
 
-    if (!name) {
+    if (!volume_id) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
         `volume_id is required`
       );
     }
 
-    const volume_path = driver.getControllerVolumePath(name);
+    const volume_path = driver.getControllerVolumePath(volume_id);
     await driver.deleteDir(volume_path);
 
     return {};

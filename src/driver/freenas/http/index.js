@@ -131,15 +131,18 @@ class Client {
     delete options.httpAgent;
     delete options.httpsAgent;
 
-    this.logger.debug("FREENAS HTTP REQUEST: " + stringify(options));
+    let duration = parseFloat((Math.round((_.get(response, 'duration', 0) + Number.EPSILON) * 100) / 100) / 1000).toFixed(2);
+
+    this.logger.debug("FREENAS HTTP REQUEST DETAILS: " + stringify(options));
+    this.logger.debug("FREENAS HTTP REQUEST DURATION: " + duration + "s");
     this.logger.debug("FREENAS HTTP ERROR: " + error);
     this.logger.debug(
-      "FREENAS HTTP STATUS: " + _.get(response, "statusCode", "")
+      "FREENAS HTTP RESPONSE STATUS CODE: " + _.get(response, "statusCode", "")
     );
     this.logger.debug(
-      "FREENAS HTTP HEADERS: " + stringify(_.get(response, "headers", ""))
+      "FREENAS HTTP RESPONSE HEADERS: " + stringify(_.get(response, "headers", ""))
     );
-    this.logger.debug("FREENAS HTTP BODY: " + stringify(body));
+    this.logger.debug("FREENAS HTTP RESPONSE BODY: " + stringify(body));
   }
 
   async get(endpoint, data) {

@@ -29,6 +29,9 @@ class NVMEoF {
       nvmeof.logger = nvmeof.options.logger;
     } else {
       nvmeof.logger = console;
+      console.verbose = function() {
+        console.log(...arguments);
+      }
     }
   }
 
@@ -273,11 +276,33 @@ class NVMEoF {
     };
   }
 
+  async pathExists(path) {
+    const nvmeof = this;
+    try {
+      await nvmeof.exec("stat", [
+        path,
+      ]);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
   async nativeMultipathEnabled() {
     const nvmeof = this;
-    let result = await nvmeof.exec("cat", [
-      "/sys/module/nvme_core/parameters/multipath",
-    ]);
+    let result;
+
+    try {
+      result = await nvmeof.exec("cat", [
+        "/sys/module/nvme_core/parameters/multipath",
+      ]);
+    } catch (err) {
+      if (err.code == 1 && err.stderr.includes("No such file or directory")) {
+        return false;
+      }
+      throw err;
+    }
+    
     return result.stdout.trim() == "Y";
   }
 

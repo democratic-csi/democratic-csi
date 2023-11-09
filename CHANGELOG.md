@@ -1,6 +1,16 @@
+# v1.8.4
+
+Released 2023-11-09
+
+- allow templatized `volume_id` (dangerous, only use if you *really* know what you are doing)
+- fix SCALE iscsi resize issue
+- SCALE 23.10 support
+- minor improvements/fixes throughout
+- dependency updates
+
 # v1.8.3
 
-Released 2023-04-02
+Released 2023-04-05
 
 - fix invalid `access_mode` logic (see #287)
 

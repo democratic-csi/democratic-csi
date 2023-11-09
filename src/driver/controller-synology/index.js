@@ -176,8 +176,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     }
   }
 
-  buildIscsiName(name) {
-    let iscsiName = name;
+  buildIscsiName(volume_id) {
+    let iscsiName = volume_id;
     if (this.options.iscsi.namePrefix) {
       iscsiName = this.options.iscsi.namePrefix + iscsiName;
     }
@@ -324,15 +324,8 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
-    let name = call.request.name;
+    let volume_id = await driver.getVolumeIdFromCall(call);
     let volume_content_source = call.request.volume_content_source;
-
-    if (!name) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `volume name is required`
-      );
-    }
 
     if (
       call.request.volume_capabilities &&
@@ -414,7 +407,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         );
         break;
       case "iscsi":
-        let iscsiName = driver.buildIscsiName(name);
+        let iscsiName = driver.buildIscsiName(volume_id);
         let lunTemplate;
         let targetTemplate;
         let data;
@@ -670,7 +663,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
     const res = {
       volume: {
-        volume_id: name,
+        volume_id,
         capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
         content_source: volume_content_source,
         volume_context,
@@ -689,9 +682,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
-    let name = call.request.volume_id;
+    let volume_id = call.request.volume_id;
 
-    if (!name) {
+    if (!volume_id) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
         `volume_id is required`
@@ -718,7 +711,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       case "iscsi":
         //await httpClient.DeleteAllLuns();
 
-        let iscsiName = driver.buildIscsiName(name);
+        let iscsiName = driver.buildIscsiName(volume_id);
         let iqn = driver.options.iscsi.baseiqn + iscsiName;
 
         let target = await httpClient.GetTargetByIQN(iqn);
@@ -786,9 +779,9 @@ class ControllerSynologyDriver extends CsiBaseDriver {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
-    let name = call.request.volume_id;
+    let volume_id = call.request.volume_id;
 
-    if (!name) {
+    if (!volume_id) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
         `volume_id is required`
@@ -850,7 +843,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
         break;
       case "iscsi":
         node_expansion_required = true;
-        let iscsiName = driver.buildIscsiName(name);
+        let iscsiName = driver.buildIscsiName(volume_id);
 
         response = await httpClient.GetLunUUIDByName(iscsiName);
         await httpClient.ExpandISCSILun(response, capacity_bytes);

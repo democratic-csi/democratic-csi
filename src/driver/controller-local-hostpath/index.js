@@ -44,12 +44,11 @@ class ControllerLocalHostpathDriver extends ControllerClientCommonDriver {
     return "local-hostpath";
   }
 
-  getVolumeContext(name) {
+  getVolumeContext(volume_id) {
     const driver = this;
-    const config_key = driver.getConfigKey();
     return {
       node_attach_driver: "hostpath",
-      path: driver.getShareVolumePath(name),
+      path: driver.getShareVolumePath(volume_id),
     };
   }
 

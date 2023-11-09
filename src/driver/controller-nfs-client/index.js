@@ -13,13 +13,13 @@ class ControllerNfsClientDriver extends ControllerClientCommonDriver {
     return "nfs";
   }
 
-  getVolumeContext(name) {
+  getVolumeContext(volume_id) {
     const driver = this;
     const config_key = driver.getConfigKey();
     return {
       node_attach_driver: "nfs",
       server: this.options[config_key].shareHost,
-      share: driver.getShareVolumePath(name),
+      share: driver.getShareVolumePath(volume_id),
     };
   }
 
