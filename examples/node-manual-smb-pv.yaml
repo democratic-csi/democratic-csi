@@ -9,9 +9,6 @@ spec:
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
-  #nodeStageSecretRef:
-  #  name: some name
-  #  namespace: some namespace
   mountOptions:
     # creds can be entered into the node-stage-secret in the `mount_flags` key
     # the value should be: username=foo,password=bar
@@ -22,6 +19,9 @@ spec:
     readOnly: false
     fsType: cifs
     volumeHandle: unique-volumeid  # make sure it's a unique id in the cluster
+    #nodeStageSecretRef:
+    #  name: some name
+    #  namespace: some namespace
     volumeAttributes:
       server: host or ip
       share: someshare
