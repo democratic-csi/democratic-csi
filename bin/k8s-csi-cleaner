@@ -127,6 +127,7 @@ async function main() {
 
   for (let csiVolume of csiVolumes) {
     let volume_id = csiVolume.volume.volume_id;
+    let volume_iqn = csiVolume.volume.volume_context.iqn || "Unknown";
     //console.log(`processing csi volume ${volume_id}`);
     let k8sVolume = k8sVolumes.find((i_k8sVolume) => {
       let volume_handle = _.get(i_k8sVolume, "spec.csi.volumeHandle", null);
@@ -134,7 +135,7 @@ async function main() {
     });
 
     if (!k8sVolume) {
-      console.log(`volume ${volume_id} is NOT in k8s`);
+      console.log(`volume ${volume_id} (${volume_iqn}) is NOT in k8s`);
       if (process.env.DRY_RUN == "1") {
         continue;
       }
@@ -159,7 +160,7 @@ async function main() {
         console.log(`skipping delete of csi volume ${volume_id}`);
       }
     } else {
-      console.log(`volume ${volume_id} is in k8s`);
+      console.log(`volume ${volume_id} (${volume_iqn}) is in k8s`);
     }
   }
 
