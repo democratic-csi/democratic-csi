@@ -219,6 +219,22 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
             basename = this.options.iscsi.shareStrategyTargetCli.basename;
             let setAttributesText = "";
             let setAuthText = "";
+            let setBlockAttributesText = "";
+
+            if (this.options.iscsi.shareStrategyTargetCli.block) {
+              if (this.options.iscsi.shareStrategyTargetCli.block.attributes) {
+                for (const attributeName in this.options.iscsi
+                  .shareStrategyTargetCli.block.attributes) {
+                  const attributeValue =
+                    this.options.iscsi.shareStrategyTargetCli.block.attributes[
+                      attributeName
+                    ];
+                  setBlockAttributesText += "\n";
+                  setBlockAttributesText += `set attribute ${attributeName}=${attributeValue}`;
+                }
+              }
+            }
+
             if (this.options.iscsi.shareStrategyTargetCli.tpg) {
               if (this.options.iscsi.shareStrategyTargetCli.tpg.attributes) {
                 for (const attributeName in this.options.iscsi
@@ -263,6 +279,8 @@ ${setAuthText}
 # create extent
 cd /backstores/block
 create ${assetName} /dev/${extentDiskName}
+cd /backstores/block/${assetName}
+${setBlockAttributesText}
 
 # add extent to target/tpg
 cd /iscsi/${basename}:${assetName}/tpg1/luns
