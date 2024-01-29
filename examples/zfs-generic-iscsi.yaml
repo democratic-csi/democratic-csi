@@ -73,7 +73,7 @@ iscsi:
         #mutual_password: "bar"
     block:
       attributes:
-        # enable Thin Provisioning Unmap
+        # set to 1 to enable Thin Provisioning Unmap
         emulate_tpu: 0
   targetPortal: "server[:port]"
   # for multipath
