@@ -231,7 +231,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
     const truenasVersion = semver.coerce(
-      await httpApiClient.getSystemVersionMajorMinor()
+      await httpApiClient.getSystemVersionMajorMinor(), { loose: true }
     );
     const isScale = await httpApiClient.getIsScale();
 
@@ -312,6 +312,10 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                     security: [],
                   };
                   break;
+              }
+
+              if (!semver.valid(truenasVersion)) {
+                this.ctx.logger.warn("invalid truenas version, api compatibility might be broken");
               }
 
               if (isScale && semver.satisfies(truenasVersion, ">=23.10")) {

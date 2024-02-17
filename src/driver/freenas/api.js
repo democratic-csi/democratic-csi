@@ -183,7 +183,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
     const truenasVersion = semver.coerce(
-      await httpApiClient.getSystemVersionMajorMinor()
+      await httpApiClient.getSystemVersionMajorMinor(), { loose: true }
     );
     const isScale = await httpApiClient.getIsScale();
 
@@ -265,6 +265,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   break;
               }
 
+              if (!semver.valid(truenasVersion)) {
+                this.ctx.logger.warn("invalid truenas version, api compatibility might be broken");
+              }
+              
               if (isScale && semver.satisfies(truenasVersion, ">=23.10")) {
                 delete share.quiet;
                 delete share.nfs_quiet;
