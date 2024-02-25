@@ -16,4 +16,5 @@ _private:
   csi:
     volume:
       idHash:
+        # max volume name length is 63
         strategy: crc32
