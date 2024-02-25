@@ -12,6 +12,7 @@ const {
 const { ControllerNfsClientDriver } = require("./controller-nfs-client");
 const { ControllerSmbClientDriver } = require("./controller-smb-client");
 const { ControllerLustreClientDriver } = require("./controller-lustre-client");
+const { ControllerObjectiveFSDriver } = require("./controller-objectivefs");
 const { ControllerSynologyDriver } = require("./controller-synology");
 const { NodeManualDriver } = require("./node-manual");
 
@@ -50,6 +51,8 @@ function factory(ctx, options) {
       return new ControllerLocalHostpathDriver(ctx, options);
     case "lustre-client":
       return new ControllerLustreClientDriver(ctx, options);
+    case "objectivefs":
+      return new ControllerObjectiveFSDriver(ctx, options);
     case "node-manual":
       return new NodeManualDriver(ctx, options);
     default:

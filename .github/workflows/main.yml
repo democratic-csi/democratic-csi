@@ -115,38 +115,6 @@ jobs:
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
-  csi-sanity-truenas-scale-22_12:
-    needs:
-      - build-npm-linux-amd64
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - truenas/scale/22.12/scale-iscsi.yaml
-          - truenas/scale/22.12/scale-nfs.yaml
-          # 80 char limit
-          - truenas/scale/22.12/scale-smb.yaml
-    runs-on:
-      - self-hosted
-      - Linux
-      - X64
-      #- csi-sanity-truenas
-      - csi-sanity-zfs-generic
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: node-modules-linux-amd64
-      - name: csi-sanity
-        run: |
-          # run tests
-          ci/bin/run.sh
-        env:
-          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_22_12_HOST }}
-          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
-          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
-
   csi-sanity-truenas-scale-23_10:
     needs:
       - build-npm-linux-amd64
@@ -176,6 +144,38 @@ jobs:
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
           TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_23_10_HOST }}
+          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
+          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
+
+  csi-sanity-truenas-scale-24_04:
+    needs:
+      - build-npm-linux-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - truenas/scale/24.04/scale-iscsi.yaml
+          - truenas/scale/24.04/scale-nfs.yaml
+          # 80 char limit
+          - truenas/scale/24.04/scale-smb.yaml
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      #- csi-sanity-truenas
+      - csi-sanity-zfs-generic
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: node-modules-linux-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_24_04_HOST }}
           TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
           TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
 
@@ -243,6 +243,41 @@ jobs:
           SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
           SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
           SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
+
+  # client drivers
+  csi-sanity-objectivefs:
+    needs:
+      - build-npm-linux-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - objectivefs/objectivefs.yaml
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - csi-sanity-client
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: node-modules-linux-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          OBJECTIVEFS_POOL: ${{ secrets.SANITY_OBJECTIVEFS_POOL }}
+          OBJECTIVEFS_LICENSE: ${{ secrets.SANITY_OBJECTIVEFS_LICENSE }}
+          OBJECTIVEFS_OBJECTSTORE: ${{ secrets.SANITY_OBJECTIVEFS_OBJECTSTORE }}
+          OBJECTIVEFS_ENDPOINT: ${{ secrets.SANITY_OBJECTIVEFS_ENDPOINT }}
+          OBJECTIVEFS_SECRET_KEY: ${{ secrets.SANITY_OBJECTIVEFS_SECRET_KEY }}
+          OBJECTIVEFS_ACCESS_KEY: ${{ secrets.SANITY_OBJECTIVEFS_ACCESS_KEY }}
+          OBJECTIVEFS_PASSPHRASE: ${{ secrets.SANITY_OBJECTIVEFS_PASSPHRASE }}
+
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
 
   # client drivers
   csi-sanity-client:
@@ -425,10 +460,11 @@ jobs:
       - determine-image-tag
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-22_12
       - csi-sanity-truenas-scale-23_10
+      - csi-sanity-truenas-scale-24_04
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
+      - csi-sanity-objectivefs
       - csi-sanity-client
       - csi-sanity-client-windows
       - csi-sanity-zfs-local
@@ -464,10 +500,11 @@ jobs:
     needs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-22_12
       - csi-sanity-truenas-scale-23_10
+      - csi-sanity-truenas-scale-24_04
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
+      - csi-sanity-objectivefs
       - csi-sanity-client
       - csi-sanity-client-windows
       - csi-sanity-zfs-local

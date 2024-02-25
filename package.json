@@ -1,6 +1,6 @@
 {
   "name": "democratic-csi",
-  "version": "1.8.4",
+  "version": "1.9.0",
   "description": "kubernetes csi driver framework",
   "main": "bin/democratic-csi",
   "scripts": {

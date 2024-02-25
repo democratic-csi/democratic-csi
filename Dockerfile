@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
         && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
 ENV LANG=en_US.utf8
-ENV NODE_VERSION=v16.18.0
+ENV NODE_VERSION=v20.11.1
 ENV NODE_ENV=production
 
 # install build deps
@@ -75,13 +75,18 @@ COPY --from=build /usr/local/lib/nodejs/bin/node /usr/local/bin/node
 # netbase is required by rpcbind/rpcinfo to work properly
 # /etc/{services,rpc} are required
 RUN apt-get update && \
-        apt-get install -y netbase socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli && \
+        apt-get install -y wget netbase socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse && \
         rm -rf /var/lib/apt/lists/*
 
 # controller requirements
 #RUN apt-get update && \
 #        apt-get install -y ansible && \
 #        rm -rf /var/lib/apt/lists/*
+
+# install objectivefs
+ENV OBJECTIVEFS_VERSION=7.1
+ADD docker/objectivefs-installer.sh /usr/local/sbin
+RUN chmod +x /usr/local/sbin/objectivefs-installer.sh && objectivefs-installer.sh
 
 # install wrappers
 ADD docker/iscsiadm /usr/local/sbin

@@ -183,8 +183,17 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
     const truenasVersion = semver.coerce(
-      await httpApiClient.getSystemVersionMajorMinor()
+      await httpApiClient.getSystemVersionMajorMinor(),
+      { loose: true }
     );
+
+    if (!truenasVersion) {
+      throw new GrpcError(
+        grpc.status.UNKNOWN,
+        `unable to detect TrueNAS version`
+      );
+    }
+
     const isScale = await httpApiClient.getIsScale();
 
     let volume_context;

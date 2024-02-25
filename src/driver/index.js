@@ -7,6 +7,7 @@ const k8s = require("@kubernetes/client-node");
 const { GrpcError, grpc } = require("../utils/grpc");
 const Handlebars = require("handlebars");
 const { Mount } = require("../utils/mount");
+const { ObjectiveFS } = require("../utils/objectivefs");
 const { OneClient } = require("../utils/oneclient");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
@@ -179,6 +180,15 @@ class CsiBaseDriver {
     return registry.get(`${__REGISTRY_NS__}:default_oneclient_instance`, () => {
       return new OneClient();
     });
+  }
+
+  getDefaultObjectiveFSInstance() {
+    return registry.get(
+      `${__REGISTRY_NS__}:default_objectivefs_instance`,
+      () => {
+        return new ObjectiveFS();
+      }
+    );
   }
 
   /**
@@ -456,6 +466,9 @@ class CsiBaseDriver {
 
     /**
      * technically zfs allows `:` and `.` in addition to `_` and `-`
+     * TODO: make this more specific to each driver
+     * in particular Nomad per-alloc feature uses names with <name>-[<index>] syntax so square brackets are present
+     * TODO: allow for replacing chars vs absolute failure?
      */
     let invalid_chars;
     invalid_chars = volume_id.match(/[^a-z0-9_\-]/gi);
@@ -728,6 +741,7 @@ class CsiBaseDriver {
       }
 
       switch (node_attach_driver) {
+        case "objectivefs":
         case "oneclient":
           // move along
           break;
@@ -1245,6 +1259,65 @@ class CsiBaseDriver {
             } else {
               return {};
             }
+
+            break;
+          case "objectivefs":
+            let objectivefs = driver.getDefaultObjectiveFSInstance();
+            let ofs_filesystem = volume_context.filesystem;
+            let env = {};
+            for (const key in volume_context) {
+              if (key.startsWith("env.")) {
+                env[key.substr("env.".length)] = volume_context[key];
+              }
+            }
+
+            for (const key in normalizedSecrets) {
+              if (key.startsWith("env.")) {
+                env[key.substr("env.".length)] = normalizedSecrets[key];
+              }
+            }
+
+            let ofs_object_store = env["OBJECTSTORE"];
+
+            if (!ofs_filesystem) {
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `missing ofs volume filesystem`
+              );
+            }
+
+            if (!ofs_object_store) {
+              throw new GrpcError(
+                grpc.status.FAILED_PRECONDITION,
+                `missing required ofs volume env.OBJECTSTORE`
+              );
+            }
+
+            device = `${ofs_object_store}${ofs_filesystem}`;
+            result = await mount.deviceIsMountedAtPath(
+              device,
+              staging_target_path
+            );
+
+            if (result) {
+              return {};
+            }
+
+            result = await objectivefs.mount(
+              env,
+              ofs_filesystem,
+              staging_target_path,
+              mount_flags
+            );
+
+            if (result) {
+              return {};
+            }
+
+            throw new GrpcError(
+              grpc.status.UNKNOWN,
+              `failed to mount objectivefs: ${device}`
+            );
 
             break;
           case "oneclient":
@@ -2932,6 +3005,7 @@ class CsiBaseDriver {
           case "nfs":
           case "smb":
           case "lustre":
+          case "objectivefs":
           case "oneclient":
           case "hostpath":
           case "iscsi":
