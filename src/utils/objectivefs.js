@@ -265,6 +265,8 @@ class ObjectiveFS {
       }
     }
 
+    options.env.PATH = process.env.PATH;
+
     const cleansedLog = `${command} ${args.join(" ")}`;
     console.log("executing objectivefs command: %s", cleansedLog);
 

@@ -277,6 +277,8 @@ jobs:
           OBJECTIVEFS_ACCESS_KEY: ${{ secrets.SANITY_OBJECTIVEFS_ACCESS_KEY }}
           OBJECTIVEFS_PASSPHRASE: ${{ secrets.SANITY_OBJECTIVEFS_PASSPHRASE }}
 
+          # these secrets need to match the above secrets for staging/etc
+          CSI_SANITY_SECRETS: /root/csi-secrets/objectivefs-secrets.yaml
           CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
 
   # client drivers
