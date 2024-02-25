@@ -22,6 +22,7 @@ elif [ "$PLATFORM" = "linux/arm64" ]; then
   export OBJECTIVEFS_ARCH="arm64"
 else
   echo "unsupported/unknown PLATFORM ${PLATFORM}"
+  exit 0
 fi
 
 export DEB_FILE="objectivefs_${OBJECTIVEFS_VERSION}_${OBJECTIVEFS_ARCH}.deb"

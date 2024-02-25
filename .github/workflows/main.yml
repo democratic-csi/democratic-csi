@@ -115,38 +115,6 @@ jobs:
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
-  csi-sanity-truenas-scale-23_10:
-    needs:
-      - build-npm-linux-amd64
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - truenas/scale/23.10/scale-iscsi.yaml
-          - truenas/scale/23.10/scale-nfs.yaml
-          # 80 char limit
-          - truenas/scale/23.10/scale-smb.yaml
-    runs-on:
-      - self-hosted
-      - Linux
-      - X64
-      #- csi-sanity-truenas
-      - csi-sanity-zfs-generic
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: node-modules-linux-amd64
-      - name: csi-sanity
-        run: |
-          # run tests
-          ci/bin/run.sh
-        env:
-          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_23_10_HOST }}
-          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
-          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
-
   csi-sanity-truenas-scale-24_04:
     needs:
       - build-npm-linux-amd64
@@ -462,7 +430,6 @@ jobs:
       - determine-image-tag
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-23_10
       - csi-sanity-truenas-scale-24_04
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
@@ -502,7 +469,6 @@ jobs:
     needs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-23_10
       - csi-sanity-truenas-scale-24_04
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
