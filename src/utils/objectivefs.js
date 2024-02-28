@@ -52,7 +52,10 @@ class ObjectiveFS {
     }
     const objectivefs = this;
     let args = [];
-    args = args.concat(options);
+    if (options.length > 0) {
+      // TODO: maybe do -o <opt> -o <opt>?
+      args = args.concat(["-o", options.join(",")]);
+    }
     args = args.concat([filesystem, target]);
 
     let result;

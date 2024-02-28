@@ -120,6 +120,7 @@ jobs:
       - build-npm-linux-amd64
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         config:
           - truenas/scale/24.04/scale-iscsi.yaml
@@ -153,6 +154,7 @@ jobs:
       - build-npm-linux-amd64
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         config:
           - truenas/core/13.0/core-iscsi.yaml
@@ -186,6 +188,7 @@ jobs:
       - build-npm-linux-amd64
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         config:
           - zfs-generic/iscsi.yaml
