@@ -271,6 +271,7 @@ class ObjectiveFS {
     if (filesystem.includes("://")) {
       return GeneralUtils.after_string("://");
     }
+    return filesystem;
   }
 
   exec(command, args, options = {}) {
