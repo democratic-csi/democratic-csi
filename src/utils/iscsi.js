@@ -183,7 +183,7 @@ class ISCSI {
         let parsedPortalHostIP = "";
         if (parsedPortal.host) {
           // if host is not an ip address
-          if (net.isIP(parsePortal.host) == 0) {
+          if (net.isIP(parsedPortal.host) == 0) {
             // ipv6 response is without []
             parsedPortalHostIP =
               (await hostname_lookup(parsedPortal.host)) || "";
