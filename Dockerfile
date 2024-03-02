@@ -9,7 +9,7 @@ ARG BUILDPLATFORM
 RUN echo "I am running build on $BUILDPLATFORM, building for $TARGETPLATFORM"
 
 RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* \
-        && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+  && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
 ENV LANG=en_US.utf8
 ENV NODE_VERSION=v20.11.1
@@ -26,8 +26,8 @@ ENV PATH=/usr/local/lib/nodejs/bin:$PATH
 
 # Run as a non-root user
 RUN useradd --create-home csi \
-        && mkdir /home/csi/app \
-        && chown -R csi: /home/csi
+  && mkdir /home/csi/app \
+  && chown -R csi: /home/csi
 WORKDIR /home/csi/app
 USER csi
 
@@ -50,21 +50,22 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
+ARG OBJECTIVEFS_DOWNLOAD_ID
 
 RUN echo "I am running on final $BUILDPLATFORM, building for $TARGETPLATFORM"
 
 RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* \
-        && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+  && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
 ENV LANG=en_US.utf8
 ENV NODE_ENV=production
 
 # Workaround for https://github.com/nodejs/node/issues/37219
 RUN test $(uname -m) != armv7l || ( \
-                apt-get update \
-                && apt-get install -y libatomic1 \
-                && rm -rf /var/lib/apt/lists/* \
-        )
+  apt-get update \
+  && apt-get install -y libatomic1 \
+  && rm -rf /var/lib/apt/lists/* \
+  )
 
 # install node
 #ENV PATH=/usr/local/lib/nodejs/bin:$PATH
@@ -75,8 +76,8 @@ COPY --from=build /usr/local/lib/nodejs/bin/node /usr/local/bin/node
 # netbase is required by rpcbind/rpcinfo to work properly
 # /etc/{services,rpc} are required
 RUN apt-get update && \
-        apt-get install -y wget netbase socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse && \
-        rm -rf /var/lib/apt/lists/*
+  apt-get install -y wget netbase socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse && \
+  rm -rf /var/lib/apt/lists/*
 
 # controller requirements
 #RUN apt-get update && \
@@ -84,7 +85,7 @@ RUN apt-get update && \
 #        rm -rf /var/lib/apt/lists/*
 
 # install objectivefs
-ENV OBJECTIVEFS_VERSION=7.1
+ENV OBJECTIVEFS_VERSION=7.2
 ADD docker/objectivefs-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/objectivefs-installer.sh && objectivefs-installer.sh
 
@@ -112,7 +113,7 @@ RUN chmod +x /usr/local/bin/oneclient
 
 # Run as a non-root user
 RUN useradd --create-home csi \
-        && chown -R csi: /home/csi
+  && chown -R csi: /home/csi
 
 COPY --from=build --chown=csi:csi /home/csi/app /home/csi/app
 

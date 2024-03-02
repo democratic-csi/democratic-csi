@@ -1,9 +1,13 @@
 const cp = require("child_process");
+const GeneralUtils = require("./general");
 
 const DEFAULT_TIMEOUT = process.env.MOUNT_DEFAULT_TIMEOUT || 30000;
 
-const EXIT_CODE_64 = "administrator can not mount filesystems";
-const EXIT_CODE_78 = "missing or invalid passphrase";
+const EXIT_CODES = {
+  64: "administrator can not mount filesystems",
+  65: "unable to decrypt using passphrase",
+  78: "missing or invalid passphrase",
+};
 
 /**
  * https://objectivefs.com/
@@ -112,10 +116,30 @@ class ObjectiveFS {
    * @param {*} options
    */
   async destroy(env, filesystem, options = []) {
+    const objectivefs = this;
     if (!env) {
       env = {};
     }
-    const objectivefs = this;
+
+    /**
+     * delete safety checks for filesystem
+     *
+     * while it is possible to delete a fs without a pool we
+     * should never be doing that in democratic-csi
+     */
+    let fs_parts = filesystem.split("/");
+    if (fs_parts.length != 2) {
+      throw new Error(`filesystem safety check failed for fs: ${filesystem}`);
+    }
+
+    if (!fs_parts[0]) {
+      throw new Error(`filesystem safety check failed for fs: ${filesystem}`);
+    }
+
+    if (!fs_parts[1]) {
+      throw new Error(`filesystem safety check failed for fs: ${filesystem}`);
+    }
+
     let args = ["destroy"];
     args = args.concat(options);
     args = args.concat([filesystem]);
@@ -237,6 +261,18 @@ class ObjectiveFS {
     }
   }
 
+  async getObjectStoreFromFilesystem(filesystem) {
+    if (filesystem.includes("://")) {
+      return GeneralUtils.before_string("://");
+    }
+  }
+
+  async stripObjectStoreFromFilesystem(filesystem) {
+    if (filesystem.includes("://")) {
+      return GeneralUtils.after_string("://");
+    }
+  }
+
   exec(command, args, options = {}) {
     if (!options.hasOwnProperty("timeout")) {
       options.timeout = DEFAULT_TIMEOUT;
@@ -250,9 +286,7 @@ class ObjectiveFS {
       command = objectivefs.options.paths.sudo;
     }
 
-    // OBJECTIVEFS_ENV
     options.env = { ...{}, ...objectivefs.options.env, ...options.env };
-    //console.log(options);
 
     // truncate admin key during mount operations
     if (options.operation == "mount") {
@@ -296,12 +330,8 @@ class ObjectiveFS {
       });
 
       child.on("close", function (code) {
-        if (code == 78 && !stderr) {
-          stderr += EXIT_CODE_78;
-        }
-
-        if (code == 64 && !stderr) {
-          stderr += EXIT_CODE_64;
+        if (!stderr && EXIT_CODES[code]) {
+          stderr += EXIT_CODES[code];
         }
 
         const result = { code, stdout, stderr, timeout: false };

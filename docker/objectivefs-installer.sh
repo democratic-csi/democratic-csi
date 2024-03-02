@@ -29,7 +29,7 @@ export DEB_FILE="objectivefs_${OBJECTIVEFS_VERSION}_${OBJECTIVEFS_ARCH}.deb"
 
 echo "I am installing objectivefs $OBJECTIVEFS_VERSION"
 
-wget "https://objectivefs.com/user/download/ac24htfht/${DEB_FILE}"
+wget "https://objectivefs.com/user/download/${OBJECTIVEFS_DOWNLOAD_ID}/${DEB_FILE}"
 dpkg -i "${DEB_FILE}"
 
 rm "${DEB_FILE}"

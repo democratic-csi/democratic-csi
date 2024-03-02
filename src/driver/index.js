@@ -1265,11 +1265,6 @@ class CsiBaseDriver {
             let objectivefs = driver.getDefaultObjectiveFSInstance();
             let ofs_filesystem = volume_context.filesystem;
             let env = {};
-            for (const key in volume_context) {
-              if (key.startsWith("env.")) {
-                env[key.substr("env.".length)] = volume_context[key];
-              }
-            }
 
             for (const key in normalizedSecrets) {
               if (key.startsWith("env.")) {
@@ -1277,7 +1272,11 @@ class CsiBaseDriver {
               }
             }
 
-            let ofs_object_store = env["OBJECTSTORE"];
+            for (const key in volume_context) {
+              if (key.startsWith("env.")) {
+                env[key.substr("env.".length)] = volume_context[key];
+              }
+            }
 
             if (!ofs_filesystem) {
               throw new GrpcError(
@@ -1286,12 +1285,27 @@ class CsiBaseDriver {
               );
             }
 
+            let ofs_object_store = env["OBJECTSTORE"];
+            if (!ofs_object_store) {
+              ofs_object_store = await objectivefs.getObjectStoreFromFilesystem(
+                ofs_filesystem
+              );
+              if (ofs_object_store) {
+                env["OBJECTSTORE"] = ofs_object_store;
+              }
+            }
+
             if (!ofs_object_store) {
               throw new GrpcError(
                 grpc.status.FAILED_PRECONDITION,
                 `missing required ofs volume env.OBJECTSTORE`
               );
             }
+
+            // normalize fs to not include objectstore
+            ofs_filesystem = await objectivefs.stripObjectStoreFromFilesystem(
+              ofs_filesystem
+            );
 
             device = `${ofs_object_store}${ofs_filesystem}`;
             result = await mount.deviceIsMountedAtPath(

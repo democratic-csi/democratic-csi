@@ -1,5 +1,6 @@
 const cp = require("child_process");
-const { sleep } = require("./general");
+const { hostname_lookup, sleep } = require("./general");
+const net = require("net");
 
 function getIscsiValue(value) {
   if (value == "<empty>") return null;
@@ -179,12 +180,34 @@ class ISCSI {
         const sessions = await iscsi.iscsiadm.getSessions();
 
         let parsedPortal = iscsi.parsePortal(portal);
+        let parsedPortalHostIP = "";
+        if (parsedPortal.host) {
+          // if host is not an ip address
+          if (net.isIP(parsePortal.host) == 0) {
+            // ipv6 response is without []
+            parsedPortalHostIP =
+              (await hostname_lookup(parsedPortal.host)) || "";
+          }
+        }
+
+        // set invalid hostname/ip string to ensure empty values do not errantly pass
+        if (!parsedPortalHostIP) {
+          parsedPortalHostIP = "--------------------------------------";
+        }
         let session = false;
         sessions.every((i_session) => {
+          // [2a10:4741:36:28:e61d:2dff:fe90:80fe]:3260
+          // i_session.portal includes [] for ipv6
           if (
             `${i_session.iqn}` == tgtIQN &&
             (portal == i_session.portal ||
-              `[${parsedPortal.host}]:${parsedPortal.port}` == i_session.portal)
+              `${parsedPortal.host}:${parsedPortal.port}` == i_session.portal ||
+              `${parsedPortalHostIP}:${parsedPortal.port}` ==
+                i_session.portal ||
+              `[${parsedPortal.host}]:${parsedPortal.port}` ==
+                i_session.portal ||
+              `[${parsedPortalHostIP}]:${parsedPortal.port}` ==
+                i_session.portal)
           ) {
             session = i_session;
             return false;

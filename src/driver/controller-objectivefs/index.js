@@ -592,75 +592,6 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
     );
-
-    const driver = this;
-
-    // both these are required
-    let source_volume_id = call.request.source_volume_id;
-    let name = call.request.name;
-
-    if (!source_volume_id) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `snapshot source_volume_id is required`
-      );
-    }
-
-    source_volume_id = source_volume_id.toLowerCase();
-
-    if (!name) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `snapshot name is required`
-      );
-    }
-
-    driver.ctx.logger.verbose("requested snapshot name: %s", name);
-
-    let invalid_chars;
-    invalid_chars = name.match(/[^a-z0-9_\-:.+]+/gi);
-    if (invalid_chars) {
-      invalid_chars = String.prototype.concat(
-        ...new Set(invalid_chars.join(""))
-      );
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `snapshot name contains invalid characters: ${invalid_chars}`
-      );
-    }
-
-    // https://stackoverflow.com/questions/32106243/regex-to-remove-all-non-alpha-numeric-and-replace-spaces-with/32106277
-    name = name.replace(/[^a-z0-9_\-:.+]+/gi, "");
-
-    driver.ctx.logger.verbose("cleansed snapshot name: %s", name);
-
-    const snapshot_id = `${source_volume_id}-${name}`;
-    const volume_path = driver.getControllerVolumePath(source_volume_id);
-    const snapshot_path = driver.getControllerSnapshotPath(snapshot_id);
-
-    // do NOT overwrite existing snapshot
-    if (!(await driver.directoryExists(snapshot_path))) {
-      await driver.cloneDir(volume_path, snapshot_path);
-    }
-
-    let size_bytes = await driver.getDirectoryUsage(snapshot_path);
-    return {
-      snapshot: {
-        /**
-         * The purpose of this field is to give CO guidance on how much space
-         * is needed to create a volume from this snapshot.
-         */
-        size_bytes,
-        snapshot_id,
-        source_volume_id: source_volume_id,
-        //https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
-        creation_time: {
-          seconds: Math.round(new Date().getTime() / 1000),
-          nanos: 0,
-        },
-        ready_to_use: true,
-      },
-    };
   }
 
   /**
@@ -674,19 +605,6 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
     );
-
-    const driver = this;
-
-    const snapshot_id = call.request.snapshot_id;
-
-    if (!snapshot_id) {
-      throw new GrpcError(
-        grpc.status.INVALID_ARGUMENT,
-        `snapshot_id is required`
-      );
-    }
-
-    return {};
   }
 
   /**

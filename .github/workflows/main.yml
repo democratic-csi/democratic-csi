@@ -464,6 +464,7 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
+          OBJECTIVEFS_DOWNLOAD_ID: ${{ secrets.OBJECTIVEFS_DOWNLOAD_ID }}
           DOCKER_CLI_EXPERIMENTAL: enabled
           DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le
           IMAGE_TAG: ${{needs.determine-image-tag.outputs.tag}}
