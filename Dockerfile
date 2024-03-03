@@ -47,6 +47,7 @@ LABEL org.opencontainers.image.url https://github.com/democratic-csi/democratic-
 LABEL org.opencontainers.image.licenses MIT
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV DEMOCRATIC_CSI_IS_CONTAINER=true
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -95,6 +96,9 @@ RUN chmod +x /usr/local/sbin/iscsiadm
 
 ADD docker/multipath /usr/local/sbin
 RUN chmod +x /usr/local/sbin/multipath
+
+ADD docker/simple-file-writer /usr/local/bin
+RUN chmod +x /usr/local/bin/simple-file-writer
 
 ## USE_HOST_MOUNT_TOOLS=1
 ADD docker/mount /usr/local/bin/mount

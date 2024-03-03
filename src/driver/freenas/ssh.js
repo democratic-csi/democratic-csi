@@ -2021,11 +2021,22 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
            *
            * midclt resync_lun_size_for_zvol tank/foo/bar
            * works on SCALE only ^
+           *
            */
-          command = execClient.buildCommand("sh", [
-            "-c",
-            `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
-          ]);
+
+          if (process.env.DEMOCRATIC_CSI_IS_CONTAINER == "true") {
+            // TODO: syntax fails with sudo
+            command = execClient.buildCommand("sh", [
+              "-c",
+              `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
+            ]);
+          } else {
+            // use the built-in wrapper script that works with sudo
+            command = execClient.buildCommand("simple-file-writer", [
+              "1",
+              `/sys/kernel/scst_tgt/devices/${kName}/resync_size`,
+            ]);
+          }
           reload = true;
         } else {
           switch (apiVersion) {
