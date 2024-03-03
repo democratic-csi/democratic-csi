@@ -458,6 +458,17 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
       );
     }
 
+    // deleteStrategy
+    const delete_strategy = _.get(
+      driver.options,
+      "_private.csi.volume.deleteStrategy",
+      ""
+    );
+
+    if (delete_strategy == "retain") {
+      return {};
+    }
+
     volume_id = volume_id.toLowerCase();
     const filesystem = `${pool}/${volume_id}`;
     await ofsClient.destroy({}, filesystem, []);

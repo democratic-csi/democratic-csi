@@ -636,6 +636,17 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       );
     }
 
+    // deleteStrategy
+    const delete_strategy = _.get(
+      driver.options,
+      "_private.csi.volume.deleteStrategy",
+      ""
+    );
+
+    if (delete_strategy == "retain") {
+      return {};
+    }
+
     const volume_path = driver.getControllerVolumePath(volume_id);
     await driver.deleteDir(volume_path);
 

@@ -1297,6 +1297,17 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     driver.ctx.logger.debug("dataset properties: %j", properties);
 
+    // deleteStrategy
+    const delete_strategy = _.get(
+      driver.options,
+      "_private.csi.volume.deleteStrategy",
+      ""
+    );
+
+    if (delete_strategy == "retain") {
+      return {};
+    }
+
     // remove share resources
     await this.deleteShare(call, datasetName);
 

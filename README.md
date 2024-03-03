@@ -188,8 +188,10 @@ node:
 and continue your democratic installation as usuall with other iscsi drivers.
 
 #### Privileged Namespace
+
 democratic-csi requires privileged access to the nodes, so the namespace should allow for privileged pods. One way of doing it is via [namespace labels](https://kubernetes.io/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/).
 Add the followin label to the democratic-csi installation namespace `pod-security.kubernetes.io/enforce=privileged`
+
 ```
 kubectl label --overwrite namespace democratic-csi pod-security.kubernetes.io/enforce=privileged
 ```
@@ -647,12 +649,6 @@ to `democratic-csi`.
 Copy the `contrib/freenas-provisioner-to-democratic-csi.sh` script from the
 project to your workstation, read the script in detail, and edit the variables
 to your needs to start migrating!
-
-# Sponsors
-
-A special shout out to the wonderful sponsors of the project!
-
-[![ixSystems](https://www.ixsystems.com/wp-content/uploads/2021/06/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
 
 # Related
 

@@ -20,7 +20,7 @@ zfs:
   #    zpool: /usr/local/sbin/zpool
   #    sudo: /usr/local/bin/sudo
   #    chroot: /usr/sbin/chroot
-  
+
   # can be used to set arbitrary values on the dataset/zvol
   # can use handlebars templates with the parameters from the storage class/CO
   #datasetProperties:
@@ -65,6 +65,7 @@ nvmeof:
   # http://git.infradead.org/users/hch/nvmetcli.git
   shareStrategyNvmetCli:
     #sudoEnabled: true
+    # /root/.local/bin/nvmetcli
     #nvmetcliPath: nvmetcli
     # prevent startup race conditions by ensuring the config on disk has been imported
     # before we start messing with things
@@ -73,7 +74,7 @@ nvmeof:
     basename: "nqn.2003-01.org.linux-nvme"
     # add more ports here as appropriate if you have multipath
     ports:
-    - "1"
+      - "1"
     subsystem:
       attributes:
         allow_any_host: 1
@@ -96,7 +97,7 @@ nvmeof:
       attributes:
         allow_any_host: "true"
     listeners:
-    - trtype: tcp
-      traddr: server
-      trsvcid: port
-      adrfam: ipv4
+      - trtype: tcp
+        traddr: server
+        trsvcid: port
+        adrfam: ipv4
