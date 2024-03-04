@@ -30,6 +30,7 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-local-dataset` (provision node-local volume as dataset)
   - `zfs-local-zvol` (provision node-local volume as zvol)
   - `synology-iscsi` experimental (manages volumes to share over iscsi)
+  - `objectivefs` experimental (manages objectivefs volumes)
   - `lustre-client` (crudely provisions storage using a shared lustre
     share/directory for all volumes)
   - `nfs-client` (crudely provisions storage using a shared nfs share/directory
@@ -535,6 +536,20 @@ saveconfig /etc/nvmet/config.json
 ### Synology (synology-iscsi)
 
 Ensure iscsi manager has been installed and is generally setup/configured. DSM 6.3+ is supported.
+
+### objectivefs (objectivefs)
+
+Ensure the config value used for `pool` is an existing bucket. Be sure the
+bucket is NOT being used in fs mode (ie: the whole bucket is a single fs).
+
+The `democratic-csi` `node` container will host the fuse mount process so
+be careful to only upgrade when all relevant workloads have been drained from
+the respective node. Also beware that any cpu/memory limits placed on the
+container by the orchestration system will impact any ability to use caching
+features, etc of objectivefs.
+
+- https://objectivefs.com/features#filesystem-pool
+- https://objectivefs.com/howto/how-to-create-a-filesystem-with-an-existing-empty-bucket
 
 ## Helm Installation
 
