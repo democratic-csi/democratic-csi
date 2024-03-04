@@ -2025,16 +2025,16 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
            */
 
           if (process.env.DEMOCRATIC_CSI_IS_CONTAINER == "true") {
-            // TODO: syntax fails with sudo
-            command = execClient.buildCommand("sh", [
-              "-c",
-              `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
-            ]);
-          } else {
             // use the built-in wrapper script that works with sudo
             command = execClient.buildCommand("simple-file-writer", [
               "1",
               `/sys/kernel/scst_tgt/devices/${kName}/resync_size`,
+            ]);
+          } else {
+            // TODO: syntax fails with sudo
+            command = execClient.buildCommand("sh", [
+              "-c",
+              `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
             ]);
           }
           reload = true;
