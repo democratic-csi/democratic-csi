@@ -1,0 +1,28 @@
+driver: objectivefs
+objectivefs:
+  # note, ALL provisioned filesystems will be created in this pool
+  # with the same passphrase entered below
+  pool: ofs
+  cli:
+    sudoEnabled: false
+  env:
+    # NOTE: this must be the license key + admin key
+    # admin key feature must be activated on your account
+    # https://objectivefs.com/howto/objectivefs-admin-key-setup
+    OBJECTIVEFS_LICENSE:
+    OBJECTSTORE:
+    ENDPOINT:
+    SECRET_KEY:
+    ACCESS_KEY:
+    # do NOT change this once it has been set and deployed
+    OBJECTIVEFS_PASSPHRASE:
+    # ...
+
+_private:
+  csi:
+    volume:
+      idHash:
+        # due to 63 char limit on objectivefs fs name, we should
+        # hash volume names to prevent fs names which are too long
+        # can be 1 of md5, crc8, crc16, crc32
+        strategy: crc32

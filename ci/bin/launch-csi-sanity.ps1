@@ -34,6 +34,7 @@ $exeargs += "-csi.mountdir", "${env:CSI_SANITY_TEMP_DIR}\mnt"
 $exeargs += "-csi.stagingdir", "${env:CSI_SANITY_TEMP_DIR}\stage"
 $exeargs += "-csi.testvolumeexpandsize", "2147483648"
 $exeargs += "-csi.testvolumesize", "1073741824"
+$exeargs += "--csi.secrets", "${env:CSI_SANITY_SECRETS}"
 $exeargs += "-ginkgo.skip", "${env:CSI_SANITY_SKIP}"
 $exeargs += "-ginkgo.focus", "${env:CSI_SANITY_FOCUS}"
 
