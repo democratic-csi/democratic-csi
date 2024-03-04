@@ -2917,11 +2917,30 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
         // this should be already set, but when coming from a volume source
         // it may not match that of the source
-        // TODO: probably need to recalculate size based on *actual* volume source blocksize in case of difference from currently configured
         properties.volsize = capacity_bytes;
 
-        //dedup
-        //compression
+        // dedup
+        // on, off, verify
+        // zfs set dedup=on tank/home
+        // restore default must use the below
+        // zfs inherit [-rS] property filesystem|volume|snapshot…
+        if (
+          (typeof this.options.zfs.zvolDedup === "string" ||
+            this.options.zfs.zvolDedup instanceof String) &&
+          this.options.zfs.zvolDedup.length > 0
+        ) {
+          properties.dedup = this.options.zfs.zvolDedup;
+        }
+
+        // compression
+        // lz4, gzip-9, etc
+        if (
+          (typeof this.options.zfs.zvolCompression === "string" ||
+            this.options.zfs.zvolCompression instanceof String) &&
+          this.options.zfs.zvolCompression > 0
+        ) {
+          properties.compression = this.options.zfs.zvolCompression;
+        }
 
         if (setProps) {
           await httpApiClient.DatasetSet(datasetName, properties);

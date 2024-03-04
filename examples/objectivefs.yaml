@@ -1,6 +1,6 @@
 driver: objectivefs
 objectivefs:
-  # note, ALL provisioned filesystems will be created in this pool
+  # note, ALL provisioned filesystems will be created in this pool / bucket
   # with the same passphrase entered below
   pool: ofs
   cli:
