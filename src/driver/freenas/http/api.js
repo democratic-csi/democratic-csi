@@ -119,7 +119,11 @@ class Api {
       return 2;
     }
 
-    return 1;
+    if (systemVersion.v1) {
+      return 1;
+    }
+
+    return 2;
   }
 
   async getIsFreeNAS() {
