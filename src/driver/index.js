@@ -912,12 +912,15 @@ class CsiBaseDriver {
                 );
               }
 
+              const sessionParsedPortal = iscsi.parsePortal(session.portal);
+
               // rescan in scenarios when login previously occurred but volumes never appeared
               await iscsi.iscsiadm.rescanSession(session);
 
               // find device name
-              device = iscsi.devicePathByPortalIQNLUN(
-                iscsiConnection.portal,
+              device = await iscsi.devicePathByPortalIQNLUN(
+                //iscsiConnection.portal,
+                `${sessionParsedPortal.host}:${sessionParsedPortal.port}`,
                 iscsiConnection.iqn,
                 iscsiConnection.lun
               );

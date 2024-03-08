@@ -583,11 +583,12 @@ class ISCSI {
     };
   }
 
-  devicePathByPortalIQNLUN(portal, iqn, lun) {
+  async devicePathByPortalIQNLUN(portal, iqn, lun, options = {}) {
     const parsedPortal = this.parsePortal(portal);
-    const portalHost = parsedPortal.host
-      .replaceAll("[", "")
-      .replaceAll("]", "");
+    let portalHost = parsedPortal.host.replaceAll("[", "").replaceAll("]", "");
+    if (options.hostname_lookup && net.isIP(portalHost) == 0) {
+      portalHost = (await hostname_lookup(portalHost)) || portalHost;
+    }
     return `/dev/disk/by-path/ip-${portalHost}:${parsedPortal.port}-iscsi-${iqn}-lun-${lun}`;
   }
 
