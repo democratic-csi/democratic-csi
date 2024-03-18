@@ -77,10 +77,16 @@ COPY --from=build /usr/local/lib/nodejs/bin/node /usr/local/bin/node
 # netbase is required by rpcbind/rpcinfo to work properly
 # /etc/{services,rpc} are required
 RUN apt-get update && \
-  apt-get install -y wget netbase socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse3 restic rclone && \
-  restic self-update && \
-  rclone self-update && \
+  apt-get install -y wget netbase zip bzip2 socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse3 && \
   rm -rf /var/lib/apt/lists/*
+
+ARG RCLONE_VERSION=1.66.0
+ADD docker/rclone-installer.sh /usr/local/sbin
+RUN chmod +x /usr/local/sbin/rclone-installer.sh && rclone-installer.sh
+
+ARG RESTIC_VERSION=0.16.4
+ADD docker/restic-installer.sh /usr/local/sbin
+RUN chmod +x /usr/local/sbin/restic-installer.sh && restic-installer.sh
 
 ARG KOPIA_VERSION=0.15.0
 ADD docker/kopia-installer.sh /usr/local/sbin

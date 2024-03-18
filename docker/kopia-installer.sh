@@ -27,10 +27,9 @@ else
   exit 0
 fi
 
-export DEB_FILE="kopia.deb"
-
 echo "I am installing kopia $KOPIA_VERSION"
 
+export DEB_FILE="kopia.deb"
 wget -O "${DEB_FILE}" "https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/kopia_${KOPIA_VERSION}_linux_${PLATFORM_ARCH}.deb"
 dpkg -i "${DEB_FILE}"
 
