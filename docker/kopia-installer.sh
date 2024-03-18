@@ -21,7 +21,7 @@ if [ "$PLATFORM" = "linux/amd64" ]; then
 elif [ "$PLATFORM" = "linux/arm64" ]; then
   export PLATFORM_ARCH="arm64"
 elif [ "$PLATFORM" = "linux/arm/v7" ]; then
-  export PLATFORM_ARCH="armhv"
+  export PLATFORM_ARCH="armhf"
 else
   echo "unsupported/unknown kopia PLATFORM ${PLATFORM}"
   exit 0
