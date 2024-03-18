@@ -107,6 +107,7 @@ if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
 }
 
 //console.log(args);
+//console.log(process.env);
 
 const package = require("../package.json");
 args.version = package.version;

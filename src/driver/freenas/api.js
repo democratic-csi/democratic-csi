@@ -2196,6 +2196,15 @@ class FreeNASApiDriver extends CsiBaseDriver {
         );
       }
 
+      try {
+        await httpApiClient.getSystemVersion();
+      } catch (err) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `TrueNAS api is unavailable: ${err.getMessage()}`
+        );
+      }
+
       if (!(await httpApiClient.getIsScale())) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
@@ -2203,9 +2212,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
         );
       }
 
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     } else {
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     }
   }
 

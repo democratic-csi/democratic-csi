@@ -150,14 +150,14 @@ class Client {
     this.logger.debug("FREENAS HTTP RESPONSE BODY: " + stringify(body));
   }
 
-  async get(endpoint, data) {
+  async get(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "GET";
       options.url = this.getBaseURL() + endpoint;
       options.params = data;
@@ -172,14 +172,14 @@ class Client {
     });
   }
 
-  async post(endpoint, data) {
+  async post(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "POST";
       options.url = this.getBaseURL() + endpoint;
       options.data = data;
@@ -195,14 +195,14 @@ class Client {
     });
   }
 
-  async put(endpoint, data) {
+  async put(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "PUT";
       options.url = this.getBaseURL() + endpoint;
       options.data = data;
@@ -218,14 +218,14 @@ class Client {
     });
   }
 
-  async delete(endpoint, data) {
+  async delete(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "DELETE";
       options.url = this.getBaseURL() + endpoint;
       options.data = data;

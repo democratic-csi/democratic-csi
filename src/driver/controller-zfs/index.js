@@ -617,9 +617,9 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         );
       }
 
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     } else {
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     }
   }
 

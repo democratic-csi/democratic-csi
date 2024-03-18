@@ -243,7 +243,7 @@ class Api {
      * TrueNAS-SCALE-20.11-MASTER-20201127-092915
      */
     try {
-      response = await httpClient.get(endpoint);
+      response = await httpClient.get(endpoint, null, { timeout: 5 * 1000 });
       versionResponses.v2 = response;
       if (response.statusCode == 200) {
         versionInfo.v2 = response.body;
@@ -267,7 +267,7 @@ class Api {
      * {"fullversion": "FreeNAS-11.2-U5 (c129415c52)", "name": "FreeNAS", "version": ""}
      */
     try {
-      response = await httpClient.get(endpoint);
+      response = await httpClient.get(endpoint, null, { timeout: 5 * 1000 });
       versionResponses.v1 = response;
       if (response.statusCode == 200 && IsJsonString(response.body)) {
         versionInfo.v1 = response.body;
