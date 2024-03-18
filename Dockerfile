@@ -1,4 +1,4 @@
-FROM debian:11-slim AS build
+FROM debian:12-slim AS build
 #FROM --platform=$BUILDPLATFORM debian:10-slim AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -16,7 +16,7 @@ ENV NODE_VERSION=v20.11.1
 ENV NODE_ENV=production
 
 # install build deps
-RUN apt-get update && apt-get install -y python make cmake gcc g++
+RUN apt-get update && apt-get install -y python3 make cmake gcc g++
 
 # install node
 RUN apt-get update && apt-get install -y wget xz-utils
@@ -40,7 +40,7 @@ RUN rm -rf docker
 ######################
 # actual image
 ######################
-FROM debian:11-slim
+FROM debian:12-slim
 
 LABEL org.opencontainers.image.source https://github.com/democratic-csi/democratic-csi
 LABEL org.opencontainers.image.url https://github.com/democratic-csi/democratic-csi
@@ -77,8 +77,14 @@ COPY --from=build /usr/local/lib/nodejs/bin/node /usr/local/bin/node
 # netbase is required by rpcbind/rpcinfo to work properly
 # /etc/{services,rpc} are required
 RUN apt-get update && \
-  apt-get install -y wget netbase socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse && \
+  apt-get install -y wget netbase socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse3 restic rclone && \
+  restic self-update && \
+  rclone self-update && \
   rm -rf /var/lib/apt/lists/*
+
+ARG KOPIA_VERSION=0.15.0
+ADD docker/kopia-installer.sh /usr/local/sbin
+RUN chmod +x /usr/local/sbin/kopia-installer.sh && kopia-installer.sh
 
 # controller requirements
 #RUN apt-get update && \
@@ -86,7 +92,7 @@ RUN apt-get update && \
 #        rm -rf /var/lib/apt/lists/*
 
 # install objectivefs
-ENV OBJECTIVEFS_VERSION=7.2
+ARG OBJECTIVEFS_VERSION=7.2
 ADD docker/objectivefs-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/objectivefs-installer.sh && objectivefs-installer.sh
 
