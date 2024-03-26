@@ -88,7 +88,7 @@ ARG RESTIC_VERSION=0.16.4
 ADD docker/restic-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/restic-installer.sh && restic-installer.sh
 
-ARG KOPIA_VERSION=0.15.0
+ARG KOPIA_VERSION=0.16.1
 ADD docker/kopia-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/kopia-installer.sh && kopia-installer.sh
 

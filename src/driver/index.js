@@ -183,10 +183,13 @@ class CsiBaseDriver {
   }
 
   getDefaultObjectiveFSInstance() {
+    const driver = this;
     return registry.get(
       `${__REGISTRY_NS__}:default_objectivefs_instance`,
       () => {
-        return new ObjectiveFS();
+        return new ObjectiveFS({
+          pool: _.get(driver.options, "objectivefs.pool"),
+        });
       }
     );
   }

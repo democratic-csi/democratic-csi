@@ -2,7 +2,11 @@ driver: objectivefs
 objectivefs:
   # note, ALL provisioned filesystems will be created in this pool / bucket
   # with the same passphrase entered below
-  pool: ofs
+  #
+  # in general this pool should be considered as fully managed by democratic-csi
+  # so a dedicated pool per-cluster / deployment would be best practice
+  #
+  pool: ofscsi
   cli:
     sudoEnabled: false
   env:

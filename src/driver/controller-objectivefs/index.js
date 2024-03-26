@@ -115,6 +115,8 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
           false
         );
 
+        options.pool = _.get(driver.options, "objectivefs.pool");
+
         return new ObjectiveFS({
           ...options,
           env: _.get(driver.options, "objectivefs.env", {}),

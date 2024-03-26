@@ -121,6 +121,8 @@ class ObjectiveFS {
       env = {};
     }
 
+    filesystem = await objectivefs.stripObjectStoreFromFilesystem(filesystem);
+
     /**
      * delete safety checks for filesystem
      *
@@ -133,6 +135,16 @@ class ObjectiveFS {
     }
 
     if (!fs_parts[0]) {
+      throw new Error(`filesystem safety check failed for fs: ${filesystem}`);
+    }
+
+    let pool = objectivefs.options.pool;
+    pool = await objectivefs.stripObjectStoreFromFilesystem(pool);
+    if (!pool) {
+      throw new Error(`filesystem safety check failed for fs: ${filesystem}`);
+    }
+
+    if (fs_parts[0].trim() != pool.trim()) {
       throw new Error(`filesystem safety check failed for fs: ${filesystem}`);
     }
 
@@ -307,6 +319,7 @@ class ObjectiveFS {
 
     const cleansedLog = `${command} ${args.join(" ")}`;
     console.log("executing objectivefs command: %s", cleansedLog);
+    //console.log(options.env);
 
     return new Promise((resolve, reject) => {
       let stdin;
