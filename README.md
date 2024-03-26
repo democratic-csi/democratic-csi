@@ -30,6 +30,7 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-local-dataset` (provision node-local volume as dataset)
   - `zfs-local-zvol` (provision node-local volume as zvol)
   - `synology-iscsi` experimental (manages volumes to share over iscsi)
+  - `objectivefs` experimental (manages objectivefs volumes)
   - `lustre-client` (crudely provisions storage using a shared lustre
     share/directory for all volumes)
   - `nfs-client` (crudely provisions storage using a shared nfs share/directory
@@ -188,8 +189,10 @@ node:
 and continue your democratic installation as usuall with other iscsi drivers.
 
 #### Privileged Namespace
+
 democratic-csi requires privileged access to the nodes, so the namespace should allow for privileged pods. One way of doing it is via [namespace labels](https://kubernetes.io/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/).
 Add the followin label to the democratic-csi installation namespace `pod-security.kubernetes.io/enforce=privileged`
+
 ```
 kubectl label --overwrite namespace democratic-csi pod-security.kubernetes.io/enforce=privileged
 ```
@@ -333,8 +336,9 @@ with much older versions as well.
 The various `freenas-api-*` drivers are currently EXPERIMENTAL and can only be
 used with SCALE 21.08+. Fundamentally these drivers remove the need for `ssh`
 connections and do all operations entirely with the TrueNAS api. With that in
-mind, any ssh/shell/etc requirements below can be safely ignored. Also note the
-following known issues:
+mind, any ssh/shell/etc requirements below can be safely ignored. The minimum
+volume size through the api is `1G` so beware that requested volumes with a
+size small will be increased to `1G`. Also note the following known issues:
 
 - https://jira.ixsystems.com/browse/NAS-111870
 - https://github.com/democratic-csi/democratic-csi/issues/112
@@ -534,6 +538,26 @@ saveconfig /etc/nvmet/config.json
 
 Ensure iscsi manager has been installed and is generally setup/configured. DSM 6.3+ is supported.
 
+### objectivefs (objectivefs)
+
+ObjectiveFS requires the use of an _Admin Key_ to properly automate the
+lifecycle of filesystems. Each deployment of the driver will point to a single
+`pool` (bucket) and create individual `filesystems` within that bucket
+on-demand.
+
+Ensure the config value used for `pool` is an existing bucket. Be sure the
+bucket is _NOT_ being used in fs mode (ie: the whole bucket is a single fs).
+
+The `democratic-csi` `node` container will host the fuse mount process so
+be careful to only upgrade when all relevant workloads have been drained from
+the respective node. Also beware that any cpu/memory limits placed on the
+container by the orchestration system will impact any ability to use the
+caching, etc features of objectivefs.
+
+- https://objectivefs.com/howto/objectivefs-admin-key-setup
+- https://objectivefs.com/features#filesystem-pool
+- https://objectivefs.com/howto/how-to-create-a-filesystem-with-an-existing-empty-bucket
+
 ## Helm Installation
 
 ```bash
@@ -647,12 +671,6 @@ to `democratic-csi`.
 Copy the `contrib/freenas-provisioner-to-democratic-csi.sh` script from the
 project to your workstation, read the script in detail, and edit the variables
 to your needs to start migrating!
-
-# Sponsors
-
-A special shout out to the wonderful sponsors of the project!
-
-[![ixSystems](https://www.ixsystems.com/wp-content/uploads/2021/06/ix_logo_200x47.png "ixSystems")](http://ixsystems.com/)
 
 # Related
 

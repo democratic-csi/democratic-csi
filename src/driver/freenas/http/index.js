@@ -12,7 +12,7 @@ class Client {
 
     // default to v1.0 for now
     if (!this.options.apiVersion) {
-      this.options.apiVersion = 1;
+      this.options.apiVersion = 2;
     }
   }
 
@@ -131,7 +131,11 @@ class Client {
     delete options.httpAgent;
     delete options.httpsAgent;
 
-    let duration = parseFloat((Math.round((_.get(response, 'duration', 0) + Number.EPSILON) * 100) / 100) / 1000).toFixed(2);
+    let duration = parseFloat(
+      Math.round((_.get(response, "duration", 0) + Number.EPSILON) * 100) /
+        100 /
+        1000
+    ).toFixed(2);
 
     this.logger.debug("FREENAS HTTP REQUEST DETAILS: " + stringify(options));
     this.logger.debug("FREENAS HTTP REQUEST DURATION: " + duration + "s");
@@ -140,19 +144,20 @@ class Client {
       "FREENAS HTTP RESPONSE STATUS CODE: " + _.get(response, "statusCode", "")
     );
     this.logger.debug(
-      "FREENAS HTTP RESPONSE HEADERS: " + stringify(_.get(response, "headers", ""))
+      "FREENAS HTTP RESPONSE HEADERS: " +
+        stringify(_.get(response, "headers", ""))
     );
     this.logger.debug("FREENAS HTTP RESPONSE BODY: " + stringify(body));
   }
 
-  async get(endpoint, data) {
+  async get(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "GET";
       options.url = this.getBaseURL() + endpoint;
       options.params = data;
@@ -167,14 +172,14 @@ class Client {
     });
   }
 
-  async post(endpoint, data) {
+  async post(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "POST";
       options.url = this.getBaseURL() + endpoint;
       options.data = data;
@@ -190,14 +195,14 @@ class Client {
     });
   }
 
-  async put(endpoint, data) {
+  async put(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "PUT";
       options.url = this.getBaseURL() + endpoint;
       options.data = data;
@@ -213,14 +218,14 @@ class Client {
     });
   }
 
-  async delete(endpoint, data) {
+  async delete(endpoint, data, options = {}) {
     const client = this;
     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
       endpoint += "/";
     }
 
     return new Promise((resolve, reject) => {
-      const options = client.getRequestCommonOptions();
+      options = { ...client.getRequestCommonOptions(), ...options };
       options.method = "DELETE";
       options.url = this.getBaseURL() + endpoint;
       options.data = data;

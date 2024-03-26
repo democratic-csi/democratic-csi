@@ -63,6 +63,10 @@ const args = require("yargs")
       "1.3.0",
       "1.4.0",
       "1.5.0",
+      "1.6.0",
+      "1.7.0",
+      "1.8.0",
+      "1.9.0",
     ],
   })
   .demandOption(["csi-version"], "csi-version is required")
@@ -103,6 +107,7 @@ if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
 }
 
 //console.log(args);
+//console.log(process.env);
 
 const package = require("../package.json");
 args.version = package.version;
@@ -397,10 +402,58 @@ logger.info(
   bindSocket
 );
 
-[`SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`].forEach(
+const signalMapping = {
+  1: "SIGHUP",
+  2: "SIGINT",
+  3: "SIGQUIT",
+  4: "SIGILL",
+  5: "SIGTRAP",
+  6: "SIGABRT",
+  7: "SIGEMT",
+  8: "SIGFPE",
+  9: "SIGKILL",
+  10: "SIGBUS",
+  11: "SIGSEGV",
+  12: "SIGSYS",
+  13: "SIGPIPE",
+  14: "SIGALRM",
+  15: "SIGTERM",
+  16: "SIGURG",
+  17: "SIGSTOP",
+  18: "SIGTSTP",
+  19: "SIGCONT",
+  20: "SIGCHLD",
+  21: "SIGTTIN",
+  22: "SIGTTOU",
+  23: "SIGIO",
+  24: "SIGXCPU",
+  25: "SIGXFSZ",
+  26: "SIGVTALRM",
+  27: "SIGPROF",
+  28: "SIGWINCH",
+  29: "SIGINFO",
+  30: "SIGUSR1",
+  31: "SIGUSR2",
+};
+
+[(`SIGINT`, `SIGUSR1`, `SIGUSR2`, `uncaughtException`, `SIGTERM`)].forEach(
   (eventType) => {
     process.on(eventType, async (code) => {
-      console.log(`running server shutdown, exit code: ${code}`);
+      let codeNumber = null;
+      let codeName = null;
+      if (code > 0) {
+        codeNumber = code;
+        codeName = signalMapping[code];
+      } else {
+        codeNumber = Object.keys(signalMapping).find(
+          (key) => signalMapping[key] === code
+        );
+        codeName = code;
+      }
+
+      console.log(
+        `running server shutdown, exit code: ${codeNumber} (${codeName})`
+      );
 
       // attempt clean shutdown of in-flight requests
       try {
@@ -431,7 +484,7 @@ logger.info(
       }
 
       console.log("server fully shutdown, exiting");
-      process.exit(code);
+      process.exit(codeNumber);
     });
   }
 );

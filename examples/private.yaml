@@ -14,12 +14,23 @@ _private:
         #driver: kubernetes
 
       # THIS IS UNSUPPORTED, BAD THINGS WILL HAPPEN IF NOT CONFIGURED PROPERLY
+      # https://github.com/democratic-csi/democratic-csi/issues/289
       #
       # note the volume length must *always* be the same for every call for the same volume by the CO
       # the length must NOT execeed 128 characters
       # must start with an alphanumeric character
       # must only contain alphnumeric characters or `-` or `_`
       idTemplate: "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+
+      # THIS IS UNSUPPORTED, BAD THINGS WILL HAPPEN IF NOT CONFIGURED PROPERLY
+      # https://github.com/democratic-csi/democratic-csi/issues/289
+      #
+      # in order for this to behave sanely you *MUST* set consistent templates for
+      # share names/assets (ie: nfs/iscsi/etc) and the `idTemplate` above
+      #
+      # setting to retain results in noop delete opertions (both shares where applicable and volumes remain intact)
+      # delete|retain
+      deleteStrategy: retain
 
       # if set, this hash is applied *after* the templating above
       idHash:

@@ -28,6 +28,34 @@ const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
 const __REGISTRY_NS__ = "FreeNASSshDriver";
 
 class FreeNASSshDriver extends ControllerZfsBaseDriver {
+  /**
+   * Ensure sane options are used etc
+   * true = ready
+   * false = not ready, but progressiong towards ready
+   * throw error = faulty setup
+   *
+   * @param {*} call
+   */
+  async Probe(call) {
+    const driver = this;
+
+    if (driver.ctx.args.csiMode.includes("controller")) {
+      const httpApiClient = await driver.getTrueNASHttpApiClient();
+      try {
+        await httpApiClient.getSystemVersion();
+      } catch (err) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `TrueNAS api is unavailable: ${err.getMessage()}`
+        );
+      }
+
+      return super.Probe(...arguments);
+    } else {
+      return super.Probe(...arguments);
+    }
+  }
+
   getExecClient() {
     return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
       return new SshClient({
@@ -231,8 +259,17 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
     const truenasVersion = semver.coerce(
-      await httpApiClient.getSystemVersionMajorMinor()
+      await httpApiClient.getSystemVersionMajorMinor(),
+      { loose: true }
     );
+
+    if (!truenasVersion) {
+      throw new GrpcError(
+        grpc.status.UNKNOWN,
+        `unable to detect TrueNAS version`
+      );
+    }
+
     const isScale = await httpApiClient.getIsScale();
 
     let volume_context;
@@ -1996,7 +2033,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           this.ctx.logger.debug("zfs props data: %j", properties);
           let iscsiName =
             properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
-          
+
           // name correlates to the extent NOT the target
           let kName = iscsiName.replaceAll(".", "_");
 
@@ -2012,11 +2049,22 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
            *
            * midclt resync_lun_size_for_zvol tank/foo/bar
            * works on SCALE only ^
+           *
            */
-          command = execClient.buildCommand("sh", [
-            "-c",
-            `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
-          ]);
+
+          if (process.env.DEMOCRATIC_CSI_IS_CONTAINER == "true") {
+            // use the built-in wrapper script that works with sudo
+            command = execClient.buildCommand("simple-file-writer", [
+              "1",
+              `/sys/kernel/scst_tgt/devices/${kName}/resync_size`,
+            ]);
+          } else {
+            // TODO: syntax fails with sudo
+            command = execClient.buildCommand("sh", [
+              "-c",
+              `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
+            ]);
+          }
           reload = true;
         } else {
           switch (apiVersion) {
@@ -2086,7 +2134,11 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       return 2;
     }
 
-    return 1;
+    if (systemVersion.v1) {
+      return 1;
+    }
+
+    return 2;
   }
 
   async getIsFreeNAS() {
@@ -2211,7 +2263,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
      * TrueNAS-SCALE-20.11-MASTER-20201127-092915
      */
     try {
-      response = await httpClient.get(endpoint);
+      response = await httpClient.get(endpoint, null, { timeout: 5 * 1000 });
       versionResponses.v2 = response;
       if (response.statusCode == 200) {
         versionInfo.v2 = response.body;
@@ -2235,7 +2287,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
      * {"fullversion": "FreeNAS-11.2-U5 (c129415c52)", "name": "FreeNAS", "version": ""}
      */
     try {
-      response = await httpClient.get(endpoint);
+      response = await httpClient.get(endpoint, null, { timeout: 5 * 1000 });
       versionResponses.v1 = response;
       if (response.statusCode == 200 && IsJsonString(response.body)) {
         versionInfo.v1 = response.body;

@@ -1,0 +1,51 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: objectivefs-secret
+  namespace: kube-system
+stringData:
+  # these can be defined here OR in volumeAttributes
+  # secrets are processed *before* volumeAttributes and therefore volumeAttributes will take precedence
+  "env.OBJECTSTORE": ""
+  "env.ACCESS_KEY": ""
+  "env.SECRET_KEY": ""
+  "env.OBJECTIVEFS_PASSPHRASE": ""
+  # does NOT need admin key appended for node-manual operations
+  "env.OBJECTIVEFS_LICENSE": ""
+  "env.ENDPOINT": ""
+  # ...
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: objectivefs-manual
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    []
+    # https://objectivefs.com/userguide#mount
+    #- nodiratime
+    #- noatime
+    #- fsavail=<size>
+  csi:
+    driver: org.democratic-csi.node-manual
+    readOnly: false
+    fsType: objectivefs
+    volumeHandle: unique-volumeid # make sure it's a unique id in the cluster
+    nodeStageSecretRef:
+      name: objectivefs-secret
+      namespace: kube-system
+    volumeAttributes:
+      node_attach_driver: objectivefs
+      provisioner_driver: node-manual
+      filesystem: "ofs/test"
+      # these can be defined here OR in the secret referenced above
+      # secrets are processed *before* volumeAttributes and therefore volumeAttributes will take precedence
+      #"env.OBJECTSTORE": "minio://"
+      #"env.ACCESS_KEY": ""
+      # ...

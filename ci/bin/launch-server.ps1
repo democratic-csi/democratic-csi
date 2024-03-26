@@ -8,7 +8,7 @@ Set-Location $env:PWD
 Write-Output "launching server"
 
 $env:LOG_LEVEL = "debug"
-$env:CSI_VERSION = "1.5.0"
+$env:CSI_VERSION = "1.9.0"
 $env:CSI_NAME = "driver-test"
 $env:CSI_SANITY = "1"
 

@@ -33,7 +33,7 @@ zfs:
   #  "org.freenas:description": "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   #  "org.freenas:test": "{{ parameters.foo }}"
   #  "org.freenas:test2": "some value"
-  
+
   # total volume name (zvol/<datasetParentName>/<pvc name>) length cannot exceed 63 chars
   # https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
   # standard volume naming overhead is 46 chars
@@ -41,7 +41,7 @@ zfs:
   # for work-arounds see https://github.com/democratic-csi/democratic-csi/issues/54
   datasetParentName: tank/k8s/b/vols
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
-  # they may be siblings, but neither should be nested in the other 
+  # they may be siblings, but neither should be nested in the other
   # do NOT comment this option out even if you don't plan to use snapshots, just leave it with dummy value
   detachedSnapshotsDatasetParentName: tanks/k8s/b/snaps
   # "" (inherit), lz4, gzip-9, etc
@@ -68,6 +68,8 @@ iscsi:
   # add as many as needed
   targetGroups:
     # get the correct ID from the "portal" section in the UI
+    # https://github.com/democratic-csi/democratic-csi/issues/302
+    # NOTE: the ID in the UI does NOT always match the ID in the DB, you must use the DB value
     - targetGroupPortalGroup: 1
       # get the correct ID from the "initiators" section in the UI
       targetGroupInitiatorGroup: 1

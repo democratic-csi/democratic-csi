@@ -15,23 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
   build-npm-linux-amd64:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 20
       - shell: bash
         name: npm install
         run: |
           ci/bin/build.sh
       - name: upload build
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: node-modules-linux-amd64
           path: node_modules-linux-amd64.tar.gz
@@ -40,16 +40,16 @@ jobs:
   build-npm-windows-amd64:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 20
       - shell: pwsh
         name: npm install
         run: |
           ci\bin\build.ps1
       - name: upload build
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: node-modules-windows-amd64
           path: node_modules-windows-amd64.tar.gz
@@ -69,8 +69,8 @@ jobs:
       - X64
       - csi-sanity-synology
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -99,8 +99,8 @@ jobs:
       - X64
       - csi-sanity-synology
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -115,17 +115,18 @@ jobs:
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
-  csi-sanity-truenas-scale-22_12:
+  csi-sanity-truenas-scale-24_04:
     needs:
       - build-npm-linux-amd64
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         config:
-          - truenas/scale/22.12/scale-iscsi.yaml
-          - truenas/scale/22.12/scale-nfs.yaml
+          - truenas/scale/24.04/scale-iscsi.yaml
+          - truenas/scale/24.04/scale-nfs.yaml
           # 80 char limit
-          - truenas/scale/22.12/scale-smb.yaml
+          - truenas/scale/24.04/scale-smb.yaml
     runs-on:
       - self-hosted
       - Linux
@@ -133,8 +134,8 @@ jobs:
       #- csi-sanity-truenas
       - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -143,39 +144,7 @@ jobs:
           ci/bin/run.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_22_12_HOST }}
-          TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
-          TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
-
-  csi-sanity-truenas-scale-23_10:
-    needs:
-      - build-npm-linux-amd64
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - truenas/scale/23.10/scale-iscsi.yaml
-          - truenas/scale/23.10/scale-nfs.yaml
-          # 80 char limit
-          - truenas/scale/23.10/scale-smb.yaml
-    runs-on:
-      - self-hosted
-      - Linux
-      - X64
-      #- csi-sanity-truenas
-      - csi-sanity-zfs-generic
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: node-modules-linux-amd64
-      - name: csi-sanity
-        run: |
-          # run tests
-          ci/bin/run.sh
-        env:
-          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_23_10_HOST }}
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_24_04_HOST }}
           TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
           TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
 
@@ -185,6 +154,7 @@ jobs:
       - build-npm-linux-amd64
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         config:
           - truenas/core/13.0/core-iscsi.yaml
@@ -198,8 +168,8 @@ jobs:
       #- csi-sanity-truenas
       - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -218,6 +188,7 @@ jobs:
       - build-npm-linux-amd64
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         config:
           - zfs-generic/iscsi.yaml
@@ -230,8 +201,8 @@ jobs:
       - X64
       - csi-sanity-zfs-generic
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -243,6 +214,45 @@ jobs:
           SERVER_HOST: ${{ secrets.SANITY_ZFS_GENERIC_HOST }}
           SERVER_USERNAME: ${{ secrets.SANITY_ZFS_GENERIC_USERNAME }}
           SERVER_PASSWORD: ${{ secrets.SANITY_ZFS_GENERIC_PASSWORD }}
+
+  # client drivers
+  csi-sanity-objectivefs:
+    needs:
+      - build-npm-linux-amd64
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - objectivefs/objectivefs.yaml
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - csi-sanity-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: node-modules-linux-amd64
+      - name: csi-sanity
+        run: |
+          # run tests
+          ci/bin/run.sh
+        env:
+          TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
+          OBJECTIVEFS_POOL: ${{ secrets.SANITY_OBJECTIVEFS_POOL }}
+          OBJECTIVEFS_LICENSE: ${{ secrets.SANITY_OBJECTIVEFS_LICENSE }}
+          OBJECTIVEFS_OBJECTSTORE: ${{ secrets.SANITY_OBJECTIVEFS_OBJECTSTORE }}
+          OBJECTIVEFS_ENDPOINT_PROTOCOL: ${{ secrets.SANITY_OBJECTIVEFS_ENDPOINT_PROTOCOL }}
+          OBJECTIVEFS_ENDPOINT_HOST: ${{ secrets.SANITY_OBJECTIVEFS_ENDPOINT_HOST }}
+          OBJECTIVEFS_ENDPOINT_PORT: ${{ secrets.SANITY_OBJECTIVEFS_ENDPOINT_PORT }}
+          OBJECTIVEFS_SECRET_KEY: ${{ secrets.SANITY_OBJECTIVEFS_SECRET_KEY }}
+          OBJECTIVEFS_ACCESS_KEY: ${{ secrets.SANITY_OBJECTIVEFS_ACCESS_KEY }}
+          OBJECTIVEFS_PASSPHRASE: ${{ secrets.SANITY_OBJECTIVEFS_PASSPHRASE }}
+
+          # these secrets need to match the above secrets for staging/etc
+          CSI_SANITY_SECRETS: /root/csi-secrets/objectivefs-secrets.yaml
+          CSI_SANITY_SKIP: "should fail when requesting to create a snapshot with already existing name and different source volume ID|should fail when requesting to create a volume with already existing name and different capacity"
 
   # client drivers
   csi-sanity-client:
@@ -260,8 +270,8 @@ jobs:
       - X64
       - csi-sanity-client
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -288,8 +298,8 @@ jobs:
       - X64
       - csi-sanity-client
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-windows-amd64
       - name: csi-sanity
@@ -318,8 +328,8 @@ jobs:
       - X64
       - csi-sanity-zfs-local
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-linux-amd64
       - name: csi-sanity
@@ -357,8 +367,8 @@ jobs:
       - X64
       - csi-sanity-local-hostpath
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.npmartifact }}
       - name: csi-sanity
@@ -381,8 +391,8 @@ jobs:
       - Windows
       - X64
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: node-modules-windows-amd64
       - name: csi-sanity
@@ -425,10 +435,10 @@ jobs:
       - determine-image-tag
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-22_12
-      - csi-sanity-truenas-scale-23_10
+      - csi-sanity-truenas-scale-24_04
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
+      - csi-sanity-objectivefs
       - csi-sanity-client
       - csi-sanity-client-windows
       - csi-sanity-zfs-local
@@ -436,7 +446,7 @@ jobs:
       - csi-sanity-windows-node
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: docker build
         run: |
           export ARCH=$([ $(uname -m) = "x86_64" ] && echo "amd64" || echo "arm64")
@@ -456,6 +466,7 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
+          OBJECTIVEFS_DOWNLOAD_ID: ${{ secrets.OBJECTIVEFS_DOWNLOAD_ID }}
           DOCKER_CLI_EXPERIMENTAL: enabled
           DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le
           IMAGE_TAG: ${{needs.determine-image-tag.outputs.tag}}
@@ -464,10 +475,10 @@ jobs:
     needs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-22_12
-      - csi-sanity-truenas-scale-23_10
+      - csi-sanity-truenas-scale-24_04
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
+      - csi-sanity-objectivefs
       - csi-sanity-client
       - csi-sanity-client-windows
       - csi-sanity-zfs-local
@@ -487,7 +498,7 @@ jobs:
             nano_base_tag: ltsc2022
             file: Dockerfile.Windows
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: docker build
         shell: bash
         run: |
@@ -499,7 +510,7 @@ jobs:
           docker inspect democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }}
           docker save democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} -o democratic-csi-windows-${{ matrix.core_base_tag }}.tar
       - name: upload image tar
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
           path: democratic-csi-windows-${{ matrix.core_base_tag }}.tar
@@ -514,11 +525,11 @@ jobs:
       - self-hosted
       - buildah
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: democratic-csi-windows-ltsc2019.tar
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: democratic-csi-windows-ltsc2022.tar
       - name: push windows images with buildah

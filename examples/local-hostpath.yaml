@@ -3,8 +3,57 @@ instance_id:
 local-hostpath:
   # generally shareBasePath and controllerBasePath should be the same for this
   # driver, this path should be mounted into the csi-driver container
-  shareBasePath:      "/var/lib/csi-local-hostpath"
+  shareBasePath: "/var/lib/csi-local-hostpath"
   controllerBasePath: "/var/lib/csi-local-hostpath"
   dirPermissionsMode: "0777"
   dirPermissionsUser: 0
   dirPermissionsGroup: 0
+  snapshots:
+    # can create multiple snapshot classes each with a parameters.driver value which
+    # overrides the default, a single install can use all 3 simultaneously if desired
+    #
+    # available options:
+    # - filecopy = rsync/cp
+    # - restic
+    # - kopia
+    #
+    default_driver: filecopy
+
+    # snapshot hostname will be set to the csiDriver.name value, in the case
+    # of local-hostpath the node name will be appended
+    # it is assumed that the repo has been created beforehand
+    restic:
+      global_flags: []
+      #  - --insecure-tls
+
+      # these are added to snapshots, but are NOT used for querying/selectors by democratic-csi
+      # it is *HIGHLY* recommended to set the instance_id parameter when using restic, it should be a universally unique ID for every deployment
+      # host will be set to csi driver name
+      tags: []
+      #  - foobar
+      #  - baz=bar
+
+      # automatically prune when a snapshot is deleted
+      prune: true
+
+      # at a minimum RESTIC_PASSWORD and RESTIC_REPOSITORY must be set, additionally
+      # any relevant env vars for connecting to RESTIC_REPOSITORY should be set
+      env: {}
+      # RESTIC_PASSWORD
+      # RESTIC_REPOSITORY
+      # AWS_ACCESS_KEY_ID=<MY_ACCESS_KEY>
+      # AWS_SECRET_ACCESS_KEY=<MY_SECRET_ACCESS_KEY>
+      # B2_ACCOUNT_ID=<MY_APPLICATION_KEY_ID>
+      # B2_ACCOUNT_KEY=<MY_APPLICATION_KEY>
+
+    # snapshot hostname will be set to the csiDriver.name value, in the case
+    # of local-hostpath the node name will be appended
+    # it is assumed that the repo has been created beforehand
+    kopia:
+      # kopia repository status -t -s
+      config_token:
+      global_flags: []
+      # <key>:<value>
+      tags: []
+      #  - "foobar:true"
+      env: {}

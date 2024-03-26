@@ -70,7 +70,11 @@ iscsi:
         #password: "bar"
         # mutual CHAP
         #mutual_userid: "baz"
-        #mutual_password: "bar"  
+        #mutual_password: "bar"
+    block:
+      attributes:
+        # set to 1 to enable Thin Provisioning Unmap
+        emulate_tpu: 0
   targetPortal: "server[:port]"
   # for multipath
   targetPortals: [] # [ "server[:port]", "server[:port]", ... ]

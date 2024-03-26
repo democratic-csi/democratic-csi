@@ -691,6 +691,17 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
+    // deleteStrategy
+    const delete_strategy = _.get(
+      driver.options,
+      "_private.csi.volume.deleteStrategy",
+      ""
+    );
+
+    if (delete_strategy == "retain") {
+      return {};
+    }
+
     let response;
 
     switch (driver.getDriverShareType()) {

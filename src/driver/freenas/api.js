@@ -183,8 +183,17 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
     const truenasVersion = semver.coerce(
-      await httpApiClient.getSystemVersionMajorMinor()
+      await httpApiClient.getSystemVersionMajorMinor(),
+      { loose: true }
     );
+
+    if (!truenasVersion) {
+      throw new GrpcError(
+        grpc.status.UNKNOWN,
+        `unable to detect TrueNAS version`
+      );
+    }
+
     const isScale = await httpApiClient.getIsScale();
 
     let volume_context;
@@ -2187,6 +2196,15 @@ class FreeNASApiDriver extends CsiBaseDriver {
         );
       }
 
+      try {
+        await httpApiClient.getSystemVersion();
+      } catch (err) {
+        throw new GrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          `TrueNAS api is unavailable: ${err.getMessage()}`
+        );
+      }
+
       if (!(await httpApiClient.getIsScale())) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
@@ -2194,9 +2212,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
         );
       }
 
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     } else {
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     }
   }
 
@@ -2908,11 +2926,30 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
         // this should be already set, but when coming from a volume source
         // it may not match that of the source
-        // TODO: probably need to recalculate size based on *actual* volume source blocksize in case of difference from currently configured
         properties.volsize = capacity_bytes;
 
-        //dedup
-        //compression
+        // dedup
+        // on, off, verify
+        // zfs set dedup=on tank/home
+        // restore default must use the below
+        // zfs inherit [-rS] property filesystem|volume|snapshot…
+        if (
+          (typeof this.options.zfs.zvolDedup === "string" ||
+            this.options.zfs.zvolDedup instanceof String) &&
+          this.options.zfs.zvolDedup.length > 0
+        ) {
+          properties.dedup = this.options.zfs.zvolDedup;
+        }
+
+        // compression
+        // lz4, gzip-9, etc
+        if (
+          (typeof this.options.zfs.zvolCompression === "string" ||
+            this.options.zfs.zvolCompression instanceof String) &&
+          this.options.zfs.zvolCompression > 0
+        ) {
+          properties.compression = this.options.zfs.zvolCompression;
+        }
 
         if (setProps) {
           await httpApiClient.DatasetSet(datasetName, properties);
@@ -3010,6 +3047,17 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     driver.ctx.logger.debug("dataset properties: %j", properties);
+
+    // deleteStrategy
+    const delete_strategy = _.get(
+      driver.options,
+      "_private.csi.volume.deleteStrategy",
+      ""
+    );
+
+    if (delete_strategy == "retain") {
+      return {};
+    }
 
     // remove share resources
     await this.deleteShare(call, datasetName);

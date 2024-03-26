@@ -1,10 +1,29 @@
+# v1.9.0
+
+Released 2024-03-26
+
+- new `objectivefs` driver (https://objectivefs.com) support available for x86_64 and arm64
+- TrueNAS
+  - SCALE 24.04 support
+  - fix `sudo` issue during resize operations (see #295)
+  - fix version detection logic and default to api version 2 (see #351)
+  - more robust `Probe` implementation
+- contaimer images
+  - various fixes, improvements, dep upgrades, etc
+  - update container images to `debian:12` (bookworm)
+  - bump to nodejs-lts-iron from nodejs-lts-hydrogen
+- support csi v1.6.0-v1.9.0
+- allow `noop` delete operations (dangerous, only use if you _really_ know what you are doing, see #289)
+- properly adhere to the `zvolDedup` and `zvolCompression` settings (see #322)
+- `restic` and `kopia` support as a snapshot solution for `local-hostpath` and `*-client` drivers
+
 # v1.8.4
 
 Released 2023-11-09
 
-- allow templatized `volume_id` (dangerous, only use if you *really* know what you are doing)
-- fix SCALE iscsi resize issue
-- SCALE 23.10 support
+- allow templatized `volume_id` (dangerous, only use if you _really_ know what you are doing)
+- fix TrueNAS SCALE iscsi resize issue
+- TrueNAS SCALE 23.10 support
 - minor improvements/fixes throughout
 - dependency updates
 

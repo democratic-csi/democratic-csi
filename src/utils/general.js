@@ -181,6 +181,20 @@ function stringify(value) {
   return JSON.stringify(value, getCircularReplacer());
 }
 
+function before_string(target, search) {
+  if (!target.includes(search)) {
+    return "";
+  }
+  return target.substring(0, target.indexOf(search));
+}
+
+function after_string(target, search) {
+  if (!target.includes(search)) {
+    return "";
+  }
+  return target.substring(target.indexOf(search) + search.length);
+}
+
 function default_supported_block_filesystems() {
   return ["btrfs", "exfat", "ext3", "ext4", "ext4dev", "ntfs", "vfat", "xfs"];
 }
@@ -266,6 +280,8 @@ module.exports.crc8 = crc8;
 module.exports.lockKeysFromRequest = lockKeysFromRequest;
 module.exports.getLargestNumber = getLargestNumber;
 module.exports.stringify = stringify;
+module.exports.before_string = before_string;
+module.exports.after_string = after_string;
 module.exports.stripWindowsDriveLetter = stripWindowsDriveLetter;
 module.exports.hasWindowsDriveLetter = hasWindowsDriveLetter;
 module.exports.axios_request = axios_request;

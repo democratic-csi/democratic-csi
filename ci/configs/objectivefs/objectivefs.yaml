@@ -1,0 +1,20 @@
+driver: objectivefs
+
+objectivefs:
+  pool: ${OBJECTIVEFS_POOL}
+  cli:
+    sudoEnabled: false
+  env:
+    OBJECTIVEFS_LICENSE: ${OBJECTIVEFS_LICENSE}
+    OBJECTSTORE: ${OBJECTIVEFS_OBJECTSTORE}
+    ENDPOINT: ${OBJECTIVEFS_ENDPOINT_PROTOCOL}://${OBJECTIVEFS_ENDPOINT_HOST}:${OBJECTIVEFS_ENDPOINT_PORT}
+    SECRET_KEY: ${OBJECTIVEFS_SECRET_KEY}
+    ACCESS_KEY: ${OBJECTIVEFS_ACCESS_KEY}
+    OBJECTIVEFS_PASSPHRASE: ${OBJECTIVEFS_PASSPHRASE}
+
+_private:
+  csi:
+    volume:
+      idHash:
+        # max volume name length is 63
+        strategy: crc32

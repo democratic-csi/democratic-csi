@@ -617,9 +617,9 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         );
       }
 
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     } else {
-      return { ready: { value: true } };
+      return super.Probe(...arguments);
     }
   }
 
@@ -1190,11 +1190,30 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
         // this should be already set, but when coming from a volume source
         // it may not match that of the source
-        // TODO: probably need to recalculate size based on *actual* volume source blocksize in case of difference from currently configured
         properties.volsize = capacity_bytes;
 
-        //dedup
-        //compression
+        // dedup
+        // on, off, verify
+        // zfs set dedup=on tank/home
+        // restore default must use the below
+        // zfs inherit [-rS] property filesystem|volume|snapshot…
+        if (
+          (typeof this.options.zfs.zvolDedup === "string" ||
+            this.options.zfs.zvolDedup instanceof String) &&
+          this.options.zfs.zvolDedup.length > 0
+        ) {
+          properties.dedup = this.options.zfs.zvolDedup;
+        }
+
+        // compression
+        // lz4, gzip-9, etc
+        if (
+          (typeof this.options.zfs.zvolCompression === "string" ||
+            this.options.zfs.zvolCompression instanceof String) &&
+          this.options.zfs.zvolCompression > 0
+        ) {
+          properties.compression = this.options.zfs.zvolCompression;
+        }
 
         if (setProps) {
           await zb.zfs.set(datasetName, properties);
@@ -1296,6 +1315,17 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
 
     driver.ctx.logger.debug("dataset properties: %j", properties);
+
+    // deleteStrategy
+    const delete_strategy = _.get(
+      driver.options,
+      "_private.csi.volume.deleteStrategy",
+      ""
+    );
+
+    if (delete_strategy == "retain") {
+      return {};
+    }
 
     // remove share resources
     await this.deleteShare(call, datasetName);
