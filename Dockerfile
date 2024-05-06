@@ -109,9 +109,6 @@ RUN chmod +x /usr/local/sbin/iscsiadm
 ADD docker/multipath /usr/local/sbin
 RUN chmod +x /usr/local/sbin/multipath
 
-ADD docker/simple-file-writer /usr/local/bin
-RUN chmod +x /usr/local/bin/simple-file-writer
-
 ## USE_HOST_MOUNT_TOOLS=1
 ADD docker/mount /usr/local/bin/mount
 RUN chmod +x /usr/local/bin/mount
