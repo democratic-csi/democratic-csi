@@ -1,3 +1,11 @@
+# v1.9.1
+
+Released 2024-05-06
+
+- fix iscsi hostname lookup regression (#393)
+- fix resize issue (#390)
+- fix Probe issue (#385)
+
 # v1.9.0
 
 Released 2024-03-26

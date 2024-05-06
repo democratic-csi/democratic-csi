@@ -2201,7 +2201,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       } catch (err) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
-          `TrueNAS api is unavailable: ${err.getMessage()}`
+          `TrueNAS api is unavailable: ${String(err)}`
         );
       }
 

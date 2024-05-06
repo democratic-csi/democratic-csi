@@ -3,6 +3,11 @@
 set -e
 set -x
 
+if [[ -z "${OBJECTIVEFS_DOWNLOAD_ID}" ]]; then
+  echo 'missing OBJECTIVEFS_DOWNLOAD_ID, moving on'
+  exit 0
+fi
+
 PLATFORM_TYPE=${1}
 
 if [[ "${PLATFORM_TYPE}" == "build" ]]; then

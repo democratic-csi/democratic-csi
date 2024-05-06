@@ -183,10 +183,19 @@ class ISCSI {
         let parsedPortalHostIP = "";
         if (parsedPortal.host) {
           // if host is not an ip address
-          if (net.isIP(parsedPortal.host) == 0) {
+          let parsedPortalHost = parsedPortal.host
+            .replaceAll("[", "")
+            .replaceAll("]", "");
+          if (net.isIP(parsedPortalHost) == 0) {
             // ipv6 response is without []
-            parsedPortalHostIP =
-              (await hostname_lookup(parsedPortal.host)) || "";
+            try {
+              parsedPortalHostIP =
+                (await hostname_lookup(parsedPortal.host)) || "";
+            } catch (err) {
+              console.log(
+                `failed to lookup hostname: host - ${parsedPortal.host}, error - ${err}`
+              );
+            }
           }
         }
 

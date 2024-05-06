@@ -46,7 +46,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       } catch (err) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
-          `TrueNAS api is unavailable: ${err.getMessage()}`
+          `TrueNAS api is unavailable: ${String(err)}`
         );
       }
 
@@ -2051,20 +2051,10 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
            * works on SCALE only ^
            *
            */
-
-          if (process.env.DEMOCRATIC_CSI_IS_CONTAINER == "true") {
-            // use the built-in wrapper script that works with sudo
-            command = execClient.buildCommand("simple-file-writer", [
-              "1",
-              `/sys/kernel/scst_tgt/devices/${kName}/resync_size`,
-            ]);
-          } else {
-            // TODO: syntax fails with sudo
-            command = execClient.buildCommand("sh", [
-              "-c",
-              `echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size`,
-            ]);
-          }
+          command = execClient.buildCommand("sh", [
+            "-c",
+            `"echo 1 > /sys/kernel/scst_tgt/devices/${kName}/resync_size"`,
+          ]);
           reload = true;
         } else {
           switch (apiVersion) {
