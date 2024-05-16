@@ -9,6 +9,7 @@
 require("../src/utils/polyfills");
 const yaml = require("js-yaml");
 const fs = require("fs");
+const { substituteEnvVars } = require("../src/utils/config_env");
 const { grpc } = require("../src/utils/grpc");
 const { stringify, stripWindowsDriveLetter } = require("../src/utils/general");
 
@@ -32,7 +33,7 @@ const args = require("yargs")
       }
 
       try {
-        options = yaml.load(fs.readFileSync(path, "utf8"));
+        options = yaml.load(substituteEnvVars(fs.readFileSync(path, "utf8")));
         try {
           driverConfigFile = fs.realpathSync(path);
         } catch (e) {

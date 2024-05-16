@@ -587,6 +587,28 @@ helm upgrade \
 zfs-nfs democratic-csi/democratic-csi
 ```
 
+### Injecting environment variables
+
+It is possible to use environment variables to configure the `democratic-csi`
+driver, by setting a given field to `{env:<environment variable name>}`.
+For example:
+
+```yaml
+driver:
+  config:
+    driver: freenas-api-nfs
+    instance_id:
+    httpConnection:
+      protocol: http
+      host: 10.0.0.1
+      port: 80
+      apiKey: '{env:TRUENAS_API_KEY}'
+      allowInsecure: false
+```
+
+This will set the value of the `apiKey` field to the `TRUENAS_API_KEY` environment
+variable.
+
 ### A note on non standard kubelet paths
 
 Some distrobutions, such as `minikube` and `microk8s` use a non-standard
