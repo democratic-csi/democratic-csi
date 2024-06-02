@@ -275,7 +275,7 @@ class ObjectiveFS {
 
   async getObjectStoreFromFilesystem(filesystem) {
     if (filesystem.includes("://")) {
-      return GeneralUtils.before_string(filesystem, "://");
+      return GeneralUtils.before_string(filesystem, "://") + "://";
     }
   }
 
