@@ -124,7 +124,7 @@ class NVMEoF {
     } catch (err) {
       if (
         err.stderr &&
-        (err.stderr.includes("already connnected") ||
+        (err.stderr.includes("already connected") ||
           err.stderr.includes("Operation already in progress"))
       ) {
         // idempotent
