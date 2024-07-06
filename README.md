@@ -30,7 +30,7 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-local-dataset` (provision node-local volume as dataset)
   - `zfs-local-zvol` (provision node-local volume as zvol)
   - `synology-iscsi` experimental (manages volumes to share over iscsi)
-  - `objectivefs` experimental (manages objectivefs volumes)
+  - `objectivefs` (manages objectivefs volumes)
   - `lustre-client` (crudely provisions storage using a shared lustre
     share/directory for all volumes)
   - `nfs-client` (crudely provisions storage using a shared nfs share/directory
@@ -554,6 +554,8 @@ the respective node. Also beware that any cpu/memory limits placed on the
 container by the orchestration system will impact any ability to use the
 caching, etc features of objectivefs.
 
+- https://objectivefs.com/howto/csi-driver-objectivefs
+- https://objectivefs.com/howto/csi-driver-objectivefs-kubernetes-managed
 - https://objectivefs.com/howto/objectivefs-admin-key-setup
 - https://objectivefs.com/features#filesystem-pool
 - https://objectivefs.com/howto/how-to-create-a-filesystem-with-an-existing-empty-bucket
