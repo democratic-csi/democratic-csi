@@ -1,3 +1,9 @@
+# v1.9.4
+
+Release 2024-07-06
+
+- minor doc updates
+
 # v1.9.3
 
 Released 2024-06-01
