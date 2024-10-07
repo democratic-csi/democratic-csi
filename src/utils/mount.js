@@ -10,7 +10,17 @@ const FINDMNT_COMMON_OPTIONS = [
   "--nofsroot", // prevents unwanted behavior with cifs volumes
 ];
 
-const DEFAULT_TIMEOUT = process.env.MOUNT_DEFAULT_TIMEOUT ? +process.env.MOUNT_DEFAULT_TIMEOUT : 3000;
+const DEFAULT_TIMEOUT = (() => {
+    const defaultValue = 30000;
+    if (process.env.MOUNT_DEFAULT_TIMEOUT) {
+        if (/^\d+$/.test(process.env.MOUNT_DEFAULT_TIMEOUT)) {
+            return parseInt(process.env.MOUNT_DEFAULT_TIMEOUT);
+        } else {
+            console.log("Invalid MOUNT_DEFAULT_TIMEOUT set: " + process.env.MOUNT_DEFAULT_TIMEOUT);
+        }
+    }
+    return defaultValue;
+})()
 
 class Mount {
   constructor(options = {}) {
