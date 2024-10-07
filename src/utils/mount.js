@@ -20,7 +20,7 @@ const DEFAULT_TIMEOUT = (() => {
         }
     }
     return defaultValue;
-})()
+})();
 
 class Mount {
   constructor(options = {}) {
