@@ -128,7 +128,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       case "synology-iscsi":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
@@ -141,7 +141,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       case "synology-iscsi":
         return "iscsi";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 

@@ -71,7 +71,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       case "zfs-generic-nvmeof":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 

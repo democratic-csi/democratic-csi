@@ -105,7 +105,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       case "truenas-iscsi":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
@@ -161,7 +161,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       case "truenas-iscsi":
         return "iscsi";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
