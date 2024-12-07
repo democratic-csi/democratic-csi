@@ -3,6 +3,29 @@ const semver = require("semver");
 const { CsiBaseDriver } = require("../index");
 const yaml = require("js-yaml");
 
+// Some drivers will not work properly
+// zfs-local-ephemeral-inline is not supported
+// - !!! NodeUnpublishVolume does not have context to get driver
+// - I want to using secrets for NodePublishVolume
+// zfs-local-* is not supported
+// - NodeGetInfo does not have context to get driver
+// - maybe we could move NodeGetInfo into CsiBaseDriver? 
+// local-hostpath is not supported
+// - NodeGetInfo does not have context to get driver
+// - maybe we could move NodeGetInfo into CsiBaseDriver? 
+// objectivefs is not supported
+// - I want to using secrets for NodeStageVolume (needs options in getDefaultObjectiveFSInstance)
+//
+// There are some missing features:
+// - GetCapacity is not possible, there is no concept of unified storage for proxy
+// - ListVolumes is not possible, there is no concept of unified storage for proxy
+// - ControllerGetVolume is not possible without k8s access
+//
+// TODO any reason to support VOLUME_MOUNT_GROUP for SMB?
+// TODO prevent volume cloning and snapshots?
+//      between storage classes?
+//      between drivers?
+//      enhance drivers to use zfs send?
 class CsiProxyDriver extends CsiBaseDriver {
   constructor(ctx, options) {
     super(...arguments);
@@ -133,6 +156,16 @@ class CsiProxyDriver extends CsiBaseDriver {
 
   createRealDriver(call) {
     const mergedOptions = this.mergeOptions(call)
+    const unsupportedDrivers = [
+      "zfs-local-ephemeral-inline",
+      "zfs-local-dataset",
+      "zfs-local-zvol",
+      "objectivefs",
+      "local-hostpath",
+    ];
+    if (unsupportedDrivers.includes(mergedOptions.driver)) {
+      throw "proxy is not supported for driver: " + mergedOptions.driver;
+    }
     const realDriver = this.ctx.factory(this.ctx, mergedOptions);
     if (realDriver.constructor.name == this.constructor.name) {
       throw "cyclic dependency: proxy on proxy";
@@ -140,18 +173,6 @@ class CsiProxyDriver extends CsiBaseDriver {
     this.ctx.logger.debug("using driver %s", realDriver.constructor.name);
     return realDriver;
   }
-
-  // async GetPluginInfo(call) {
-  //   return super.GetPluginInfo(call);
-  // }
-
-  // async GetPluginCapabilities(call) {
-  //   return super.GetPluginCapabilities(call);
-  // }
-
-  // async Probe(call) {
-  //   return super.Probe(call);
-  // }
 
   async CreateVolume(call) {
     return this.createRealDriver(call).CreateVolume(call);
@@ -161,28 +182,9 @@ class CsiProxyDriver extends CsiBaseDriver {
     return this.createRealDriver(call).DeleteVolume(call);
   }
 
-  // async ControllerGetCapabilities(call) {
-  //   return super.ControllerGetCapabilities();
-  // }
-
   async ControllerExpandVolume(call) {
     return this.createRealDriver(call).ControllerExpandVolume(call);
   }
-
-  // GetCapacityRequest does not have secrets
-  // async GetCapacity(call) {
-  //   return this.createDriver(call).GetCapacity(call);
-  // }
-
-  // ControllerGetVolumeRequest does not have secrets
-  // async ControllerGetVolume(call) {
-  //   return super.ControllerGetVolume();
-  // }
-
-  // ListVolumesRequest does not have secrets
-  // async ListVolumes(call) {
-  //   return super.ListVolumes();
-  // }
 
   async ListSnapshots(call) {
     return this.createRealDriver(call).ListSnapshots(call);
@@ -199,44 +201,6 @@ class CsiProxyDriver extends CsiBaseDriver {
   async ValidateVolumeCapabilities(call) {
     return this.createRealDriver(call).ValidateVolumeCapabilities(call);
   }
-
-  // async NodeGetCapabilities(call) {
-  //   return super.NodeGetCapabilities(call);
-  // }
-
-  // TODO controller-zfs-local needs this
-  // async NodeGetInfo(call) {
-  //   return super.NodeGetInfo(call);
-  // }
-
-  async NodeStageVolume(call) {
-    return this.createRealDriver(call).NodeStageVolume(call);
-  }
-
-  // NodeUnstageVolumeRequest does not have secrets
-  // async NodeUnstageVolume(call) {
-  //   return this.createRealDriver(call).NodeUnstageVolume(call);
-  // }
-
-  async NodePublishVolume(call) {
-    return this.createRealDriver(call).NodePublishVolume(call);
-  }
-
-  // NodeUnpublishVolumeRequest does not have secrets
-  // TODO zfs-local-ephemeral seems to use this
-  // async NodeUnpublishVolume(call) {
-  //   return this.createRealDriver(call).NodeUnpublishVolume(call);
-  // }
-
-  // NodeGetVolumeStatsRequest does not have secrets
-  // async NodeGetVolumeStats(call) {
-  //   return this.createDriver(call).NodeGetVolumeStats(call);
-  // }
-
-  // NodeExpandVolumeRequest has field for secrets but external-resizer does not populate it
-  // async NodeExpandVolume(call) {
-  //   return this.createRealDriver(call).NodeExpandVolume(call);
-  // }
 }
 
 module.exports.CsiProxyDriver = CsiProxyDriver;
