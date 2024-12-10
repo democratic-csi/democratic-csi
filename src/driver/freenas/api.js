@@ -2017,7 +2017,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getHttpClient() {
-    return registry.get(`${__REGISTRY_NS__}:http_client`, () => {
+    return registry.get(`${__REGISTRY_NS__}:http_client:${this.options.httpConnection.username}@${this.options.httpConnection.host}:${this.options.httpConnection.port}`, () => {
       const client = new HttpClient(this.options.httpConnection);
       client.logger = this.ctx.logger;
       client.setApiVersion(2); // requires version 2
@@ -2034,7 +2034,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getTrueNASHttpApiClient() {
-    return registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
+    return registry.getAsync(`${__REGISTRY_NS__}:api_client:${this.options.httpConnection.username}@${this.options.httpConnection.host}:${this.options.httpConnection.port}`, async () => {
       const httpClient = await this.getHttpClient();
       return new TrueNASApiClient(httpClient, this.ctx.cache);
     });

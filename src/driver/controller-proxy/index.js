@@ -5,27 +5,52 @@ const yaml = require("js-yaml");
 
 // Some drivers will not work properly
 // zfs-local-ephemeral-inline is not supported
-// - !!! NodeUnpublishVolume does not have context to get driver
-// - I want to using secrets for NodePublishVolume
+// - NodePublishVolume needs this.options
+// - - Possible fix: Add whole config to node publish secret
+// - NodeUnpublishVolume does not have context to get driver
+// - - Possible fix: ???
 // zfs-local-* is not supported
 // - NodeGetInfo does not have context to get driver
-// - maybe we could move NodeGetInfo into CsiBaseDriver? 
+// - - Possible fix: move NodeGetInfo into CsiBaseDriver
 // local-hostpath is not supported
 // - NodeGetInfo does not have context to get driver
-// - maybe we could move NodeGetInfo into CsiBaseDriver? 
+// - - Possible fix: move NodeGetInfo into CsiBaseDriver
 // objectivefs is not supported
-// - I want to using secrets for NodeStageVolume (needs options in getDefaultObjectiveFSInstance)
+// - NodeStageVolume needs this.options in getDefaultObjectiveFSInstance
+// - - Possible fix: store objectivefs pool data in volume attributes
+// - - Possible fix: Add whole config to node stage secret
+//
+// [partially fixed] zfs-generic-* drivers use this.options.sshConnection in global registry
+// [partially fixed] freenas-api-* drivers use this.options.httpConnection in global registry
+// [partially fixed] freenas-* drivers use this.options.sshConnection in global registry
+// synology-* drivers use this.options.httpConnection in global registry
+// zfs-local-ephemeral-inline driver uses this.options.sshConnection and this.options.zfs in global registry
+// csi-proxy as a whole uses this.options
+// 
+// Generally: any global registry usage is a potential failure point
 //
 // There are some missing features:
 // - GetCapacity is not possible, there is no concept of unified storage for proxy
 // - ListVolumes is not possible, there is no concept of unified storage for proxy
-// - ControllerGetVolume is not possible without k8s access
+// - ControllerGetVolume is not possible without k8s access for more context
 //
-// TODO any reason to support VOLUME_MOUNT_GROUP for SMB?
-// TODO prevent volume cloning and snapshots?
-//      between storage classes?
-//      between drivers?
-//      enhance drivers to use zfs send?
+// Volume cloning and snapshots:
+// Works when both volumes have the same
+// - remote server
+// - parent dataset
+// - type of volume
+// volume_content_source field doesn't have anything except volume_id / snapshot_id
+// so it doesn't seem possible to even know that something doesn't match.
+// Even transfer between parent datasets on the same server would be difficult:
+// maybe you could be able to scan all volumes (and/or snapshots) on the system
+// for some custom dataset properties but it doesn't seem practical.
+//
+// Things could get better if volume_id somehow identified the server and the dataset.
+// Naive way: make it server.address/full/dataset/path
+// Server will then need to get access to server.address via some global config instead of using storage class secrets
+// It would require significant changes to how application settings are handled.
+//
+// TODO support VOLUME_MOUNT_GROUP for SMB?
 class CsiProxyDriver extends CsiBaseDriver {
   constructor(ctx, options) {
     super(...arguments);
@@ -83,7 +108,7 @@ class CsiProxyDriver extends CsiBaseDriver {
       if (semver.satisfies(this.ctx.csiVersion, ">=1.3.0")) {
         options.service.controller.capabilities.rpc.push(
           //"VOLUME_CONDITION",
-          "GET_VOLUME"
+          // "GET_VOLUME"
         );
       }
 
@@ -162,6 +187,9 @@ class CsiProxyDriver extends CsiBaseDriver {
       "zfs-local-zvol",
       "objectivefs",
       "local-hostpath",
+      "synology-nfs",
+      "synology-smb",
+      "synology-iscsi",
     ];
     if (unsupportedDrivers.includes(mergedOptions.driver)) {
       throw "proxy is not supported for driver: " + mergedOptions.driver;

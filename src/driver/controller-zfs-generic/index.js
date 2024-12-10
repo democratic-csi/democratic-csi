@@ -15,7 +15,7 @@ const NVMEOF_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:nvmeof_assets_name";
 const __REGISTRY_NS__ = "ControllerZfsGenericDriver";
 class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getExecClient() {
-    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+    return registry.get(`${__REGISTRY_NS__}:exec_client:${this.options.sshConnection.username}@${this.options.sshConnection.host}:${this.options.sshConnection.port}`, () => {
       if (this.options.sshConnection) {
         return new SshClient({
           logger: this.ctx.logger,
@@ -30,7 +30,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   }
 
   async getZetabyte() {
-    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
+    return registry.getAsync(`${__REGISTRY_NS__}:zb:${this.options.sshConnection.username}@${this.options.sshConnection.host}:${this.options.sshConnection.port}:${JSON.stringify(this.options.zfs.cli)}`, async () => {
       const execClient = this.getExecClient();
       const options = {};
       if (this.options.sshConnection) {
