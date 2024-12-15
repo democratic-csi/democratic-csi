@@ -179,8 +179,7 @@ class CsiProxyDriver extends CsiBaseDriver {
     return mergedOptions;
   }
 
-  createRealDriver(call) {
-    const mergedOptions = this.mergeOptions(call)
+  validateDriver(driver) {
     const unsupportedDrivers = [
       "zfs-local-ephemeral-inline",
       "zfs-local-dataset",
@@ -191,9 +190,14 @@ class CsiProxyDriver extends CsiBaseDriver {
       "synology-smb",
       "synology-iscsi",
     ];
-    if (unsupportedDrivers.includes(mergedOptions.driver)) {
+    if (unsupportedDrivers.includes(driver)) {
       throw "proxy is not supported for driver: " + mergedOptions.driver;
     }
+  }
+
+  createRealDriver(call) {
+    const mergedOptions = this.mergeOptions(call)
+    this.validateDriver(mergedOptions.driver);
     const realDriver = this.ctx.factory(this.ctx, mergedOptions);
     if (realDriver.constructor.name == this.constructor.name) {
       throw "cyclic dependency: proxy on proxy";
@@ -228,6 +232,28 @@ class CsiProxyDriver extends CsiBaseDriver {
 
   async ValidateVolumeCapabilities(call) {
     return this.createRealDriver(call).ValidateVolumeCapabilities(call);
+  }
+
+  async NodeStageVolume(call) {
+    const nodeOptions = structuredClone(this.options);
+    nodeOptions.driver = call.request.volume_context.provisioner_driver;
+    this.validateDriver(nodeOptions.driver);
+    const realDriver = this.ctx.factory(this.ctx, nodeOptions);
+    if (realDriver.constructor.name == this.constructor.name) {
+      throw "cyclic dependency: proxy on proxy";
+    }
+    return realDriver.NodeStageVolume(call);
+  }
+
+  async NodePublishVolumeRequest(call) {
+    const nodeOptions = structuredClone(this.options);
+    nodeOptions.driver = call.request.volume_context.provisioner_driver;
+    this.validateDriver(nodeOptions.driver);
+    const realDriver = this.ctx.factory(this.ctx, nodeOptions);
+    if (realDriver.constructor.name == this.constructor.name) {
+      throw "cyclic dependency: proxy on proxy";
+    }
+    return realDriver.NodePublishVolumeRequest(call);
   }
 }
 
