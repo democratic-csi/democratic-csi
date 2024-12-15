@@ -57,7 +57,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   getExecClient() {
-    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+    return registry.get(`${__REGISTRY_NS__}:exec_client:${this.options.sshConnection.username}@${this.options.sshConnection.host}:${this.options.sshConnection.port}`, () => {
       return new SshClient({
         logger: this.ctx.logger,
         connection: this.options.sshConnection,
@@ -66,7 +66,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async getZetabyte() {
-    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
+    return registry.getAsync(`${__REGISTRY_NS__}:zb:${this.options.sshConnection.username}@${this.options.sshConnection.host}:${this.options.sshConnection.port}:${JSON.stringify(this.options.zfs.cli)}`, async () => {
       const sshClient = this.getExecClient();
       const options = {};
       options.executor = new ZfsSshProcessManager(sshClient);
@@ -105,7 +105,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       case "truenas-iscsi":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
@@ -161,7 +161,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       case "truenas-iscsi":
         return "iscsi";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
