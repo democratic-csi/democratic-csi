@@ -8,7 +8,7 @@ echoerr() { printf "%s\n" "$*" >&2; }
 case ${ISCSIADM_HOST_STRATEGY} in
   chroot)
     # https://engineering.docker.com/2019/07/road-to-containing-iscsi/
-    chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" ${ISCSIADM_HOST_PATH} "${@:1}"
+    chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin" ${ISCSIADM_HOST_PATH} "${@:1}"
     ;;
 
   nsenter)

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin" zpool "${@:1}"
+chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin" zpool "${@:1}"
