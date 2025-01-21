@@ -24,7 +24,7 @@ iscsi:
   nameSuffix: ""
   targetGroups:
     - targetGroupPortalGroup: 1
-      targetGroupInitiatorGroup: 1
+      targetGroupInitiatorGroup: 3
       targetGroupAuthType: None
       targetGroupAuthGroup:
   # 0-100 (0 == ignore)
