@@ -110,54 +110,15 @@ class Api {
   }
 
   async getApiVersion() {
-    const systemVersion = await this.getSystemVersion();
-
-    if (systemVersion.v2) {
-      if ((await this.getSystemVersionMajorMinor()) == 11.2) {
-        return 1;
-      }
-      return 2;
-    }
-
-    if (systemVersion.v1) {
-      return 1;
-    }
-
     return 2;
   }
 
   async getIsFreeNAS() {
-    const systemVersion = await this.getSystemVersion();
-    let version;
-
-    if (systemVersion.v2) {
-      version = systemVersion.v2;
-    } else {
-      version = systemVersion.v1.fullversion;
-    }
-
-    if (version.toLowerCase().includes("freenas")) {
-      return true;
-    }
-
     return false;
   }
 
   async getIsTrueNAS() {
-    const systemVersion = await this.getSystemVersion();
-    let version;
-
-    if (systemVersion.v2) {
-      version = systemVersion.v2;
-    } else {
-      version = systemVersion.v1.fullversion;
-    }
-
-    if (version.toLowerCase().includes("truenas")) {
-      return true;
-    }
-
-    return false;
+    return true;
   }
 
   async getIsScale() {
@@ -259,28 +220,6 @@ class Api {
     } catch (e) {
       // if more info is needed use e.stack
       versionErrors.v2 = e.toString();
-    }
-
-    httpClient.setApiVersion(1);
-    /**
-     * {"fullversion": "FreeNAS-9.3-STABLE-201503200528", "name": "FreeNAS", "version": "9.3"}
-     * {"fullversion": "FreeNAS-11.2-U5 (c129415c52)", "name": "FreeNAS", "version": ""}
-     */
-    try {
-      response = await httpClient.get(endpoint, null, { timeout: 5 * 1000 });
-      versionResponses.v1 = response;
-      if (response.statusCode == 200 && IsJsonString(response.body)) {
-        versionInfo.v1 = response.body;
-        await this.setVersionInfoCache(versionInfo);
-
-        // reset apiVersion
-        httpClient.setApiVersion(startApiVersion);
-
-        return versionInfo;
-      }
-    } catch (e) {
-      // if more info is needed use e.stack
-      versionErrors.v1 = e.toString();
     }
 
     // throw error if cannot get v1 or v2 data

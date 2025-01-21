@@ -9,11 +9,7 @@ class Client {
   constructor(options = {}) {
     this.options = JSON.parse(JSON.stringify(options));
     this.logger = console;
-
-    // default to v1.0 for now
-    if (!this.options.apiVersion) {
-      this.options.apiVersion = 2;
-    }
+    this.options.apiVersion = 2;
   }
 
   getHttpAgent() {
