@@ -4,7 +4,7 @@ httpConnection:
   protocol: http
   host: ${TRUENAS_HOST}
   port: 80
-  #apiKey: 
+  #apiKey:
   username: ${TRUENAS_USERNAME}
   password: ${TRUENAS_PASSWORD}
 
@@ -14,10 +14,10 @@ zfs:
 
   datasetEnableQuotas: true
   datasetEnableReservation: false
-  datasetPermissionsMode: "0770"
-  datasetPermissionsUser: 1001
-  datasetPermissionsGroup: 1001
-  
+  #datasetPermissionsMode: "0770"
+  #datasetPermissionsUser: 1001
+  #datasetPermissionsGroup: 1001
+
 smb:
   shareHost: ${TRUENAS_HOST}
   #nameTemplate: ""
