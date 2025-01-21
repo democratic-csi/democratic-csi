@@ -29,9 +29,9 @@ class NVMEoF {
       nvmeof.logger = nvmeof.options.logger;
     } else {
       nvmeof.logger = console;
-      console.verbose = function() {
+      console.verbose = function () {
         console.log(...arguments);
-      }
+      };
     }
   }
 
@@ -112,7 +112,7 @@ class NVMEoF {
         if (!arg.startsWith("-")) {
           arg = `--${arg}`;
         }
-  
+
         transport_args.push(arg, value);
       }
     }
@@ -122,9 +122,11 @@ class NVMEoF {
     try {
       await nvmeof.exec(nvmeof.options.paths.nvme, args);
     } catch (err) {
+      // already connnected - is mispelled in older versions so we include both
       if (
         err.stderr &&
         (err.stderr.includes("already connected") ||
+          err.stderr.includes("already connnected") ||
           err.stderr.includes("Operation already in progress"))
       ) {
         // idempotent
@@ -279,9 +281,7 @@ class NVMEoF {
   async pathExists(path) {
     const nvmeof = this;
     try {
-      await nvmeof.exec("stat", [
-        path,
-      ]);
+      await nvmeof.exec("stat", [path]);
       return true;
     } catch (err) {
       return false;
@@ -302,7 +302,7 @@ class NVMEoF {
       }
       throw err;
     }
-    
+
     return result.stdout.trim() == "Y";
   }
 
