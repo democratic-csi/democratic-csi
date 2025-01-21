@@ -84,7 +84,7 @@ install_nvmetcli() {
   python3 setup.py install --install-scripts=${HOME}/.local/bin
 
   # install to root home dir
-  pip install configshell_fb
+  pip install configshell_fb==1.1.30
 
   # remove source
   cd "${SCRIPTDIR}"
