@@ -1,14 +1,30 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 : "${ISCSIADM_HOST_STRATEGY:=chroot}"
 : "${ISCSIADM_HOST_PATH:=iscsiadm}"
 
 echoerr() { printf "%s\n" "$*" >&2; }
 
+P="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin"
+
 case ${ISCSIADM_HOST_STRATEGY} in
   chroot)
-    # https://engineering.docker.com/2019/07/road-to-containing-iscsi/
-    chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin" ${ISCSIADM_HOST_PATH} "${@:1}"
+    # https://www.docker.com/blog/road-to-containing-iscsi/
+
+    if [[ "${ISCSIADM_HOST_PATH}" =~ ^\/ && -f "/host${ISCSIADM_HOST_PATH}" ]]; then
+      chroot /host "${ISCSIADM_HOST_PATH}" "${@:1}"
+      exit $?
+    fi
+
+    for p in $(echo $P | cut -d ":" -f 1- --output-delimiter=" "); do
+      if [[ -f "/host${p}/iscsiadm" ]]; then
+        chroot /host "${p}/iscsiadm" "${@:1}"
+        exit $?
+      fi
+    done
+
+    chroot /host /usr/bin/env -i PATH="${P}" ${ISCSIADM_HOST_PATH} "${@:1}"
+    exit $?
     ;;
 
   nsenter)
@@ -19,6 +35,7 @@ case ${ISCSIADM_HOST_STRATEGY} in
       exit 1
     fi
     nsenter --mount="/proc/${iscsid_pid}/ns/mnt" --net="/proc/${iscsid_pid}/ns/net" -- ${ISCSIADM_HOST_PATH} "${@:1}"
+    exit $?
     ;;
 
   *)

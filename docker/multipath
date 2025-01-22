@@ -1,3 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin" multipath "${@:1}"
+P="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin"
+
+for p in $(echo $P | cut -d ":" -f 1- --output-delimiter=" "); do
+  if [[ -f "/host${p}/multipath" ]]; then
+    chroot /host "${p}/multipath" "${@:1}"
+    exit $?
+  fi
+done
+
+chroot /host /usr/bin/env -i PATH="${P}" multipath "${@:1}"
+echo $?

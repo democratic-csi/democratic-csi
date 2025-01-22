@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+P="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin"
 
 container_supported_filesystems=(
   "ext2"
@@ -31,7 +33,15 @@ while getopts "t:" opt; do
 done
 
 if [[ ${USE_HOST_MOUNT_TOOLS} -eq 1 ]]; then
-  chroot /host /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin" umount "${@:1}"
+  for p in $(echo $P | cut -d ":" -f 1- --output-delimiter=" "); do
+    if [[ -f "/host${p}/umount" ]]; then
+      chroot /host "${p}/umount" "${@:1}"
+      exit $?
+    fi
+  done
+  chroot /host /usr/bin/env -i PATH="${P}" umount "${@:1}"
+  exit $?
 else
-  /usr/bin/env -i PATH="/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin" umount "${@:1}"
+  /usr/bin/env -i PATH="${P}" umount "${@:1}"
+  exit $?
 fi
