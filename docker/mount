@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 P="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin"
+PL="/usr/sbin:/usr/bin:/sbin:/bin:/run/current-system/sw/bin"
 
 container_supported_filesystems=(
   "ext2"
@@ -42,6 +43,6 @@ if [[ ${USE_HOST_MOUNT_TOOLS} -eq 1 ]]; then
   chroot /host /usr/bin/env -i PATH="${P}" mount "${@:1}"
   exit $?
 else
-  /usr/bin/env -i PATH="${P}" mount "${@:1}"
+  /usr/bin/env -i PATH="${PL}" mount "${@:1}"
   exit $?
 fi

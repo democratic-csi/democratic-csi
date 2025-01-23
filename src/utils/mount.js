@@ -397,7 +397,7 @@ class Mount {
 
   exec(command, args, options = {}) {
     if (!options.hasOwnProperty("timeout")) {
-      options.timeout = DEFAULT_TIMEOUT;
+      options.timeout = parseInt(DEFAULT_TIMEOUT) || 30 * 1000;
     }
 
     const mount = this;

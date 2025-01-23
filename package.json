@@ -31,11 +31,13 @@
     "lodash": "^4.17.21",
     "lru-cache": "^7.4.0",
     "prompt": "^1.2.2",
+    "reconnecting-websocket": "^4.4.0",
     "semver": "^7.3.4",
     "ssh2": "^1.1.0",
     "uri-js": "^4.4.1",
     "uuid": "^9.0.0",
     "winston": "^3.6.0",
+    "ws": "^8.18.0",
     "yargs": "^17.0.1"
   },
   "devDependencies": {
