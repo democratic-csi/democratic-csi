@@ -1,4 +1,4 @@
-const registry = require("../../../utils/registry");
+
 const { sleep, stringify } = require("../../../utils/general");
 const { Zetabyte } = require("../../../utils/zfs");
 
@@ -22,7 +22,7 @@ class Api {
    * @returns
    */
   async getZetabyte() {
-    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:zb`, () => {
       return new Zetabyte({
         executor: {
           spawn: function () {
