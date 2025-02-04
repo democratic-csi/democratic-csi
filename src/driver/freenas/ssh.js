@@ -1,7 +1,6 @@
 const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
-const registry = require("../../utils/registry");
 const SshClient = require("../../utils/zfs_ssh_exec_client").SshClient;
 const HttpClient = require("./http").Client;
 const TrueNASApiClient = require("./http/api").Api;
@@ -57,7 +56,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   getExecClient() {
-    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
       return new SshClient({
         logger: this.ctx.logger,
         connection: this.options.sshConnection,
@@ -66,7 +65,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async getZetabyte() {
-    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
+    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
       const sshClient = this.getExecClient();
       const options = {};
       options.executor = new ZfsSshProcessManager(sshClient);
@@ -126,7 +125,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
   async getHttpClient(autoDetectVersion = true) {
     const autodetectkey = autoDetectVersion === true ? 1 : 0;
-    return registry.getAsync(
+    return this.ctx.registry.getAsync(
       `${__REGISTRY_NS__}:http_client:autoDetectVersion_${autodetectkey}`,
       async () => {
         const client = new HttpClient(this.options.httpConnection);
@@ -143,7 +142,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async getTrueNASHttpApiClient() {
-    return registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
+    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
       const httpClient = await this.getHttpClient();
       return new TrueNASApiClient(httpClient, this.ctx.cache);
     });

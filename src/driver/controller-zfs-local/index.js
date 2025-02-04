@@ -4,7 +4,6 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const GeneralUtils = require("../../utils/general");
 const LocalCliExecClient =
   require("../../utils/zfs_local_exec_client").LocalCliClient;
-const registry = require("../../utils/registry");
 const { Zetabyte } = require("../../utils/zfs");
 
 const ZFS_ASSET_NAME_PROPERTY_NAME = "zfs_asset_name";
@@ -33,7 +32,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
   }
 
   getExecClient() {
-    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
       return new LocalCliExecClient({
         logger: this.ctx.logger,
       });
@@ -41,7 +40,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
   }
 
   async getZetabyte() {
-    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
+    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
       const execClient = this.getExecClient();
 
       const options = {};

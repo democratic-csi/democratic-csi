@@ -48,6 +48,4 @@ class Registry {
   }
 }
 
-const registry = new Registry();
-
-module.exports = registry;
+module.exports.Registry = Registry;

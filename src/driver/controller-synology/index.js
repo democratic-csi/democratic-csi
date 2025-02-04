@@ -3,7 +3,6 @@ const { CsiBaseDriver } = require("../index");
 const GeneralUtils = require("../../utils/general");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const Handlebars = require("handlebars");
-const registry = require("../../utils/registry");
 const SynologyHttpClient = require("./http").SynologyHttpClient;
 const semver = require("semver");
 const yaml = require("js-yaml");
@@ -115,7 +114,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
   }
 
   async getHttpClient() {
-    return registry.get(`${__REGISTRY_NS__}:http_client`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:http_client`, () => {
       return new SynologyHttpClient(this.options.httpConnection);
     });
   }

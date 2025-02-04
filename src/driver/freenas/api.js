@@ -4,7 +4,6 @@ const { CsiBaseDriver } = require("../index");
 const HttpClient = require("./http").Client;
 const TrueNASApiClient = require("./http/api").Api;
 const { Zetabyte } = require("../../utils/zfs");
-const registry = require("../../utils/registry");
 const GeneralUtils = require("../../utils/general");
 
 const Handlebars = require("handlebars");
@@ -156,7 +155,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    * @returns
    */
   async getZetabyte() {
-    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:zb`, () => {
       return new Zetabyte({
         executor: {
           spawn: function () {
@@ -2017,7 +2016,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getHttpClient() {
-    return registry.get(`${__REGISTRY_NS__}:http_client`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:http_client`, () => {
       const client = new HttpClient(this.options.httpConnection);
       client.logger = this.ctx.logger;
       client.setApiVersion(2); // requires version 2
@@ -2034,7 +2033,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getTrueNASHttpApiClient() {
-    return registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
+    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
       const httpClient = await this.getHttpClient();
       return new TrueNASApiClient(httpClient, this.ctx.cache);
     });
