@@ -232,8 +232,8 @@ class CsiProxyDriver extends CsiBaseDriver {
     return this.createDriverFromVolumeContext(call).NodeStageVolume(call);
   }
 
-  async NodePublishVolumeRequest(call) {
-    return this.createDriverFromVolumeContext(call).NodePublishVolumeRequest(call);
+  async NodePublishVolume(call) {
+    return this.createDriverFromVolumeContext(call).NodePublishVolume(call);
   }
 }
 

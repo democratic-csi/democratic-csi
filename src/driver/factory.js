@@ -16,12 +16,15 @@ const { ControllerObjectiveFSDriver } = require("./controller-objectivefs");
 const { ControllerSynologyDriver } = require("./controller-synology");
 const { NodeManualDriver } = require("./node-manual");
 const { CsiProxyDriver } = require("./controller-proxy");
+const { CsiProxy2Driver } = require("./controller-proxy-2");
 
 function factory(ctx, options) {
   ctx.factory = factory;
   switch (options.driver) {
     case "proxy":
       return new CsiProxyDriver(ctx, options);
+    case "proxy2":
+      return new CsiProxy2Driver(ctx, options);
     case "freenas-nfs":
     case "freenas-smb":
     case "freenas-iscsi":
