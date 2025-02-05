@@ -3,7 +3,6 @@ const http = require("http");
 const https = require("https");
 const { axios_request, stringify } = require("../../../utils/general");
 const Mutex = require("async-mutex").Mutex;
-const registry = require("../../../utils/registry");
 const { GrpcError, grpc } = require("../../../utils/grpc");
 
 const USER_AGENT = "democratic-csi";
@@ -95,7 +94,7 @@ class SynologyHttpClient {
   }
 
   getHttpAgent() {
-    return registry.get(`${__REGISTRY_NS__}:http_agent`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:http_agent`, () => {
       return new http.Agent({
         keepAlive: true,
         maxSockets: Infinity,
@@ -105,7 +104,7 @@ class SynologyHttpClient {
   }
 
   getHttpsAgent() {
-    return registry.get(`${__REGISTRY_NS__}:https_agent`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:https_agent`, () => {
       return new https.Agent({
         keepAlive: true,
         maxSockets: Infinity,

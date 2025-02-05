@@ -2,7 +2,6 @@ const fs = require("fs");
 const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const { Filesystem } = require("../../utils/filesystem");
-const registry = require("../../utils/registry");
 const semver = require("semver");
 const SshClient = require("../../utils/zfs_ssh_exec_client").SshClient;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
@@ -125,7 +124,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
   }
 
   getSshClient() {
-    return registry.get(`${__REGISTRY_NS__}:ssh_client`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:ssh_client`, () => {
       return new SshClient({
         logger: this.ctx.logger,
         connection: this.options.sshConnection,
@@ -134,7 +133,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
   }
 
   getZetabyte() {
-    return registry.get(`${__REGISTRY_NS__}:zb`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:zb`, () => {
       let sshClient;
       let executor;
       if (this.options.sshConnection) {
