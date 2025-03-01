@@ -50,6 +50,29 @@ parameters:
 
       # Use this to disable authentication. To configure authentication see below
       auth_type: 0
+
+    # The provisioner secret is used by the controller to provision the PVC (Create PV on k8s, LUN and iSCSI Target on Synology)
+    provisioner-secret:
+      # The following used for CHAP and/or Mutual CHAP. The auth_type for CHAP is 1 and for Mutual CHAP is 2
+      # The entries starting with "mutual_" are only needed for Mutual CHAP
+      targetTemplate: |
+        auth_type: 2
+        max_sessions: 0
+        chap: true
+        mutual_chap: true
+        user: **************
+        password: **************
+        mutual_user: **************
+        mutual_password: **************
+    # The node stage secret is used on the node by iscsiadmin to connect to the target and mount the volume on the pod
+    node-stage-secret:
+      # CHAP
+      node-db.node.session.auth.authmethod: CHAP
+      node-db.node.session.auth.username: **************
+      node-db.node.session.auth.password: **************
+      # Mutual CHAP
+      node-db.node.session.auth.username_in: **************
+      node-db.node.session.auth.password_in: **************      
 ```
 
 #### About LUN Types
@@ -112,9 +135,13 @@ secrets:
   # Use this to configure a single set of credentials for all volumes of this StorageClass
   csi.storage.k8s.io/provisioner-secret-name: chap-secret
   csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: node-stage-chap-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: default
   # Use substitutions to use different credentials for volumes based on the PVC
   csi.storage.k8s.io/provisioner-secret-name: "${pvc.name}-chap-secret"
   csi.storage.k8s.io/provisioner-secret-namespace: "${pvc.namespace}"
+  csi.storage.k8s.io/node-stage-secret-name: ${pvc.name}-node-stage-chap-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: "${pvc.namespace}"
 ...
 ---
 # Use a secret like this to supply CHAP credentials.
@@ -123,16 +150,35 @@ kind: Secret
 metadata:
   name: chap-secret
 stringData:
-  # Client Credentials
-  user: client
-  password: MySecretPassword
-  # Mutual CHAP Credentials. If these are specified mutual CHAP will be enabled.
-  mutualUser: server
-  mutualPassword: MyOtherPassword
+  # The auth_type for CHAP is 1 and for Mutual CHAP is 2
+  # The entries starting with "mutual_" are only needed for Mutual CHAP
+  targetTemplate: |
+    auth_type: 2
+    max_sessions: 0
+    chap: true
+    mutual_chap: true
+    user: **************
+    password: **************
+    mutual_user: **************
+    mutual_password: **************
+---
+# Use a secret like this to supply CHAP credentials.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: node-stage-chap-secret
+stringData:
+  node-db.node.session.auth.authmethod: **************
+  node-db.node.session.auth.password: **************=
+  node-db.node.session.auth.password_in: **************
+  node-db.node.session.auth.username: **************
+  node-db.node.session.auth.username_in: **************
 ```
 
-Note that CHAP authentication will only be enabled if the secret contains a username and password. If e.g. a password is
-missing CHAP authentication will not be enabled (but the volume will still be created). You cannot automatically
-enable/disable CHAP or change the password after the volume has been created.
+Note that CHAP authentication will only be enabled if the secret contains a username and password, and ``auth_type`` is set to either ``1`` or ``2``. 
+If e.g. a password is missing or ``auth_type`` is set to ``0`` CHAP authentication will not be enabled (but the volume will still be created). 
+You cannot automatically enable/disable CHAP or change the password after the volume has been created.
 
 If the secret itself is referenced but not present, the volume will not be created.
+
+You can have multiple different ``StorageClass``es or per namespace secrets to use different credentials/settings.
