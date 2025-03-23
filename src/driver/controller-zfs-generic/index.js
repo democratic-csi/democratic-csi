@@ -331,7 +331,7 @@ create /backstores/block/${assetName}
 
               let createLunTerms = [
                 'resource', 'create', '--future', `lun-${assetName}`, 'iSCSILogicalUnit',
-                'implementation="lio-t"', `target_iqn="${basename}:${assetName}" lun="1"`,
+                'implementation="lio-t"', `target_iqn="${basename}:${assetName}"`, 'lun="1"',
                 `path="/dev/${extentDiskName}"`
               ];
 
