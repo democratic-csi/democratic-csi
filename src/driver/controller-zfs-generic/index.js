@@ -302,25 +302,22 @@ create /backstores/block/${assetName}
               basename = this.options.iscsi.shareStrategyPcs.basename;
               pcs_group = this.options.iscsi.shareStrategyPcs.pcs_group;
 
-              let groupText = `group ${pcs_group}`;
-              let createTargetText = [
-                `resource create --future target-${assetName} iSCSITarget`,
-                'implementation="lio-t"',
-                `iqn="${basename}:${assetName}"`
+              let groupTerms = ['group', `${pcs_group}`];
+              let createTargetTerms = [
+                'resource', 'create', '--future', `target-${assetName}`, 'iSCSITarget',
+                'implementation="lio-t"', `iqn="${basename}:${assetName}"`
               ];
 
               if (this.options.iscsi.shareStrategyPcs.auth.enabled) {
-                createTargetText.push(`incoming_username="${this.options.iscsi.shareStrategyPcs.auth.incoming_username}"`);
-                createTargetText.push(`incoming_password="${this.options.iscsi.shareStrategyPcs.auth.incoming_password}"`);
+                createTargetTerms.push(`incoming_username="${this.options.iscsi.shareStrategyPcs.auth.incoming_username}"`);
+                createTargetTerms.push(`incoming_password="${this.options.iscsi.shareStrategyPcs.auth.incoming_password}"`);
               }
-
-              createTargetText.push(groupText);
 
               await GeneralUtils.retry(
                 3,
                 2000,
                 async () => {
-                  await this.pcsCommand(createTargetText);
+                  await this.pcsCommand(createTargetTerms.concat(groupTerms));
                 },
                 {
                   retryCondition: (err) => {
@@ -332,19 +329,17 @@ create /backstores/block/${assetName}
                 }
               );
 
-              let createLunText = [
-                `resource create --future lun-${assetName} iSCSILogicalUnit`,
-                'implementation="lio-t"',
-                `target_iqn="${basename}:${assetName}" lun="1"`,
-                `path="/dev/${extentDiskName}"`,
-                groupText
+              let createLunTerms = [
+                'resource', 'create', '--future', `lun-${assetName}`, 'iSCSILogicalUnit',
+                'implementation="lio-t"', `target_iqn="${basename}:${assetName}" lun="1"`,
+                `path="/dev/${extentDiskName}"`
               ];
 
               await GeneralUtils.retry(
                 3,
                 2000,
                 async () => {
-                  await this.pcsCommand(createLunText);
+                  await this.pcsCommand(createLunTerms.concat(groupTerms));
                 },
                 {
                   retryCondition: (err) => {
@@ -754,7 +749,7 @@ delete ${assetName}
             break;
           case "pcs":
             let deleteLunText = [
-              `resource delete lun-${assetName}`
+              'resource', 'delete', `lun-${assetName}`
             ];
 
             await GeneralUtils.retry(
@@ -774,7 +769,7 @@ delete ${assetName}
             );
 
             let deleteTargetText = [
-              `resource delete target-${assetName}`
+              'resource', 'delete', `target-${assetName}`
             ];
 
             await GeneralUtils.retry(
@@ -962,7 +957,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     }
   }
 
-  async pcsCommand(commandLines) {
+  async pcsCommand(commandTerms) {
     const execClient = this.getExecClient();
     const driver = this;
 
@@ -978,7 +973,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
 
     let cliCommand = [];
     cliCommand.push(cliArgs.join(" "));
-    cliCommand.push(commandLines.join(" "));
+    cliCommand.push(commandTerms.join(" "));
     args.push("'" + cliCommand.join(" ") + "'");
 
     let logCommandTmp = command + " " + args.join(" ");
@@ -994,7 +989,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       }
     });
 
-    driver.ctx.logger.verbose("Pcs command:" + logCommand);
+    driver.ctx.logger.verbose("pcs command:" + logCommand);
 
     let options = {
       pty: true,
@@ -1004,7 +999,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       options
     );
     driver.ctx.logger.verbose(
-      "Pcs response: " + JSON.stringify(response)
+      "pcs response: " + JSON.stringify(response)
     );
     if (response.code != 0) {
       throw response;

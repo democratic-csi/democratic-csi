@@ -191,7 +191,8 @@ jobs:
       max-parallel: 1
       matrix:
         config:
-          - zfs-generic/iscsi.yaml
+          - zfs-generic/iscsi-pcs.yaml
+          - zfs-generic/iscsi-targetcli.yaml
           - zfs-generic/nfs.yaml
           - zfs-generic/smb.yaml
           - zfs-generic/nvmeof.yaml
