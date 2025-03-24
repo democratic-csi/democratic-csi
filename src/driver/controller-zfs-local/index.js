@@ -160,7 +160,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
    *
    * @param {*} datasetName
    */
-  async createShare(call, datasetName) {
+  async createShare(call, datasetName, callContext) {
     let volume_context = {};
 
     switch (this.options.driver) {
@@ -193,7 +193,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
    * @param {*} datasetName
    * @returns
    */
-  async deleteShare(call, datasetName) {
+  async deleteShare(call, datasetName, callContext) {
     return {};
   }
 
@@ -203,7 +203,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
    * @param {*} call
    * @param {*} datasetName
    */
-  async expandVolume(call, datasetName) {}
+  async expandVolume(call, datasetName, callContext) {}
 
   /**
    * List of topologies associated with the *volume*

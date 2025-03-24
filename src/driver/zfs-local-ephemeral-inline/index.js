@@ -165,10 +165,10 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     return datasetParentName;
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(capabilities, callContext) {
     // hard code this for now
     const driverZfsResourceType = "filesystem";
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
@@ -272,7 +272,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodePublishVolume(call) {
+  async NodePublishVolume(call, callContext) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -386,7 +386,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodeUnpublishVolume(call) {
+  async NodeUnpublishVolume(call, callContext) {
     const zb = this.getZetabyte();
     const filesystem = new Filesystem();
     let result;
@@ -454,7 +454,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(call, callContext) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -488,7 +488,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(call, callContext) {
     const driver = this;
     const result = this.assertCapabilities(call.request.volume_capabilities);
 
