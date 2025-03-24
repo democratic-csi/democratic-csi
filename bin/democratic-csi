@@ -140,10 +140,13 @@ const csi = protoDescriptor.csi.v1;
 
 logger.info("initializing csi driver: %s", options.driver);
 
+const { Registry } = require("../src/utils/registry");
+let globalRegistry = new Registry();
+
 let driver;
 try {
   driver = require("../src/driver/factory").factory(
-    { logger, args, cache, package, csiVersion },
+    { logger, args, cache, package, csiVersion, registry: globalRegistry },
     options
   );
 } catch (err) {
