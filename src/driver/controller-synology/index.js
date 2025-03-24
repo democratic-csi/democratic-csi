@@ -252,7 +252,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
 
   assertCapabilities(callContext, capabilities) {
     const driverResourceType = this.getDriverResourceType();
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
@@ -951,7 +951,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
       );
     }
 
-    driver.ctx.logger.verbose("requested snapshot name: %s", name);
+    callContext.logger.verbose("requested snapshot name: %s", name);
 
     let invalid_chars;
     invalid_chars = name.match(/[^a-z0-9_\-:.+]+/gi);

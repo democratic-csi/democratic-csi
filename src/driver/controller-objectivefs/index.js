@@ -161,7 +161,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
 
   assertCapabilities(callContext, capabilities) {
     const driver = this;
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     let fs_types = driver.getFsTypes();
