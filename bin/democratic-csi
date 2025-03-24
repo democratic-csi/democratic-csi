@@ -26,9 +26,8 @@ const args = require("yargs")
       // CONTAINER_SANDBOX_MOUNT_POINT  C:\C\0eac9a8da76f6d7119c5d9f86c8b3106d67dbbf01dbeb22fdc0192476b7e31cb\
       // path is injected as C:\config\driver-config-file.yaml
       if (process.env.CONTAINER_SANDBOX_MOUNT_POINT) {
-        path = `${
-          process.env.CONTAINER_SANDBOX_MOUNT_POINT
-        }${stripWindowsDriveLetter(path)}`;
+        path = `${process.env.CONTAINER_SANDBOX_MOUNT_POINT
+          }${stripWindowsDriveLetter(path)}`;
       }
 
       try {
@@ -118,6 +117,7 @@ const cache = new LRU({ max: 500 });
 const { logger } = require("../src/utils/logger");
 const { GrpcError } = require("../src/utils/grpc");
 const GeneralUtils = require("../src/utils/general");
+const uuidv4 = require("uuid").v4;
 
 if (args.logLevel) {
   logger.level = args.logLevel;
@@ -178,24 +178,32 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
     }
   }
 
+  const requestReadableID = GeneralUtils.loggerIdFromRequest(call, serviceMethodName);
+  const requestUUID = uuidv4();
+  const callContext = {
+    logger: logger.child({
+      method: serviceMethodName,
+      requestId: requestReadableID,
+      uuid: requestUUID,
+    }),
+  };
   try {
-    logger.info(
-      "new request - driver: %s method: %s call: %j",
+    callContext.logger.info(
+      "new request: driver=%s, call: %j",
       driver.constructor.name,
-      serviceMethodName,
       cleansedCall
     );
 
     const lockKeys = GeneralUtils.lockKeysFromRequest(call, serviceMethodName);
     if (lockKeys.length > 0) {
-      logger.debug("operation lock keys: %j", lockKeys);
+      callContext.logger.debug("operation lock keys: %j", lockKeys);
       // check locks
       lockKeys.forEach((key) => {
         if (operationLock.has(key)) {
           throw new GrpcError(
             grpc.status.ABORTED,
             "operation locked due to in progress operation(s): " +
-              JSON.stringify(lockKeys)
+            JSON.stringify(lockKeys)
           );
         }
       });
@@ -216,13 +224,13 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
     let response;
     let responseError;
     try {
-      // aquire locks
+      // acquire locks
       if (lockKeys.length > 0) {
         lockKeys.forEach((key) => {
           operationLock.add(key);
         });
       }
-      response = await driver[serviceMethodName](call);
+      response = await driver[serviceMethodName](call, callContext);
     } catch (e) {
       responseError = e;
     } finally {
@@ -246,10 +254,8 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       );
     }
 
-    logger.info(
-      "new response - driver: %s method: %s response: %j",
-      driver.constructor.name,
-      serviceMethodName,
+    callContext.logger.info(
+      "new response: %j",
       response
     );
 
@@ -265,10 +271,8 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       message = stringify(e);
     }
 
-    logger.error(
-      "handler error - driver: %s method: %s error: %s",
-      driver.constructor.name,
-      serviceMethodName,
+    callContext.logger.error(
+      "handler error: %s",
       message
     );
 
@@ -498,8 +502,7 @@ if (process.env.LOG_MEMORY_USAGE == "1") {
     const used = process.memoryUsage();
     for (let key in used) {
       console.log(
-        `[${new Date()}] Memory Usage: ${key} ${
-          Math.round((used[key] / 1024 / 1024) * 100) / 100
+        `[${new Date()}] Memory Usage: ${key} ${Math.round((used[key] / 1024 / 1024) * 100) / 100
         } MB`
       );
     }
@@ -513,7 +516,7 @@ if (process.env.MANUAL_GC == "1") {
       if (global.gc) {
         global.gc();
       }
-    } catch (e) {}
+    } catch (e) { }
   }, process.env.MANUAL_GC_INTERVAL || 60000);
 }
 
@@ -522,7 +525,7 @@ if (process.env.LOG_GRPC_SESSIONS == "1") {
     console.log("dumping sessions");
     try {
       console.log(csiServer.sessions);
-    } catch (e) {}
+    } catch (e) { }
   }, 5000);
 }
 
