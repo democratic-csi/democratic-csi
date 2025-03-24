@@ -238,7 +238,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} vdevs
        */
-      add: function (pool, vdevs) {
+      add: function (callContext, pool, vdevs) {
         // -f force
         // -n noop
       },
@@ -250,7 +250,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} new_device
        */
-      attach: function (pool, device, new_device) {
+      attach: function (callContext, pool, device, new_device) {
         // -f      Forces use of new_device, even if its appears to be in use.
       },
 
@@ -259,7 +259,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      checkpoint: function (pool) {},
+      checkpoint: function (callContext, pool) {},
 
       /**
        * zpool clear [-F [-n]] pool [device]
@@ -267,7 +267,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      clear: function (pool, device) {},
+      clear: function (callContext, pool, device) {},
 
       /**
        * zpool create [-fnd] [-o property=value] ... [-O
@@ -278,8 +278,8 @@ class Zetabyte {
        * zpool create command, including log devices, cache devices, and hot spares.
        * The input is an object of the form produced by the disklayout library.
        */
-      create: function (pool, options) {
-        if (arguments.length != 2)
+      create: function (callContext, pool, options) {
+        if (arguments.length != 3)
           throw Error("Invalid arguments, 2 arguments required");
 
         return new Promise((resolve, reject) => {
@@ -357,8 +357,8 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      destroy: function (pool) {
-        if (arguments.length != 1) throw Error("Invalid arguments");
+      destroy: function (callContext, pool) {
+        if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -384,8 +384,8 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      detach: function (pool, device) {
-        if (arguments.length != 2) throw Error("Invalid arguments");
+      detach: function (callContext, pool, device) {
+        if (arguments.length != 3) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -410,7 +410,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      export: function (pool) {
+      export: function (callContext, pool) {
         if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -440,14 +440,14 @@ class Zetabyte {
       /**
        * zpool get [-Hp] [-o field[,...]] all | property[,...] pool ...
        */
-      get: function () {},
+      get: function (callContext) {},
 
       /**
        * zpool history [-il] [pool] ...
        *
        * @param {*} pool
        */
-      history: function (pool) {
+      history: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("history");
@@ -486,7 +486,7 @@ class Zetabyte {
        *
        * @param {*} options
        */
-      import: function (options = {}) {
+      import: function (callContext, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("import");
@@ -511,14 +511,14 @@ class Zetabyte {
        *
        * @param {*} options
        */
-      iostat: function (options = {}) {},
+      iostat: function (callContext, options = {}) {},
 
       /**
        * zpool labelclear [-f] device
        *
        * @param {*} device
        */
-      labelclear: function (device) {},
+      labelclear: function (callContext, device) {},
 
       /**
        * zpool list [-Hpv] [-o property[,...]] [-T d|u] [pool] ... [inverval
@@ -527,8 +527,8 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} options
        */
-      list: function (pool, properties, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      list: function (callContext, pool, properties, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
         if (!properties) properties = zb.DEFAULT_ZPOOL_LIST_PROPERTIES;
 
         return new Promise((resolve, reject) => {
@@ -594,7 +594,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} options
        */
-      offline: function (pool, device, options = {}) {
+      offline: function (callContext, pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("offline");
@@ -621,7 +621,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} options
        */
-      online: function (pool, device, options = {}) {
+      online: function (callContext, pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("online");
@@ -646,7 +646,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      reguid: function (pool) {
+      reguid: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("reguid");
@@ -672,7 +672,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      remove: function (pool, device, options = {}) {
+      remove: function (callContext, pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("remove");
@@ -701,7 +701,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      reopen: function (pool) {
+      reopen: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("reopen");
@@ -726,7 +726,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} new_device
        */
-      replace: function (pool, device, new_device) {
+      replace: function (callContext, pool, device, new_device) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("replace");
@@ -754,7 +754,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      scrub: function (pool) {
+      scrub: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("scrub");
@@ -787,7 +787,7 @@ class Zetabyte {
        * @param {*} property
        * @param {*} value
        */
-      set: function (pool, property, value) {
+      set: function (callContext, pool, property, value) {
         value = escapeShell(value);
         return new Promise((resolve, reject) => {
           let args = [];
@@ -815,12 +815,12 @@ class Zetabyte {
        * @param {*} newpool
        * @param {*} device
        */
-      split: function (pool, newpool, device) {},
+      split: function (callContext, pool, newpool, device) {},
 
       /**
        * zpool status [-vx] [-T d|u] [pool] ... [interval [count]]
        */
-      status: function (pool, options = {}) {
+      status: function (callContext, pool, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           if (!("parse" in options)) options.parse = true;
@@ -874,7 +874,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      upgrade: function (pool) {
+      upgrade: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("upgrade");
