@@ -26,8 +26,9 @@ const args = require("yargs")
       // CONTAINER_SANDBOX_MOUNT_POINT  C:\C\0eac9a8da76f6d7119c5d9f86c8b3106d67dbbf01dbeb22fdc0192476b7e31cb\
       // path is injected as C:\config\driver-config-file.yaml
       if (process.env.CONTAINER_SANDBOX_MOUNT_POINT) {
-        path = `${process.env.CONTAINER_SANDBOX_MOUNT_POINT
-          }${stripWindowsDriveLetter(path)}`;
+        path = `${
+          process.env.CONTAINER_SANDBOX_MOUNT_POINT
+        }${stripWindowsDriveLetter(path)}`;
       }
 
       try {
@@ -203,7 +204,7 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
           throw new GrpcError(
             grpc.status.ABORTED,
             "operation locked due to in progress operation(s): " +
-            JSON.stringify(lockKeys)
+              JSON.stringify(lockKeys)
           );
         }
       });
@@ -502,7 +503,8 @@ if (process.env.LOG_MEMORY_USAGE == "1") {
     const used = process.memoryUsage();
     for (let key in used) {
       console.log(
-        `[${new Date()}] Memory Usage: ${key} ${Math.round((used[key] / 1024 / 1024) * 100) / 100
+        `[${new Date()}] Memory Usage: ${key} ${
+          Math.round((used[key] / 1024 / 1024) * 100) / 100
         } MB`
       );
     }
@@ -516,7 +518,7 @@ if (process.env.MANUAL_GC == "1") {
       if (global.gc) {
         global.gc();
       }
-    } catch (e) { }
+    } catch (e) {}
   }, process.env.MANUAL_GC_INTERVAL || 60000);
 }
 
@@ -525,7 +527,7 @@ if (process.env.LOG_GRPC_SESSIONS == "1") {
     console.log("dumping sessions");
     try {
       console.log(csiServer.sessions);
-    } catch (e) { }
+    } catch (e) {}
   }, 5000);
 }
 
