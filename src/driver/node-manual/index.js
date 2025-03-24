@@ -100,8 +100,8 @@ class NodeManualDriver extends CsiBaseDriver {
     }
   }
 
-  assertCapabilities(capabilities, node_attach_driver) {
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+  assertCapabilities(capabilities, callContext, node_attach_driver) {
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     let driverResourceType;

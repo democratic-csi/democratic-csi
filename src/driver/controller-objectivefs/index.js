@@ -159,9 +159,9 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
     return ["fuse.objectivefs", "objectivefs"];
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(capabilities, callContext) {
     const driver = this;
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     let fs_types = driver.getFsTypes();
@@ -347,7 +347,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
       call.request.volume_capabilities &&
       call.request.volume_capabilities.length > 0
     ) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(call.request.volume_capabilities, callContext);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
@@ -651,7 +651,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
       throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing capabilities`);
     }
 
-    const result = this.assertCapabilities(call.request.volume_capabilities);
+    const result = this.assertCapabilities(call.request.volume_capabilities, callContext);
 
     if (result.valid !== true) {
       return { message: result.message };
