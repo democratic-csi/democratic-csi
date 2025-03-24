@@ -284,7 +284,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           FREENAS_NFS_SHARE_PROPERTY_NAME,
         ]);
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         // create nfs share
         if (
@@ -495,7 +495,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           FREENAS_SMB_SHARE_PROPERTY_NAME,
         ]);
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         let smbName;
 
@@ -518,7 +518,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
         smbName = smbName.toLowerCase();
 
-        this.ctx.logger.info(
+        callContext.logger.info(
           "FreeNAS creating smb share with name: " + smbName
         );
 
@@ -744,7 +744,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
         ]);
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         let basename;
         let iscsiName;
@@ -774,7 +774,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
         let extentDiskName = "zvol/" + datasetName;
         let maxZvolNameLength = await driver.getMaxZvolNameLength();
-        driver.ctx.logger.debug("max zvol name length: %s", maxZvolNameLength);
+        callContext.logger.debug("max zvol name length: %s", maxZvolNameLength);
 
         /**
          * limit is a FreeBSD limitation
@@ -796,7 +796,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           );
         }
 
-        this.ctx.logger.info(
+        callContext.logger.info(
           "FreeNAS creating iscsi assets with name: " + iscsiName
         );
 
@@ -870,7 +870,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
               );
             }
             basename = response.body.iscsi_basename;
-            this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
+            callContext.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
             break;
           case 2:
             response = await httpClient.get("/iscsi/global");
@@ -883,7 +883,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
               );
             }
             basename = response.body.basename;
-            this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
+            callContext.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
             break;
           default:
             throw new GrpcError(
@@ -953,7 +953,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 );
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+              callContext.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
               // set target.id on zvol
               await zb.zfs.set(callContext, datasetName, {
@@ -1035,7 +1035,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   );
                 }
 
-                this.ctx.logger.verbose(
+                callContext.logger.verbose(
                   "FreeNAS ISCSI TARGET_GROUP: %j",
                   targetGroup
                 );
@@ -1101,7 +1101,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 );
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+              callContext.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
               await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
@@ -1159,7 +1159,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   `unknown error creating iscsi targettoextent`
                 );
               }
-              this.ctx.logger.verbose(
+              callContext.logger.verbose(
                 "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
                 targetToExtent
               );
@@ -1285,7 +1285,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 }
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+              callContext.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
               // set target.id on zvol
               await zb.zfs.set(callContext, datasetName, {
@@ -1350,7 +1350,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 );
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+              callContext.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
               await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
@@ -1407,7 +1407,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   `unknown error creating iscsi targetextent`
                 );
               }
-              this.ctx.logger.verbose(
+              callContext.logger.verbose(
                 "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
                 targetToExtent
               );
@@ -1428,7 +1428,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
         // iqn = target
         let iqn = basename + ":" + iscsiName;
-        this.ctx.logger.info("FreeNAS iqn: " + iqn);
+        callContext.logger.info("FreeNAS iqn: " + iqn);
 
         // store this off to make delete process more bullet proof
         await zb.zfs.set(callContext, datasetName, {
@@ -1482,7 +1482,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           throw err;
         }
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         shareId = properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value;
 
@@ -1586,7 +1586,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           throw err;
         }
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         shareId = properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value;
 
@@ -1699,7 +1699,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         }
 
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         let targetId = properties[FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME].value;
         let extentId = properties[FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME].value;
@@ -1765,7 +1765,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                     _.get(response, "body.errno") == 14
                   ) {
                     retries++;
-                    this.ctx.logger.debug(
+                    callContext.logger.debug(
                       "target: %s is in use, retry %s shortly",
                       targetId,
                       retries
@@ -1791,7 +1791,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                     FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME
                   );
                 } else {
-                  this.ctx.logger.debug(
+                  callContext.logger.debug(
                     "not deleting iscsitarget asset as it appears ID %s has been re-used: zfs name - %s, iscsitarget name - %s",
                     targetId,
                     iscsiName,
@@ -1854,7 +1854,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                     FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME
                   );
                 } else {
-                  this.ctx.logger.debug(
+                  callContext.logger.debug(
                     "not deleting iscsiextent asset as it appears ID %s has been re-used: zfs name - %s, iscsiextent name - %s",
                     extentId,
                     iscsiName,
@@ -2033,7 +2033,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
             FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME,
           ]);
           properties = properties[datasetName];
-          this.ctx.logger.debug("zfs props data: %j", properties);
+          callContext.logger.debug("zfs props data: %j", properties);
           let iscsiName =
             properties[FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
 
@@ -2067,7 +2067,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
               reload = true;
               break;
             case 2:
-              this.ctx.logger.verbose(
+              callContext.logger.verbose(
                 "FreeNAS reloading iscsi daemon using api"
               );
               // POST /service/reload
@@ -2100,7 +2100,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
             command = (await this.getSudoPath()) + " " + command;
           }
 
-          this.ctx.logger.verbose(
+          callContext.logger.verbose(
             "FreeNAS reloading iscsi daemon: %s",
             command
           );
