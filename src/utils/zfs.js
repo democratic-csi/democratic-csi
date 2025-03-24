@@ -911,8 +911,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      create: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw new (Error("Invalid arguments"))();
+      create: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw new (Error("Invalid arguments"))();
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -962,8 +962,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      destroy: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      destroy: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -1013,8 +1013,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      snapshot: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      snapshot: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -1061,8 +1061,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      rollback: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      rollback: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1095,8 +1095,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      clone: function (snapshot, dataset, options = {}) {
-        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
+      clone: function (callContext, snapshot, dataset, options = {}) {
+        if (!(arguments.length >= 3)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -1143,8 +1143,8 @@ class Zetabyte {
        * @param {*} target
        * @param {*} receive_options
        */
-      send_receive(source, send_options = [], target, receive_options = []) {
-        if (arguments.length < 4) throw Error("Invalid arguments");
+      send_receive(callContext, source, send_options = [], target, receive_options = []) {
+        if (arguments.length < 5) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           // specially handle sudo here to avoid the need for using sudo on the whole script
@@ -1187,8 +1187,8 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      promote: function (dataset) {
-        if (arguments.length != 1) throw Error("Invalid arguments");
+      promote: function (callContext, dataset) {
+        if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1217,8 +1217,8 @@ class Zetabyte {
        * @param {*} target
        * @param {*} options
        */
-      rename: function (source, target, options = {}) {
-        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
+      rename: function (callContext, source, target, options = {}) {
+        if (!(arguments.length >= 3)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1251,8 +1251,8 @@ class Zetabyte {
        * @param {*} properties
        * @param {*} options
        */
-      list: function (dataset, properties, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      list: function (callContext, dataset, properties, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
         if (!properties) properties = zb.DEFAULT_ZFS_LIST_PROPERTIES;
 
         return new Promise((resolve, reject) => {
@@ -1317,8 +1317,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} properties
        */
-      set: function (dataset, properties) {
-        if (arguments.length != 2) throw Error("Invalid arguments");
+      set: function (callContext, dataset, properties) {
+        if (arguments.length != 3) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           if (!Object.keys(properties).length) {
@@ -1361,8 +1361,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} properties
        */
-      get: function (dataset, properties = "all", options = {}) {
-        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
+      get: function (callContext, dataset, properties = "all", options = {}) {
+        if (!(arguments.length >= 3)) throw Error("Invalid arguments");
         if (!properties) properties = "all";
         if (Array.isArray(properties) && !properties.length > 0)
           properties = "all";
@@ -1445,8 +1445,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} property
        */
-      inherit: function (dataset, property) {
-        if (arguments.length != 2) throw Error("Invalid arguments");
+      inherit: function (callContext, dataset, property) {
+        if (arguments.length != 3) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1473,8 +1473,8 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      remap: function (dataset) {
-        if (arguments.length != 1) throw Error("Invalid arguments");
+      remap: function (callContext, dataset) {
+        if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1499,7 +1499,7 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      upgrade: function (options = {}, dataset) {
+      upgrade: function (callContext, options = {}, dataset) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("upgrade");

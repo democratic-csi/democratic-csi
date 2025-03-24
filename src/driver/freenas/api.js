@@ -174,7 +174,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} datasetName
    */
-  async createShare(call, datasetName) {
+  async createShare(callContext, call, datasetName) {
     const driver = this;
     const driverShareType = this.getDriverShareType();
     const httpClient = await this.getHttpClient();
@@ -879,7 +879,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
               // set target.id on zvol
-              await zb.zfs.set(datasetName, {
+              await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
               });
 
@@ -1378,7 +1378,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
   }
 
-  async deleteShare(call, datasetName) {
+  async deleteShare(callContext, call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const httpClient = await this.getHttpClient();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -1809,7 +1809,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    * @param {*} datasetName
    * @returns
    */
-  async expandVolume(call, datasetName) {
+  async expandVolume(callContext, call, datasetName) {
     // TODO: fix me
     return;
     const driverShareType = this.getDriverShareType();
@@ -2228,7 +2228,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(call, callContext) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -2957,7 +2957,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         break;
     }
 
-    volume_context = await this.createShare(call, datasetName);
+    volume_context = await this.createShare(callContext, call, datasetName);
     await httpApiClient.DatasetSet(datasetName, {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
     });
@@ -3000,7 +3000,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(call, callContext) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
@@ -3059,7 +3059,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     // remove share resources
-    await this.deleteShare(call, datasetName);
+    await this.deleteShare(callContext, call, datasetName);
 
     // remove parent snapshot if appropriate with defer
     if (
@@ -3237,7 +3237,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       await httpApiClient.DatasetSet(datasetName, properties);
     }
 
-    await this.expandVolume(call, datasetName);
+    await this.expandVolume(callContext, call, datasetName);
 
     return {
       capacity_bytes:

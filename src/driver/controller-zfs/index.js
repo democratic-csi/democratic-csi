@@ -41,9 +41,9 @@ const MAX_ZVOL_NAME_LENGTH_CACHE_KEY = "controller-zfs:max_zvol_name_length";
  *  - getFSTypes() // optional
  *  - getAccessModes(capability) // optional
  *  - async getAccessibleTopology() // optional
- *  - async createShare(call, datasetName, callContext) // return appropriate volume_context for Node operations
- *  - async deleteShare(call, datasetName, callContext) // no return expected
- *  - async expandVolume(call, datasetName, callContext) // no return expected, used for restarting services etc if needed
+ *  - async createShare(callContext, call, datasetName) // return appropriate volume_context for Node operations
+ *  - async deleteShare(callContext, call, datasetName) // no return expected
+ *  - async expandVolume(callContext, call, datasetName) // no return expected, used for restarting services etc if needed
  */
 class ControllerZfsBaseDriver extends CsiBaseDriver {
   constructor(ctx, options) {
@@ -191,10 +191,10 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     return datasetParentName;
   }
 
-  async removeSnapshotsFromDatatset(datasetName, options = {}) {
+  async removeSnapshotsFromDataset(callContext, datasetName, options = {}) {
     const zb = await this.getZetabyte();
 
-    await zb.zfs.destroy(datasetName + "@%", options);
+    await zb.zfs.destroy(callContext, datasetName + "@%", options);
   }
 
   getFSTypes() {
@@ -732,7 +732,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // ensure volumes with the same name being requested a 2nd time but with a different size fails
     try {
-      let properties = await zb.zfs.get(datasetName, ["volsize", "refquota"]);
+      let properties = await zb.zfs.get(callContext, datasetName, ["volsize", "refquota"]);
       properties = properties[datasetName];
       let size;
       switch (driverZfsResourceType) {
@@ -887,7 +887,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
           if (!zb.helpers.isZfsSnapshot(volume_content_source_snapshot_id)) {
             try {
-              await zb.zfs.snapshot(fullSnapshotName);
+              await zb.zfs.snapshot(callContext, fullSnapshotName);
             } catch (err) {
               if (err.toString().includes("dataset does not exist")) {
                 throw new GrpcError(
@@ -903,13 +903,14 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           if (detachedClone) {
             try {
               response = await zb.zfs.send_receive(
+                callContext,
                 fullSnapshotName,
                 [],
                 datasetName,
                 []
               );
 
-              response = await zb.zfs.set(datasetName, volumeProperties);
+              response = await zb.zfs.set(callContext, datasetName, volumeProperties);
             } catch (err) {
               if (
                 err.toString().includes("destination") &&
@@ -922,7 +923,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             }
 
             // remove snapshots from target
-            await this.removeSnapshotsFromDatatset(datasetName, {
+            await this.removeSnapshotsFromDataset(callContext, datasetName, {
               force: true,
             });
           } else {
@@ -933,7 +934,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
               delete cloneProperties["aclinherit"];
               delete cloneProperties["acltype"];
               delete cloneProperties["casesensitivity"];
-              response = await zb.zfs.clone(fullSnapshotName, datasetName, {
+              response = await zb.zfs.clone(callContext, fullSnapshotName, datasetName, {
                 properties: volumeProperties,
               });
             } catch (err) {
@@ -951,7 +952,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           if (!zb.helpers.isZfsSnapshot(volume_content_source_snapshot_id)) {
             try {
               // schedule snapshot removal from source
-              await zb.zfs.destroy(fullSnapshotName, {
+              await zb.zfs.destroy(callContext, fullSnapshotName, {
                 recurse: true,
                 force: true,
                 defer: true,
@@ -1001,7 +1002,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
           // create snapshot
           try {
-            response = await zb.zfs.snapshot(fullSnapshotName);
+            response = await zb.zfs.snapshot(callContext, fullSnapshotName);
           } catch (err) {
             if (err.toString().includes("dataset does not exist")) {
               throw new GrpcError(
@@ -1016,6 +1017,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           if (detachedClone) {
             try {
               response = await zb.zfs.send_receive(
+                callContext,
                 fullSnapshotName,
                 [],
                 datasetName,
@@ -1032,15 +1034,15 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
               }
             }
 
-            response = await zb.zfs.set(datasetName, volumeProperties);
+            response = await zb.zfs.set(callContext, datasetName, volumeProperties);
 
             // remove snapshots from target
-            await this.removeSnapshotsFromDatatset(datasetName, {
+            await this.removeSnapshotsFromDataset(callContext, datasetName, {
               force: true,
             });
 
             // remove snapshot from source
-            await zb.zfs.destroy(fullSnapshotName, {
+            await zb.zfs.destroy(callContext, fullSnapshotName, {
               recurse: true,
               force: true,
               defer: true,
@@ -1055,7 +1057,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             delete cloneProperties["acltype"];
             delete cloneProperties["casesensitivity"];
             try {
-              response = await zb.zfs.clone(fullSnapshotName, datasetName, {
+              response = await zb.zfs.clone(callContext, fullSnapshotName, datasetName, {
                 properties: cloneProperties,
               });
             } catch (err) {
@@ -1083,7 +1085,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         volumeProperties.volblocksize = zvolBlocksize;
       }
 
-      await zb.zfs.create(datasetName, {
+      await zb.zfs.create(callContext, datasetName, {
         parents: true,
         properties: volumeProperties,
         size: driverZfsResourceType == "volume" ? capacity_bytes : false,
@@ -1117,11 +1119,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
         // set properties
         if (setProps) {
-          await zb.zfs.set(datasetName, properties);
+          await zb.zfs.set(callContext, datasetName, properties);
         }
 
         // get properties needed for remaining calls
-        properties = await zb.zfs.get(datasetName, [
+        properties = await zb.zfs.get(callContext, datasetName, [
           "mountpoint",
           "refquota",
           "compression",
@@ -1218,14 +1220,14 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         }
 
         if (setProps) {
-          await zb.zfs.set(datasetName, properties);
+          await zb.zfs.set(callContext, datasetName, properties);
         }
 
         break;
     }
 
-    volume_context = await this.createShare(call, datasetName, callContext);
-    await zb.zfs.set(datasetName, {
+    volume_context = await this.createShare(callContext, call, datasetName);
+    await zb.zfs.set(callContext, datasetName, {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
     });
 
@@ -1237,7 +1239,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // set this just before sending out response so we know if volume completed
     // this should give us a relatively sane way to clean up artifacts over time
-    await zb.zfs.set(datasetName, { [SUCCESS_PROPERTY_NAME]: "true" });
+    await zb.zfs.set(callContext, datasetName, { [SUCCESS_PROPERTY_NAME]: "true" });
 
     let accessible_topology;
     if (typeof this.getAccessibleTopology === "function") {
@@ -1297,7 +1299,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // get properties needed for remaining calls
     try {
-      properties = await zb.zfs.get(datasetName, [
+      properties = await zb.zfs.get(callContext, datasetName, [
         "mountpoint",
         "origin",
         "refquota",
@@ -1330,7 +1332,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
 
     // remove share resources
-    await this.deleteShare(call, datasetName, callContext);
+    await this.deleteShare(callContext, call, datasetName);
 
     // remove parent snapshot if appropriate with defer
     if (
@@ -1347,7 +1349,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       );
 
       try {
-        await zb.zfs.destroy(properties.origin.value, {
+        await zb.zfs.destroy(callContext, properties.origin.value, {
           recurse: true,
           force: true,
           defer: true,
@@ -1371,7 +1373,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         12,
         5000,
         async () => {
-          await zb.zfs.destroy(datasetName, { recurse: true, force: true });
+          await zb.zfs.destroy(callContext, datasetName, { recurse: true, force: true });
         },
         {
           retryCondition: (err) => {
@@ -1441,7 +1443,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     if (capacity_bytes && driverZfsResourceType == "volume") {
       //make sure to align capacity_bytes with zvol blocksize
       //volume size must be a multiple of volume block size
-      let properties = await zb.zfs.get(datasetName, ["volblocksize"]);
+      let properties = await zb.zfs.get(callContext, datasetName, ["volblocksize"]);
       properties = properties[datasetName];
       capacity_bytes = zb.helpers.generateZvolSize(
         capacity_bytes,
@@ -1502,10 +1504,10 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
 
     if (setProps) {
-      await zb.zfs.set(datasetName, properties);
+      await zb.zfs.set(callContext, datasetName, properties);
     }
 
-    await this.expandVolume(call, datasetName, callContext);
+    await this.expandVolume(callContext, call, datasetName);
 
     return {
       capacity_bytes:
@@ -1545,13 +1547,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     const datasetName = datasetParentName;
 
-    await zb.zfs.create(datasetName, {
+    await zb.zfs.create(callContext, datasetName, {
       parents: true,
     });
 
     let properties;
     try {
-      properties = await zb.zfs.get(datasetName, ["avail"]);
+      properties = await zb.zfs.get(callContext, datasetName, ["avail"]);
       properties = properties[datasetName];
 
       return { available_capacity: properties.available.value };
@@ -1607,6 +1609,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
     try {
       response = await zb.zfs.list(
+        callContext,
         datasetName,
         [
           "name",
@@ -1719,6 +1722,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
     try {
       response = await zb.zfs.list(
+        callContext,
         datasetName,
         [
           "name",
@@ -1909,6 +1913,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
       try {
         response = await zb.zfs.list(
+          callContext,
           operativeFilesystem,
           [
             "name",
@@ -2139,6 +2144,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       try {
         let datasets = [];
         datasets = await zb.zfs.list(
+          callContext,
           this.getDetachedSnapshotParentDatasetName(),
           [],
           { recurse: true, types }
@@ -2163,7 +2169,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
 
       let snapshots = [];
-      snapshots = await zb.zfs.list(this.getVolumeParentDatasetName(), [], {
+      snapshots = await zb.zfs.list(callContext, this.getVolumeParentDatasetName(), [], {
         recurse: true,
         types,
       });
@@ -2198,10 +2204,10 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         volumeDatasetName + "@" + VOLUME_SOURCE_DETACHED_SNAPSHOT_PREFIX + name;
       snapshotDatasetName = datasetName + "/" + name;
 
-      await zb.zfs.create(datasetName, { parents: true });
+      await zb.zfs.create(callContext, datasetName, { parents: true });
 
       try {
-        await zb.zfs.snapshot(tmpSnapshotName);
+        await zb.zfs.snapshot(callContext, tmpSnapshotName);
       } catch (err) {
         if (err.toString().includes("dataset does not exist")) {
           throw new GrpcError(
@@ -2215,13 +2221,14 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
       try {
         response = await zb.zfs.send_receive(
+          callContext,
           tmpSnapshotName,
           [],
           snapshotDatasetName,
           []
         );
 
-        response = await zb.zfs.set(snapshotDatasetName, snapshotProperties);
+        response = await zb.zfs.set(callContext, snapshotDatasetName, snapshotProperties);
       } catch (err) {
         if (
           err.toString().includes("destination") &&
@@ -2235,6 +2242,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
       // remove snapshot from target
       await zb.zfs.destroy(
+        callContext,
         snapshotDatasetName +
           "@" +
           zb.helpers.extractSnapshotName(tmpSnapshotName),
@@ -2246,7 +2254,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       );
 
       // remove snapshot from source
-      await zb.zfs.destroy(tmpSnapshotName, {
+      await zb.zfs.destroy(callContext, tmpSnapshotName, {
         recurse: true,
         force: true,
         defer: true,
@@ -2256,7 +2264,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       //await GneralUtils.sleep(3000);
     } else {
       try {
-        await zb.zfs.snapshot(fullSnapshotName, {
+        await zb.zfs.snapshot(callContext, fullSnapshotName, {
           properties: snapshotProperties,
         });
 
@@ -2278,6 +2286,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // sysctl -d vfs.zfs.txg.timeout  # vfs.zfs.txg.timeout: Max seconds worth of delta per txg
     let properties;
     properties = await zb.zfs.get(
+      callContext,
       fullSnapshotName,
       [
         "name",
@@ -2319,7 +2328,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // set this just before sending out response so we know if volume completed
     // this should give us a relatively sane way to clean up artifacts over time
-    await zb.zfs.set(fullSnapshotName, { [SUCCESS_PROPERTY_NAME]: "true" });
+    await zb.zfs.set(callContext, fullSnapshotName, { [SUCCESS_PROPERTY_NAME]: "true" });
 
     return {
       snapshot: {
@@ -2388,7 +2397,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     callContext.logger.verbose("deleting snapshot: %s", fullSnapshotName);
 
     try {
-      await zb.zfs.destroy(fullSnapshotName, {
+      await zb.zfs.destroy(callContext, fullSnapshotName, {
         recurse: true,
         force: true,
         defer: zb.helpers.isZfsSnapshot(snapshot_id), // only defer when snapshot
@@ -2409,8 +2418,8 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       let containerDataset =
         zb.helpers.extractParentDatasetName(fullSnapshotName);
       try {
-        await this.removeSnapshotsFromDatatset(containerDataset);
-        await zb.zfs.destroy(containerDataset);
+        await this.removeSnapshotsFromDataset(callContext, containerDataset);
+        await zb.zfs.destroy(callContext, containerDataset);
       } catch (err) {
         if (!err.toString().includes("filesystem has children")) {
           throw err;
@@ -2451,7 +2460,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     const datasetName = datasetParentName + "/" + name;
     try {
-      await zb.zfs.get(datasetName, []);
+      await zb.zfs.get(callContext, datasetName, []);
     } catch (err) {
       if (err.toString().includes("dataset does not exist")) {
         throw new GrpcError(

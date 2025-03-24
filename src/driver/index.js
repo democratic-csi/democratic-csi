@@ -1389,8 +1389,8 @@ class CsiBaseDriver {
           case "zfs-local":
             // TODO: make this a geneic zb instance (to ensure works with node-manual driver)
             const zb = driver.getDefaultZetabyteInstance();
-            result = await zb.zfs.get(`${volume_context.zfs_asset_name}`, [
-              "type",
+            "type",
+            result = await zb.zfs.get(callContext, `${volume_context.zfs_asset_name}`, [
               "mountpoint",
             ]);
             result = result[`${volume_context.zfs_asset_name}`];
@@ -1399,7 +1399,7 @@ class CsiBaseDriver {
                 if (result.mountpoint.value != "legacy") {
                   // zfs set mountpoint=legacy <dataset>
                   // zfs inherit mountpoint <dataset>
-                  await zb.zfs.set(`${volume_context.zfs_asset_name}`, {
+                  await zb.zfs.set(callContext, `${volume_context.zfs_asset_name}`, {
                     mountpoint: "legacy",
                   });
                 }

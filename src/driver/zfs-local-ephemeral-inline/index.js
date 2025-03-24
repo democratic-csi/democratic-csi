@@ -368,7 +368,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     }
 
     // TODO: catch out of space errors and return specifc grpc message?
-    await zb.zfs.create(datasetName, {
+    await zb.zfs.create(callContext, datasetName, {
       parents: true,
       properties: volumeProperties,
     });
@@ -424,7 +424,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
     try {
-      await zb.zfs.destroy(datasetName, { recurse: true, force: true });
+      await zb.zfs.destroy(callContext, datasetName, { recurse: true, force: true });
     } catch (err) {
       if (err.toString().includes("filesystem has dependent clones")) {
         throw new GrpcError(
@@ -478,7 +478,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     const datasetName = datasetParentName;
 
     let properties;
-    properties = await zb.zfs.get(datasetName, ["avail"]);
+    properties = await zb.zfs.get(callContext, datasetName, ["avail"]);
     properties = properties[datasetName];
 
     return { available_capacity: properties.available.value };

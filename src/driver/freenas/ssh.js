@@ -249,7 +249,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
    *
    * @param {*} datasetName
    */
-  async createShare(call, datasetName) {
+  async createShare(callContext, call, datasetName) {
     const driver = this;
     const driverShareType = this.getDriverShareType();
     const execClient = this.getExecClient();
@@ -279,7 +279,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
     switch (driverShareType) {
       case "nfs":
-        properties = await zb.zfs.get(datasetName, [
+        properties = await zb.zfs.get(callContext, datasetName, [
           "mountpoint",
           FREENAS_NFS_SHARE_PROPERTY_NAME,
         ]);
@@ -413,7 +413,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 }
 
                 //set zfs property
-                await zb.zfs.set(datasetName, {
+                await zb.zfs.set(callContext, datasetName, {
                   [FREENAS_NFS_SHARE_PROPERTY_NAME]: response.body.id,
                 });
               } else {
@@ -456,7 +456,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   }
 
                   //set zfs property
-                  await zb.zfs.set(datasetName, {
+                  await zb.zfs.set(callContext, datasetName, {
                     [FREENAS_NFS_SHARE_PROPERTY_NAME]: lookupShare.id,
                   });
                 } else {
@@ -490,7 +490,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
        * ensuring the path is valid and the shareName
        */
       case "smb":
-        properties = await zb.zfs.get(datasetName, [
+        properties = await zb.zfs.get(callContext, datasetName, [
           "mountpoint",
           FREENAS_SMB_SHARE_PROPERTY_NAME,
         ]);
@@ -667,7 +667,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 }
 
                 //set zfs property
-                await zb.zfs.set(datasetName, {
+                await zb.zfs.set(callContext, datasetName, {
                   [FREENAS_SMB_SHARE_PROPERTY_NAME]: response.body.id,
                 });
               } else {
@@ -708,7 +708,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   }
 
                   //set zfs property
-                  await zb.zfs.set(datasetName, {
+                  await zb.zfs.set(callContext, datasetName, {
                     [FREENAS_SMB_SHARE_PROPERTY_NAME]: lookupShare.id,
                   });
                 } else {
@@ -738,7 +738,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
         break;
       case "iscsi":
-        properties = await zb.zfs.get(datasetName, [
+        properties = await zb.zfs.get(callContext, datasetName, [
           FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME,
           FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
           FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
@@ -956,7 +956,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
               this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
               // set target.id on zvol
-              await zb.zfs.set(datasetName, {
+              await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
               });
 
@@ -1103,7 +1103,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
               this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
-              await zb.zfs.set(datasetName, {
+              await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
               });
 
@@ -1164,7 +1164,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 targetToExtent
               );
 
-              await zb.zfs.set(datasetName, {
+              await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
                   targetToExtent.id,
               });
@@ -1288,7 +1288,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
               this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
               // set target.id on zvol
-              await zb.zfs.set(datasetName, {
+              await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME]: target.id,
               });
 
@@ -1352,7 +1352,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
               this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
-              await zb.zfs.set(datasetName, {
+              await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
               });
 
@@ -1412,7 +1412,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 targetToExtent
               );
 
-              await zb.zfs.set(datasetName, {
+              await zb.zfs.set(callContext, datasetName, {
                 [FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME]:
                   targetToExtent.id,
               });
@@ -1431,7 +1431,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         this.ctx.logger.info("FreeNAS iqn: " + iqn);
 
         // store this off to make delete process more bullet proof
-        await zb.zfs.set(datasetName, {
+        await zb.zfs.set(callContext, datasetName, {
           [FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME]: iscsiName,
         });
 
@@ -1455,7 +1455,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     }
   }
 
-  async deleteShare(call, datasetName) {
+  async deleteShare(callContext, call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const httpClient = await this.getHttpClient();
     const apiVersion = httpClient.getApiVersion();
@@ -1471,7 +1471,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     switch (driverShareType) {
       case "nfs":
         try {
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             "mountpoint",
             FREENAS_NFS_SHARE_PROPERTY_NAME,
           ]);
@@ -1558,6 +1558,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   // remove property to prevent delete race conditions
                   // due to id re-use by FreeNAS/TrueNAS
                   await zb.zfs.inherit(
+                    callContext,
                     datasetName,
                     FREENAS_NFS_SHARE_PROPERTY_NAME
                   );
@@ -1574,7 +1575,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         break;
       case "smb":
         try {
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             "mountpoint",
             FREENAS_SMB_SHARE_PROPERTY_NAME,
           ]);
@@ -1663,6 +1664,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   // remove property to prevent delete race conditions
                   // due to id re-use by FreeNAS/TrueNAS
                   await zb.zfs.inherit(
+                    callContext,
                     datasetName,
                     FREENAS_SMB_SHARE_PROPERTY_NAME
                   );
@@ -1683,7 +1685,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
         // Delete extent
         try {
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME,
             FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
             FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
@@ -1784,6 +1786,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   // remove property to prevent delete race conditions
                   // due to id re-use by FreeNAS/TrueNAS
                   await zb.zfs.inherit(
+                    callContext,
                     datasetName,
                     FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME
                   );
@@ -1846,6 +1849,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   // remove property to prevent delete race conditions
                   // due to id re-use by FreeNAS/TrueNAS
                   await zb.zfs.inherit(
+                    callContext,
                     datasetName,
                     FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME
                   );
@@ -2011,7 +2015,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     }
   }
 
-  async expandVolume(call, datasetName) {
+  async expandVolume(callContext, call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const execClient = this.getExecClient();
     const httpClient = await this.getHttpClient();
@@ -2025,7 +2029,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         let reload = false;
         if (isScale) {
           let properties;
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             FREENAS_ISCSI_ASSETS_NAME_PROPERTY_NAME,
           ]);
           properties = properties[datasetName];

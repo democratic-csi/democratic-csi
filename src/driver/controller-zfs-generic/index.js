@@ -98,7 +98,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
    *
    * @param {*} datasetName
    */
-  async createShare(call, datasetName, callContext) {
+  async createShare(callContext, call, datasetName) {
     const driver = this;
     const zb = await this.getZetabyte();
     const execClient = this.getExecClient();
@@ -118,7 +118,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
                   key
                 ]
               ) {
-                await zb.zfs.set(datasetName, {
+                await zb.zfs.set(callContext, datasetName, {
                   [key]:
                     this.options.nfs.shareStrategySetDatasetProperties
                       .properties[key],
@@ -131,7 +131,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
             break;
         }
 
-        properties = await zb.zfs.get(datasetName, ["mountpoint"]);
+        properties = await zb.zfs.get(callContext, datasetName, ["mountpoint"]);
         properties = properties[datasetName];
         callContext.logger.debug("zfs props data: %j", properties);
 
@@ -152,7 +152,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
                   key
                 ]
               ) {
-                await zb.zfs.set(datasetName, {
+                await zb.zfs.set(callContext, datasetName, {
                   [key]:
                     this.options.smb.shareStrategySetDatasetProperties
                       .properties[key],
@@ -166,7 +166,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
             break;
         }
 
-        properties = await zb.zfs.get(datasetName, ["mountpoint"]);
+        properties = await zb.zfs.get(callContext, datasetName, ["mountpoint"]);
         properties = properties[datasetName];
         callContext.logger.debug("zfs props data: %j", properties);
 
@@ -306,7 +306,7 @@ create /backstores/block/${assetName}
         callContext.logger.info("iqn: " + iqn);
 
         // store this off to make delete process more bullet proof
-        await zb.zfs.set(datasetName, {
+        await zb.zfs.set(callContext, datasetName, {
           [ISCSI_ASSETS_NAME_PROPERTY_NAME]: assetName,
         });
 
@@ -531,7 +531,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
         callContext.logger.info("nqn: " + nqn);
 
         // store this off to make delete process more bullet proof
-        await zb.zfs.set(datasetName, {
+        await zb.zfs.set(callContext, datasetName, {
           [NVMEOF_ASSETS_NAME_PROPERTY_NAME]: assetName,
         });
 
@@ -555,7 +555,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     }
   }
 
-  async deleteShare(call, datasetName, callContext) {
+  async deleteShare(callContext, call, datasetName) {
     const zb = await this.getZetabyte();
     const execClient = this.getExecClient();
 
@@ -573,7 +573,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
                 ]
               ) {
                 try {
-                  await zb.zfs.inherit(datasetName, key);
+                  await zb.zfs.inherit(callContext, datasetName, key);
                 } catch (err) {
                   if (err.toString().includes("dataset does not exist")) {
                     // do nothing
@@ -603,7 +603,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
                 ]
               ) {
                 try {
-                  await zb.zfs.inherit(datasetName, key);
+                  await zb.zfs.inherit(callContext, datasetName, key);
                 } catch (err) {
                   if (err.toString().includes("dataset does not exist")) {
                     // do nothing
@@ -629,7 +629,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
 
         // Delete iscsi assets
         try {
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             ISCSI_ASSETS_NAME_PROPERTY_NAME,
           ]);
         } catch (err) {
@@ -701,7 +701,7 @@ delete ${assetName}
 
         // Delete nvmeof assets
         try {
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             NVMEOF_ASSETS_NAME_PROPERTY_NAME,
           ]);
         } catch (err) {
@@ -830,7 +830,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     return {};
   }
 
-  async expandVolume(call, datasetName, callContext) {
+  async expandVolume(callContext, call, datasetName) {
     switch (this.options.driver) {
       case "zfs-generic-nfs":
         break;
