@@ -497,14 +497,14 @@ class CsiBaseDriver {
     return volume_id;
   }
 
-  async GetPluginInfo(call) {
+  async GetPluginInfo(call, callContext) {
     return {
       name: this.ctx.args.csiName,
       vendor_version: this.ctx.args.version,
     };
   }
 
-  async GetPluginCapabilities(call) {
+  async GetPluginCapabilities(call, callContext) {
     let capabilities;
     const response = {
       capabilities: [],
@@ -589,11 +589,11 @@ class CsiBaseDriver {
     return response;
   }
 
-  async Probe(call) {
+  async Probe(call, callContext) {
     return { ready: { value: true } };
   }
 
-  async ControllerGetCapabilities(call) {
+  async ControllerGetCapabilities(call, callContext) {
     let capabilities;
     const response = {
       capabilities: [],
@@ -636,7 +636,7 @@ class CsiBaseDriver {
     return response;
   }
 
-  async NodeGetCapabilities(call) {
+  async NodeGetCapabilities(call, callContext) {
     let capabilities;
     const response = {
       capabilities: [],
@@ -661,7 +661,7 @@ class CsiBaseDriver {
     return response;
   }
 
-  async NodeGetInfo(call) {
+  async NodeGetInfo(call, callContext) {
     return {
       node_id: process.env.CSI_NODE_ID || os.hostname(),
       max_volumes_per_node: 0,
@@ -678,7 +678,7 @@ class CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodeStageVolume(call) {
+  async NodeStageVolume(call, callContext) {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
@@ -775,7 +775,7 @@ class CsiBaseDriver {
         );
       }
     } else {
-      result = await this.assertCapabilities([capability]);
+      result = await this.assertCapabilities([capability], callContext);
       if (!result.valid) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,
@@ -944,7 +944,7 @@ class CsiBaseDriver {
 
                 let current_time = Math.round(new Date().getTime() / 1000);
                 if (!result && current_time - timer_start > timer_max) {
-                  driver.ctx.logger.warn(
+                  callContext.logger.warn(
                     `hit timeout waiting for device node to appear: ${device}`
                   );
                   break;
@@ -955,7 +955,7 @@ class CsiBaseDriver {
                 device = await filesystem.realpath(device);
                 iscsiDevices.push(device);
 
-                driver.ctx.logger.info(
+                callContext.logger.info(
                   `successfully logged into portal ${iscsiConnection.portal} and created device ${deviceByPath} with realpath ${device}`
                 );
               }
@@ -979,7 +979,7 @@ class CsiBaseDriver {
             }
 
             if (iscsiDevices.length != iscsiConnections.length) {
-              driver.ctx.logger.warn(
+              callContext.logger.warn(
                 `failed to attach all iscsi devices/targets/portals`
               );
 
@@ -1061,7 +1061,7 @@ class CsiBaseDriver {
                     );
                   });
                 } catch (err) {
-                  driver.ctx.logger.warn(
+                  callContext.logger.warn(
                     `error: ${JSON.stringify(err)} connecting to transport: ${
                       nvmeofConnection.transport
                     }`
@@ -1085,7 +1085,7 @@ class CsiBaseDriver {
                     }
                   });
                 } catch (err) {
-                  driver.ctx.logger.warn(
+                  callContext.logger.warn(
                     `error finding nvme controller device: ${JSON.stringify(
                       err
                     )}`
@@ -1112,7 +1112,7 @@ class CsiBaseDriver {
                     }
                   });
                 } catch (err) {
-                  driver.ctx.logger.warn(
+                  callContext.logger.warn(
                     `error finding nvme namespace device: ${JSON.stringify(
                       err
                     )}`
@@ -1146,7 +1146,7 @@ class CsiBaseDriver {
 
                   let current_time = Math.round(new Date().getTime() / 1000);
                   if (!result && current_time - timer_start > timer_max) {
-                    driver.ctx.logger.warn(
+                    callContext.logger.warn(
                       `hit timeout waiting for namespace device node to appear: ${namespaceDevice}`
                     );
                     break;
@@ -1158,7 +1158,7 @@ class CsiBaseDriver {
                   nvmeofControllerDevices.push(controllerDevice);
                   nvmeofNamespaceDevices.push(namespaceDevice);
 
-                  driver.ctx.logger.info(
+                  callContext.logger.info(
                     `successfully logged into nvmeof transport ${nvmeofConnection.transport} and created controller device: ${controllerDevice}, namespace device: ${namespaceDevice}`
                   );
                 }
@@ -1190,7 +1190,7 @@ class CsiBaseDriver {
               }
 
               if (nvmeofControllerDevices.length != nvmeofConnections.length) {
-                driver.ctx.logger.warn(
+                callContext.logger.warn(
                   `failed to attach all nvmeof devices/subsystems/transports`
                 );
 
@@ -1452,7 +1452,7 @@ class CsiBaseDriver {
                 // data partion MUST be the last partition on the drive
                 // to properly support expand/resize operations
                 device = await filesystem.getBlockDeviceLastPartition(device);
-                driver.ctx.logger.debug(
+                callContext.logger.debug(
                   `device has partitions, mount device is: ${device}`
                 );
 
@@ -1623,7 +1623,7 @@ class CsiBaseDriver {
                       err.stdout.includes("find valid filesystem superblock") &&
                       err.stderr.includes("checksum does not match superblock")
                     ) {
-                      driver.ctx.logger.warn(
+                      callContext.logger.warn(
                         `successful mount, unsuccessful fs resize: attempting abnormal umount/mount/resize2fs to clear things up ${staging_target_path} (${device})`
                       );
 
@@ -1846,7 +1846,7 @@ class CsiBaseDriver {
                       target_port
                     );
                   } catch (e) {
-                    driver.ctx.logger.warn(
+                    callContext.logger.warn(
                       `failed adding target portal: ${JSON.stringify(
                         iscsiConnection
                       )}: ${e.stderr}`
@@ -1927,7 +1927,7 @@ class CsiBaseDriver {
                         "The target has already been logged in via an iSCSI session"
                       )
                     ) {
-                      driver.ctx.logger.warn(
+                      callContext.logger.warn(
                         `failed connection to ${JSON.stringify(
                           iscsiConnection
                         )}: ${e.stderr}`
@@ -1946,7 +1946,7 @@ class CsiBaseDriver {
                 }
 
                 if (iscsiConnections.length != successful_logins) {
-                  driver.ctx.logger.warn(
+                  callContext.logger.warn(
                     `failed to login to all portals: total - ${iscsiConnections.length}, logins - ${successful_logins}`
                   );
                 }
@@ -2437,7 +2437,7 @@ class CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodeUnstageVolume(call) {
+  async NodeUnstageVolume(call, callContext) {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
@@ -2481,7 +2481,7 @@ class CsiBaseDriver {
            * AND the fs is probably stalled
            */
           if (err.timeout) {
-            driver.ctx.logger.warn(
+            callContext.logger.warn(
               `detected stale mount, attempting to force unmount: ${normalized_staging_path}`
             );
             await mount.umount(
@@ -2531,14 +2531,14 @@ class CsiBaseDriver {
             );
           } catch (err) {
             if (err.timeout) {
-              driver.ctx.logger.warn(
+              callContext.logger.warn(
                 `hit timeout waiting to unmount path: ${normalized_staging_path}`
               );
               result = await mount.getMountDetails(normalized_staging_path);
               switch (result.fstype) {
                 case "nfs":
                 case "nfs4":
-                  driver.ctx.logger.warn(
+                  callContext.logger.warn(
                     `detected stale nfs filesystem, attempting to force unmount: ${normalized_staging_path}`
                   );
                   result = await mount.umount(
@@ -2969,7 +2969,7 @@ class CsiBaseDriver {
     return {};
   }
 
-  async NodePublishVolume(call) {
+  async NodePublishVolume(call, callContext) {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
@@ -3290,7 +3290,7 @@ class CsiBaseDriver {
     }
   }
 
-  async NodeUnpublishVolume(call) {
+  async NodeUnpublishVolume(call, callContext) {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
@@ -3316,7 +3316,7 @@ class CsiBaseDriver {
           // the only time this should timeout is on a stale fs
           // so if timeout is hit we should be near certain it is indeed mounted
           if (err.timeout) {
-            driver.ctx.logger.warn(
+            callContext.logger.warn(
               `detected stale mount, attempting to force unmount: ${target_path}`
             );
             await mount.umount(
@@ -3348,7 +3348,7 @@ class CsiBaseDriver {
             );
           } catch (err) {
             if (err.timeout) {
-              driver.ctx.logger.warn(
+              callContext.logger.warn(
                 `hit timeout waiting to unmount path: ${target_path}`
               );
               // bind mounts do show the 'real' fs details
@@ -3356,7 +3356,7 @@ class CsiBaseDriver {
               switch (result.fstype) {
                 case "nfs":
                 case "nfs4":
-                  driver.ctx.logger.warn(
+                  callContext.logger.warn(
                     `detected stale nfs filesystem, attempting to force unmount: ${target_path}`
                   );
                   result = await mount.umount(
@@ -3458,7 +3458,7 @@ class CsiBaseDriver {
     return {};
   }
 
-  async NodeGetVolumeStats(call) {
+  async NodeGetVolumeStats(call, callContext) {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
@@ -3536,7 +3536,7 @@ class CsiBaseDriver {
                 });
               }
             } catch (err) {
-              driver.ctx.logger.debug("failed to retrieve inode info", err);
+              callContext.logger.debug("failed to retrieve inode info", err);
             }
             break;
           case "block":
@@ -3692,7 +3692,7 @@ class CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodeExpandVolume(call) {
+  async NodeExpandVolume(call, callContext) {
     const driver = this;
     const mount = driver.getDefaultMountInstance();
     const filesystem = driver.getDefaultFilesystemInstance();
@@ -3954,7 +3954,7 @@ class CsiBaseDriver {
                    * TODO: possibly change this to a percentage instead of absolute numbers
                    */
                   let max_delta = 104857600;
-                  driver.ctx.logger.debug(
+                  callContext.logger.debug(
                     "resize diff %s (%s%%)",
                     diff,
                     percentage_diff
