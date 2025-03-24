@@ -1796,7 +1796,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
   }
 
-  async removeSnapshotsFromDatatset(datasetName) {
+  async removeSnapshotsFromDataset(datasetName) {
     const httpApiClient = await this.getTrueNASHttpApiClient();
     let job_id = await httpApiClient.DatasetDestroySnapshots(datasetName);
     await httpApiClient.CoreWaitForJob(job_id, 30);
@@ -2581,7 +2581,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
             }
 
             // remove snapshots from target
-            await this.removeSnapshotsFromDatatset(datasetName);
+            await this.removeSnapshotsFromDataset(datasetName);
           } else {
             try {
               response = await httpApiClient.CloneCreate(
@@ -2741,7 +2741,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
             );
 
             // remove snapshots from target
-            await this.removeSnapshotsFromDatatset(datasetName);
+            await this.removeSnapshotsFromDataset(datasetName);
 
             // remove snapshot from source
             await httpApiClient.SnapshotDelete(fullSnapshotName, {
@@ -4397,7 +4397,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       let containerDataset =
         zb.helpers.extractParentDatasetName(fullSnapshotName);
       try {
-        await this.removeSnapshotsFromDatatset(containerDataset);
+        await this.removeSnapshotsFromDataset(containerDataset);
         await httpApiClient.DatasetDelete(containerDataset);
       } catch (err) {
         if (!err.toString().includes("filesystem has children")) {
