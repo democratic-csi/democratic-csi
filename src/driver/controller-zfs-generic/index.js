@@ -300,12 +300,12 @@ create /backstores/block/${assetName}
             break;
           case "pcs":
               basename = this.options.iscsi.shareStrategyPcs.basename;
-              pcs_group = this.options.iscsi.shareStrategyPcs.pcs_group;
+              let pcs_group = this.options.iscsi.shareStrategyPcs.pcs_group;
 
-              let groupTerms = ['group', `${pcs_group}`];
+              let extraTerms = ['group', `${pcs_group}`, '--wait']; // The wait is important to avoid race conditions
               let createTargetTerms = [
-                'resource', 'create', '--future', `target-${assetName}`, 'iSCSITarget',
-                'implementation="lio-t"', `iqn="${basename}:${assetName}"`
+                'resource', 'create', '--future', `target-${assetName}`, 'ocf:heartbeat:iSCSITarget',
+                'implementation="lio-t"', 'portals=":::3260"', `iqn="${basename}:${assetName}"`
               ];
 
               if (this.options.iscsi.shareStrategyPcs.auth.enabled) {
@@ -317,7 +317,7 @@ create /backstores/block/${assetName}
                 3,
                 2000,
                 async () => {
-                  await this.pcsCommand(createTargetTerms.concat(groupTerms));
+                  await this.pcsCommand(createTargetTerms.concat(extraTerms));
                 },
                 {
                   retryCondition: (err) => {
@@ -330,8 +330,8 @@ create /backstores/block/${assetName}
               );
 
               let createLunTerms = [
-                'resource', 'create', '--future', `lun-${assetName}`, 'iSCSILogicalUnit',
-                'implementation="lio-t"', `target_iqn="${basename}:${assetName}"`, 'lun="1"',
+                'resource', 'create', '--future', `lun-${assetName}`, 'ocf:heartbeat:iSCSILogicalUnit',
+                'implementation="lio-t"', `target_iqn="${basename}:${assetName}"`, 'lun="0"',
                 `path="/dev/${extentDiskName}"`
               ];
 
@@ -339,7 +339,7 @@ create /backstores/block/${assetName}
                 3,
                 2000,
                 async () => {
-                  await this.pcsCommand(createLunTerms.concat(groupTerms));
+                  await this.pcsCommand(createLunTerms.concat(extraTerms));
                 },
                 {
                   retryCondition: (err) => {
@@ -351,8 +351,6 @@ create /backstores/block/${assetName}
                 }
               );
   
-              await GeneralUtils.sleep(2000); // let things settle
-
               break;
 
           default:
@@ -791,8 +789,6 @@ delete ${assetName}
               }
             );
 
-            await GeneralUtils.sleep(2000); // let things settle
-
             break;
 
           default:
@@ -1006,6 +1002,13 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     driver.ctx.logger.verbose(
       "pcs response: " + JSON.stringify(response)
     );
+        
+    // Handle idempotence for create commands
+    if (response.code == 1 && response.stdout.includes("already exists")) {
+      driver.ctx.logger.verbose("pcs resource already exists, ignoring error (setting response.code=0)");
+      response.code = 0;
+    }
+
     if (response.code != 0) {
       throw response;
     }
