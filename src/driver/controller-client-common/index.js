@@ -158,7 +158,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
 
   assertCapabilities(callContext, capabilities) {
     const driver = this;
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     let fs_types = driver.getFsTypes();
@@ -661,7 +661,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
                   );
                 }
 
-                driver.ctx.logger.debug(
+                callContext.logger.debug(
                   "controller volume source path: %s",
                   source_path
                 );
@@ -740,7 +740,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
               );
           }
           break;
-        // must be available when adverstising CLONE_VOLUME
+        // must be available when advertising CLONE_VOLUME
         // create snapshot first, then clone
         case "volume":
           source_path = driver.getControllerVolumePath(
@@ -754,7 +754,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
             );
           }
 
-          driver.ctx.logger.debug(
+          callContext.logger.debug(
             "controller volume source path: %s",
             source_path
           );
@@ -770,7 +770,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
 
     // set mode
     if (this.options[config_key].dirPermissionsMode) {
-      driver.ctx.logger.verbose(
+      callContext.logger.verbose(
         "setting dir mode to: %s on dir: %s",
         this.options[config_key].dirPermissionsMode,
         volume_path
@@ -783,14 +783,14 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       this.options[config_key].dirPermissionsUser ||
       this.options[config_key].dirPermissionsGroup
     ) {
-      driver.ctx.logger.verbose(
+      callContext.logger.verbose(
         "setting ownership to: %s:%s on dir: %s",
         this.options[config_key].dirPermissionsUser,
         this.options[config_key].dirPermissionsGroup,
         volume_path
       );
       if (this.getNodeIsWindows()) {
-        driver.ctx.logger.warn("chown not implemented on windows");
+        callContext.logger.warn("chown not implemented on windows");
       } else {
         await driver.exec("chown", [
           (this.options[config_key].dirPermissionsUser
@@ -1003,7 +1003,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       );
     }
 
-    driver.ctx.logger.verbose("requested snapshot name: %s", name);
+    callContext.logger.verbose("requested snapshot name: %s", name);
 
     let invalid_chars;
     invalid_chars = name.match(/[^a-z0-9_\-:.+]+/gi);
@@ -1020,7 +1020,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
     // https://stackoverflow.com/questions/32106243/regex-to-remove-all-non-alpha-numeric-and-replace-spaces-with/32106277
     name = name.replace(/[^a-z0-9_\-:.+]+/gi, "");
 
-    driver.ctx.logger.verbose("cleansed snapshot name: %s", name);
+    callContext.logger.verbose("cleansed snapshot name: %s", name);
     const volume_path = driver.getControllerVolumePath(source_volume_id);
     //const volume_path = "/home/thansen/beets/";
     //const volume_path = "/var/lib/docker/";
@@ -1044,11 +1044,11 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
             await driver.cloneDir(volume_path, snapshot_path).finally(() => {
               SNAPSHOTS_CUT_IN_FLIGHT.delete(name);
             });
-            driver.ctx.logger.info(
+            callContext.logger.info(
               `filecopy backup finished: snapshot_id=${snapshot_id}, path=${volume_path}`
             );
           } else {
-            driver.ctx.logger.debug(
+            callContext.logger.debug(
               `filecopy backup already cut: ${snapshot_id}`
             );
           }
@@ -1099,7 +1099,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
           if (response.length > 0) {
             snapshot_exists = true;
             const snapshot = response[response.length - 1];
-            driver.ctx.logger.debug(
+            callContext.logger.debug(
               `restic backup already cut: ${snapshot.id}`
             );
             const stats = await restic.stats([snapshot.id]);
@@ -1136,7 +1136,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
               return message.message_type == "summary";
             });
             snapshot_id = summary.snapshot_id;
-            driver.ctx.logger.info(
+            callContext.logger.info(
               `restic backup finished: snapshot_id=${snapshot_id}, path=${volume_path}, total_duration=${
                 summary.total_duration | 0
               }s`
@@ -1194,7 +1194,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
               );
             }
             snapshot_id = snapshot.id;
-            driver.ctx.logger.info(
+            callContext.logger.info(
               `restic backup successfully applied additional tags: new_snapshot_id=${snapshot_id}, original_snapshot_id=${original_snapshot_id} path=${volume_path}`
             );
           }
@@ -1233,7 +1233,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
           if (response.length > 0) {
             snapshot_exists = true;
             const snapshot = response[response.length - 1];
-            driver.ctx.logger.debug(
+            callContext.logger.debug(
               `kopia snapshot already cut: ${snapshot.id}`
             );
 
@@ -1262,7 +1262,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
               1000;
             size_bytes = response.rootEntry.summ.size;
 
-            driver.ctx.logger.info(
+            callContext.logger.info(
               `kopia backup finished: snapshot_id=${snapshot_id}, path=${volume_path}, total_duration=${
                 total_duration | 0
               }s`
