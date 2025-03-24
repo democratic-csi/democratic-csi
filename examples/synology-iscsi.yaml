@@ -92,3 +92,50 @@ iscsi:
   targetTemplate:
     auth_type: 0
     max_sessions: 0
+
+storageClasses: 
+# Choose a unique and descriptive name for your storage class. Multiple storage classes can be defined.
+- name: "" 
+  defaultClass: false
+  # reclaimPolicy should be Retain (if you want PVs and data preserved when PVC is deleted) or Delete (if you want everything deleted)
+  reclaimPolicy: Retain
+  volumeBindingMode: Immediate
+  allowVolumeExpansion: true
+  # parameters can be used to overide values defined in the iscsi section
+  # parameters:
+    # for block-based storage can be ext3, ext4, xfs
+    # for nfs should be nfs
+    # fsType: ext4
+    # lunTemplate: |
+    #   type: BLUN
+    #   description: LUN for k8s
+  # secrets are only needed if you are using CHAP
+  secrets:
+    provisioner-secret:
+      # Values under targetTemplate will be merged with the values defined under targetTemplate in the iscsi section
+      # CHAP
+      # targetTemplate: |
+      #   auth_type: 1
+      #   max_sessions: 0
+      #   chap: true
+      #   user: **************
+      #   password: **************
+
+      # Mutual CHAP
+      targetTemplate: |
+        auth_type: 2
+        max_sessions: 0
+        chap: true
+        mutual_chap: true
+        user: **************
+        password: **************
+        mutual_user: **************
+        mutual_password: **************
+    node-stage-secret:
+      # CHAP
+      node-db.node.session.auth.authmethod: CHAP
+      node-db.node.session.auth.username: **************
+      node-db.node.session.auth.password: **************
+      # Mutual CHAP
+      node-db.node.session.auth.username_in: **************
+      node-db.node.session.auth.password_in: **************
