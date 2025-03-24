@@ -29,6 +29,11 @@ To use the devcontainer:
 3. Click "Reopen in Container" when prompted
 4. Start coding with pre-configured environment
 
+> [!Note]
+> For `iSCSI` it's mandatory to use the Vagrant VM, due to the need of a kernel driver.
+> However for other tests the container is probably enough. It's possible to run the `dev/run.sh`
+> as explained below in the devcontainer and see if it's possible, before spinning up a full VM.
+
 #### 2. System Testing with Vagrant
 
 Vagrant provides a full virtual machine environment for:

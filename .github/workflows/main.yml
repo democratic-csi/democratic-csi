@@ -191,7 +191,7 @@ jobs:
       max-parallel: 1
       matrix:
         config:
-          - zfs-generic/iscsi-pcs.yaml
+          #- zfs-generic/iscsi-pcs.yaml # TODO: enable this once the server is setup
           - zfs-generic/iscsi-targetcli.yaml
           - zfs-generic/nfs.yaml
           - zfs-generic/smb.yaml
