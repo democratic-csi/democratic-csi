@@ -6,6 +6,8 @@ zfs:
 
   datasetProperties:
     # key: value
+  snapshotProperties:
+  #  "org.freenas:key": "value"
 
   datasetEnableQuotas: true
   datasetEnableReservation: false

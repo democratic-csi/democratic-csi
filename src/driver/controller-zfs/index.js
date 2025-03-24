@@ -2106,6 +2106,19 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       );
     }
 
+    // user-supplied properties
+    // put early to prevent stupid (user-supplied values overwriting system values)
+    if (driver.options.zfs.snapshotProperties) {
+      for (let property in driver.options.zfs.snapshotProperties) {
+        let value = driver.options.zfs.snapshotProperties[property];
+        const template = Handlebars.compile(value);
+
+        snapshotProperties[property] = template({
+          parameters: call.request.parameters,
+        });
+      }
+    }
+
     const volumeDatasetName = volumeParentDatasetName + "/" + source_volume_id;
     const datasetName = datasetParentName + "/" + source_volume_id;
     snapshotProperties[SNAPSHOT_CSI_NAME_PROPERTY_NAME] = name;

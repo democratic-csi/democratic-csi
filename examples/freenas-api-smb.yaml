@@ -33,6 +33,8 @@ zfs:
   #  "org.freenas:description": "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   #  "org.freenas:test": "{{ parameters.foo }}"
   #  "org.freenas:test2": "some value"
+  # snapshotProperties:
+  #  "org.freenas:key": "value"
 
   # these are managed automatically via the volume creation process when flagged as an smb volume
   #datasetProperties:
