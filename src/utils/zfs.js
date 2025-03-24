@@ -341,6 +341,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -367,6 +368,7 @@ class Zetabyte {
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -394,6 +396,7 @@ class Zetabyte {
           args.push(device);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -426,6 +429,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -462,6 +466,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -495,6 +500,7 @@ class Zetabyte {
           if (options.destroyed) args.push("-D");
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -564,6 +570,7 @@ class Zetabyte {
           if (options.count) args.push(options.count);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -603,6 +610,7 @@ class Zetabyte {
           args.push(device);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -630,6 +638,7 @@ class Zetabyte {
           args.push(device);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -653,6 +662,7 @@ class Zetabyte {
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -685,6 +695,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -708,6 +719,7 @@ class Zetabyte {
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -738,6 +750,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -769,6 +782,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -796,6 +810,7 @@ class Zetabyte {
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -841,6 +856,7 @@ class Zetabyte {
           if (options.count) args.push(options.count);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -891,6 +907,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -938,6 +955,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -986,6 +1004,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1040,6 +1059,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1073,6 +1093,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1120,6 +1141,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1171,6 +1193,7 @@ class Zetabyte {
           args.push("'" + command.join(" ") + "'");
 
           zb.exec(
+            callContext,
             "/bin/sh",
             args,
             { timeout: zb.options.timeout, sudo: false },
@@ -1196,6 +1219,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1231,6 +1255,7 @@ class Zetabyte {
           args.push(target);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1288,6 +1313,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1338,6 +1364,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1425,6 +1452,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1457,6 +1485,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1482,6 +1511,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1512,6 +1542,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1529,13 +1560,13 @@ class Zetabyte {
    * Should be a matching interface for spawn roughly
    *
    */
-  exec() {
+  exec(callContext) {
     const zb = this;
-    let command = arguments[0];
+    let command = arguments[1];
     let args, options, callback, timeout;
     let stdout = "";
     let stderr = "";
-    switch (arguments.length) {
+    switch (arguments.length - 1) {
       case 1:
         break;
       case 2:
@@ -1571,12 +1602,12 @@ class Zetabyte {
     }
 
     if (zb.options.log_commands) {
-      if (typeof zb.options.logger.verbose != "function") {
-        zb.options.logger.verbose = function () {
+      if (typeof callContext.logger.verbose != "function") {
+        callContext.logger.verbose = function () {
           console.debug(...arguments);
         };
       }
-      zb.options.logger.verbose(
+      callContext.logger.verbose(
         `executing zfs command: ${command} ${args.join(" ")}`
       );
     }
