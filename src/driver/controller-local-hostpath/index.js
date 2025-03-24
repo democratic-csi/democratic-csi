@@ -78,7 +78,7 @@ class ControllerLocalHostpathDriver extends ControllerClientCommonDriver {
    * @param {*} call
    * @returns
    */
-  async NodeGetInfo(call) {
+  async NodeGetInfo(call, callContext) {
     const response = await super.NodeGetInfo(...arguments);
     response.accessible_topology = {
       segments: {

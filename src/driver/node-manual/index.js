@@ -242,7 +242,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -253,7 +253,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -264,7 +264,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -275,7 +275,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -286,7 +286,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -297,7 +297,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -308,7 +308,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -319,7 +319,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -330,7 +330,7 @@ class NodeManualDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`

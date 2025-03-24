@@ -270,7 +270,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async Probe(call) {
+  async Probe(call, callContext) {
     const driver = this;
     const pool = _.get(driver.options, "objectivefs.pool");
     const object_store = _.get(driver.options, "objectivefs.env.OBJECTSTORE");
@@ -301,7 +301,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(call, callContext) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
@@ -446,7 +446,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(call, callContext) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
@@ -481,7 +481,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -493,7 +493,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -506,7 +506,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(call, callContext) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
@@ -588,7 +588,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -599,7 +599,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -612,7 +612,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(call, callContext) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -623,7 +623,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(call, callContext) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
