@@ -20,7 +20,7 @@ if [[ -f "node_modules-linux-amd64.tar.gz" && ! -d "node_modules" ]];then
 fi
 
 # generate key for paths etc
-export CI_BUILD_KEY=$(uuidgen | cut -d "-" -f 1)
+export CI_BUILD_KEY=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)
 
 # launch the server
 sudo -E ci/bin/launch-server.sh &
