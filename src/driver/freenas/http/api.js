@@ -123,8 +123,13 @@ class Api {
 
   async getIsScale() {
     const systemVersion = await this.getSystemVersion();
+    const major = await this.getSystemVersionMajor();
 
-    if (systemVersion.v2 && systemVersion.v2.toLowerCase().includes("scale")) {
+    // starting with version 25 the version string no longer contains `-SCALE`
+    if (
+      systemVersion.v2 &&
+      (systemVersion.v2.toLowerCase().includes("scale") || Number(major) >= 20)
+    ) {
       return true;
     }
 
