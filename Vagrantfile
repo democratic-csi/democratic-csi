@@ -31,11 +31,11 @@ Vagrant.configure("2") do |config|
 
       # Enable multipathing
       sudo tee /etc/multipath.conf << EOF
-      defaults {
-          user_friendly_names yes
-          find_multipaths yes
-      }
-      EOF
+defaults {
+    user_friendly_names yes
+    find_multipaths yes
+}
+EOF
 
       sudo systemctl enable multipath-tools.service
   
