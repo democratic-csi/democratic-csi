@@ -1,6 +1,7 @@
 **~
 node_modules
-dev/*
+dev
 /ci/bin/*dev*
 .vagrant
-!dev/run.sh
+hack/*
+!hack/run.sh

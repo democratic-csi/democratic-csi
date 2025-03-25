@@ -19,7 +19,25 @@ Vagrant.configure("2") do |config|
   
     config.vm.provision "shell", inline: <<-SHELL
       sudo apt-get update -y
-      sudo apt-get install -y open-iscsi nodejs git make
+
+      # for building dependecies and executing node
+      sudo apt-get install -y nodejs git make
+
+      # for app functionality
+      sudo apt-get install -y netbase socat e2fsprogs xfsprogs fatresize dosfstools nfs-common cifs-utils
+
+       # Install the following system packages
+      sudo apt-get install -y open-iscsi lsscsi sg3-utils multipath-tools scsitools nvme-cli
+
+      # Enable multipathing
+      sudo tee /etc/multipath.conf << EOF
+      defaults {
+          user_friendly_names yes
+          find_multipaths yes
+      }
+      EOF
+
+      sudo systemctl enable multipath-tools.service
   
       # Enable and start iscsid service
       sudo systemctl enable --now iscsid

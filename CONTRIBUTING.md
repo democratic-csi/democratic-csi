@@ -31,7 +31,7 @@ To use the devcontainer:
 
 > [!Note]
 > For `iSCSI` it's mandatory to use the Vagrant VM, due to the need of a kernel driver.
-> However for other tests the container is probably enough. It's possible to run the `dev/run.sh`
+> However for other tests the container is probably enough. It's possible to run the `hack/run.sh`
 > as explained below in the devcontainer and see if it's possible, before spinning up a full VM.
 
 #### 2. System Testing with Vagrant
@@ -59,7 +59,7 @@ cd ~/democratic-csi
 # just configured for your own environment.
 # You can also create a file `dev/secrets.env` that has `export VARIABLE=VALUE`
 # and reference those in your `config.yaml`
-./dev/run.sh -c ./dev/config.yaml
+./hack/run.sh -c ./hack/config.yaml
 ```
 
 ##### Keeping Files in Sync
