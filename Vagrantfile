@@ -77,7 +77,6 @@ Vagrant.configure("2") do |config|
       make csi-sanity
       sudo cp csi-sanity /usr/local/bin
       popd
-      #rm -rf /tmp/csi-test
     SHELL
   
     # Sync project directory for seamless workflow
