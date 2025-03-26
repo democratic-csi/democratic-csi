@@ -23,6 +23,7 @@ class CsiProxyDriver extends CsiBaseDriver {
       configFolder = configFolder.slice(0, -1);
     }
     this.nodeIdSerializer = new NodeIdSerializer(ctx, options.proxy.nodeId || {});
+    this.nodeTopologyGenerator = new NodeTopologyGenerator(ctx, options.proxy.nodeTopology || {});
 
     const timeoutMinutes = this.options.proxy.cacheTimeoutMinutes ?? 60;
     const defaultOptions = this.options;
@@ -164,6 +165,99 @@ class CsiProxyDriver extends CsiBaseDriver {
     return await this.checkAndRun(driver, methodName, call, defaultValue);
   }
 
+  checkTopologyRequirement(segments, driverTopologies) {
+    for (let i = 0; i < driverTopologies.length; i++) {
+      let matches = true;
+
+      const requirements = driverTopologies[i].requirements;
+      if (!requirements) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `requirements is missing from proxy.perDriver.topology[${i}]`
+        );
+      }
+      for (const reqKey in segments) {
+        const connectionZone = requirements[reqKey];
+        if (!connectionZone) {
+          // If some part of topology is not specified in connection,
+          // then assume this part is not important.
+          // For example, node can report node name and zone as topology.
+          // Then requirements will include both zone and node name.
+          // But connection specifies only zone, and that's okay.
+          continue;
+        }
+        const reqZone = segments[reqKey];
+        if (connectionZone != reqZone) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        // this driver topology satisfies req
+        return true;
+      }
+    }
+    // we didn't find any driver topology that would match req
+    return false;
+  }
+
+  // returns (required_topology < driver_topology)
+  // returns true it driver does not specify topology
+  checkTopology(call, driver) {
+    const requirements = call.request.accessibility_requirements?.requisite;
+    if (!requirements) {
+      return true;
+    }
+    const driverTopologies = driver.options.proxy?.perDriver?.topology;
+    if (!driverTopologies) {
+      return true;
+    }
+
+    for (let reqI = 0; reqI < requirements.length; reqI++) {
+      const req = requirements[reqI];
+      const segments = this.nodeTopologyGenerator.stripPrefixFromMap(req.segments);
+      const reqMatches = this.checkTopologyRequirement(segments, driverTopologies);
+
+      // this req does not match any topology from the connection
+      // it doesn't make sense to check any remaining requirements
+      if (!reqMatches) {
+        this.ctx.logger.debug(`failed topology check: ${JSON.stringify(segments)} is not in ${JSON.stringify(driverTopologies)}`);
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `topology is not accessible for this connection: ${JSON.stringify(segments)}`
+        );
+      }
+    }
+
+    return true;
+  }
+
+  decorateTopology(volume, driver) {
+    const driverTopologies = driver.options.proxy?.perDriver?.topology;
+    if (!driverTopologies) {
+      return;
+    }
+    volume.accessible_topology = [];
+    for (let i = 0; i < driverTopologies.length; i++) {
+      const requirements = driverTopologies[i].requirements;
+      if (!requirements) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `requirements is missing from proxy.perDriver.topology[${i}]`
+        );
+      }
+      const segments = {};
+      for (const k in requirements) {
+        const topologyKey = this.nodeTopologyGenerator.addPrefix(k);
+        segments[topologyKey] = requirements[k];
+      }
+      for (const k in driverTopologies[i].extra) {
+        segments[k] = driverTopologies[i].extra[k];
+      }
+      volume.accessible_topology.push({ segments: segments });
+    }
+  }
+
   // ===========================================
   //    Controller methods below
   // ===========================================
@@ -193,6 +287,14 @@ class CsiProxyDriver extends CsiBaseDriver {
     }
     const connectionName = parameters.connection;
     const driver = this.driverCache.lookUpConnection(connectionName);
+
+    const topologyOK = this.checkTopology(call, driver);
+    if (!topologyOK) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `topology is not accessible for this connection`
+      );
+    }
 
     switch (call.request.volume_content_source?.type) {
       case "snapshot": {
@@ -228,6 +330,7 @@ class CsiProxyDriver extends CsiBaseDriver {
     }
     const result = await this.checkAndRun(driver, 'CreateVolume', call);
     result.volume.volume_id = this.decorateVolumeHandle(connectionName, result.volume.volume_id);
+    this.decorateTopology(result.volume, driver);
     return result;
   }
 
@@ -236,7 +339,13 @@ class CsiProxyDriver extends CsiBaseDriver {
   }
 
   async ControllerGetVolume(call) {
-    return await this.controllerRunWrapper('ControllerGetVolume', call);
+    const volumeHandle = this.parseVolumeHandle(call.request.volume_id);
+    const driver = this.lookUpConnection(volumeHandle.connectionName);
+    call.request.volume_id = volumeHandle.realHandle;
+    const result = await this.checkAndRun(driver, 'ControllerGetVolume', call);
+    result.volume.volume_id = this.decorateVolumeHandle(volumeHandle.connectionName, result.volume.volume_id);
+    this.decorateTopology(result.volume, driver);
+    return result;
   }
 
   async ControllerExpandVolume(call) {
@@ -312,6 +421,11 @@ class CsiProxyDriver extends CsiBaseDriver {
           segments: {
             [prefix + '/node']: NodeIdSerializer.getLocalNodeName(),
           },
+        };
+        break
+      case 'zone':
+        result.accessible_topology = {
+          segments: this.nodeTopologyGenerator.generate(),
         };
         break
       default:
@@ -622,6 +736,115 @@ class NodeIdSerializer {
           result.nqn = this.deserializeFromPrefix(v, this.config.nqnPrefix, 'NVMEoF');
           continue;
       }
+    }
+    return result;
+  }
+}
+
+class NodeTopologyGenerator {
+  constructor(ctx, config) {
+    this.ctx = ctx;
+    this.config = config || {};
+    this.prefix = this.config.prefix || TOPOLOGY_DEFAULT_PREFIX;
+    this.config.fromRegexp = this.config.fromRegexp || [];
+  }
+
+  generate() {
+    const result = {};
+    for (const e of this.config.fromRegexp) {
+      if (!e.topologyKey) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `topologyKey is missing`
+        );
+      }
+      const value = this.getValueFromSource(e);
+      const re = '^' + (e.regex ?? "(.*)") + '$';
+      const regex = new RegExp(re);
+      const match = regex.exec(value);
+      if (match === null) {
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `${e.source}: ${this.getNameFromSource()} value ${value} does not match regex ${re}`
+        );
+      }
+      const key = this.prefix + '/' + e.topologyKey;
+      const template = e.template ?? '{match:0}';
+      result[key] = this.fillMatches(template, match);
+    }
+    return result;
+  }
+
+  addPrefix(key) {
+    return this.prefix + '/' + key;
+  }
+
+  stripPrefix(key) {
+    if (!key.startsWith(this.prefix)) {
+      throw new GrpcError(
+        grpc.status.INVALID_ARGUMENT,
+        `topology key ${key} does not match prefix ${prefix}`
+      );
+    }
+    // remove prefix and '/'
+    return key.slice(this.prefix.length + 1);
+  }
+
+  // checks that each key in req starts with prefix
+  // returns map<key,zone> with short keys
+  stripPrefixFromMap(segments) {
+    const result = {};
+    for (const key in segments) {
+      if (!key.startsWith(this.prefix)) {
+        // since topology is generated in proxy node with the same config,
+        // we expect that topology prefix will always be the same
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `topology key ${key} does not match prefix ${this.prefix}`
+        );
+      }
+      const strippedKey = this.stripPrefix(key);
+      result[strippedKey] = segments[key];
+    }
+    return result;
+  }
+
+  // return string value of resource referenced by e
+  getValueFromSource(e) {
+    const type = e.source;
+    switch (type) {
+      case 'hostname': return os.hostname();
+      case 'nodeName': return process.env.CSI_NODE_ID;
+      case 'env': return process.env[e.envName];
+      case 'file': return fs.readFileSync(e.file, "utf8");
+      default:
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `unknown node topology source type: ${type}`
+        );
+    }
+  }
+  // return resource name for error logs
+  getNameFromSource(e) {
+    const type = e.source;
+    switch (type) {
+      case 'hostname': return '';
+      case 'nodeName': return '';
+      case 'env': return e.envName;
+      case 'file': return e.file;
+      default:
+        throw new GrpcError(
+          grpc.status.INVALID_ARGUMENT,
+          `unknown node topology source type: ${type}`
+        );
+    }
+  }
+
+  fillMatches(template, matches) {
+    let result = template;
+    for (const i in matches) {
+      const ref = `{match:${i}}`;
+      result = result.replaceAll(ref, matches[i]);
     }
     return result;
   }

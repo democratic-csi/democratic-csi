@@ -125,20 +125,19 @@ There are 3 cases of cluster topology:
 - Each node has unique topology domain (`local` drivers)
 - All nodes are the same (usually the case for non-local drivers)
 - Several availability zones that can contain several nodes
+- - https://github.com/democratic-csi/democratic-csi/issues/459
 
-Simple cases are currently supported by the proxy.
-Custom availability zones are TBD.
+There are 2 components to this:
+1. Node driver must correctly report its availability zone
+2. Controller must set required zone labels in volume
 
-Example configuration:
+Since proxy driver should work with drivers from potentially different availability zones,
+it requires a config to distinguish zones.
 
-```yaml
-proxy:
-  nodeTopology:
-    # allowed values:
-    # node - each node has its own storage
-    # cluster - the whole cluster has unified storage
-    type: node
-    # topology reported by CSI driver is reflected in k8s as node labels.
-    # you may want to set unique prefixes on different drivers to avoid collisions
-    prefix: org.democratic-csi.topology
-```
+## Custom topology: controller driver
+
+The only thing needed from controller is to set topology requirements when volume is created.
+
+Proxy will set these constraints when volume is created, no other configuration is required.
+
+Different connections can have different topology.
