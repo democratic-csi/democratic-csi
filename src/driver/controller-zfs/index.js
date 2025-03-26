@@ -250,7 +250,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     return access_modes;
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(callContext, capabilities) {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
 
@@ -658,7 +658,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       call.request.volume_capabilities &&
       call.request.volume_capabilities.length > 0
     ) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
@@ -1534,7 +1534,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
 
     if (call.request.volume_capabilities) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
       if (result.valid !== true) {
         return { available_capacity: 0 };
@@ -2461,7 +2461,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
     }
 
-    const result = this.assertCapabilities(call.request.volume_capabilities);
+    const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
     if (result.valid !== true) {
       return { message: result.message };

@@ -767,7 +767,7 @@ class CsiBaseDriver {
     }
 
     if (call.request.volume_context.provisioner_driver == "node-manual") {
-      result = await this.assertCapabilities([capability], node_attach_driver);
+      result = await this.assertCapabilities(callContext, [capability], node_attach_driver);
       if (!result.valid) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,
@@ -775,7 +775,7 @@ class CsiBaseDriver {
         );
       }
     } else {
-      result = await this.assertCapabilities([capability]);
+      result = await this.assertCapabilities(callContext, [capability]);
       if (!result.valid) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,

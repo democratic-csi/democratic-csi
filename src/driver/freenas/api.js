@@ -2082,7 +2082,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     return access_modes;
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(callContext, capabilities) {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
 
@@ -2254,7 +2254,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       call.request.volume_capabilities &&
       call.request.volume_capabilities.length > 0
     ) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
@@ -3269,7 +3269,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     if (call.request.volume_capabilities) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
       if (result.valid !== true) {
         return { available_capacity: 0 };
@@ -4450,7 +4450,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       }
     }
 
-    const result = this.assertCapabilities(capabilities);
+    const result = this.assertCapabilities(callContext, capabilities);
 
     if (result.valid !== true) {
       return { message: result.message };
