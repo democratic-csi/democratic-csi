@@ -125,10 +125,12 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
 
   getSshClient() {
     return this.ctx.registry.get(`${__REGISTRY_NS__}:ssh_client`, () => {
-      return new SshClient({
+      const sshClient = new SshClient({
         logger: this.ctx.logger,
         connection: this.options.sshConnection,
       });
+      this.cleanup.push(() => sshClient.finalize());
+      return sshClient;
     });
   }
 

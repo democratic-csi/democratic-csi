@@ -486,6 +486,21 @@ const signalMapping = {
         }
       }
 
+      if (driver && typeof driver.getCleanupHandlers === 'function') {
+        const cleanup = driver.getCleanupHandlers();
+        console.log(`running driver ${cleanup.length} cleanup handlers`);
+        for (const c of cleanup) {
+          try {
+            c();
+          } catch (e) {
+            console.log("cleanup handler failed");
+            console.log(e);
+          }
+        }
+      } else {
+        console.log(`current driver does not support cleanup`);
+      }
+
       console.log("server fully shutdown, exiting");
       process.exit(codeNumber);
     });
