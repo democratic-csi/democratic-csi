@@ -11,6 +11,9 @@ which isn't ideal for small deployments, and is incompatible with democratic-csi
 A great discussion of difficulties per storage class state can be found here:
 - https://github.com/container-storage-interface/spec/issues/370
 
+This file contains implementation details relevant for development.
+If you are searching for user documentation and deployment example go [here](../../../docs/proxy-driver.md).
+
 ## Terminology and structure
 
 "Proxy" is the driver created via `driver: proxy` in the main config.
