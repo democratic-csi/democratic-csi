@@ -125,10 +125,12 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
 
   getSshClient() {
     return this.ctx.registry.get(`${__REGISTRY_NS__}:ssh_client`, () => {
-      return new SshClient({
+      const sshClient = new SshClient({
         logger: this.ctx.logger,
         connection: this.options.sshConnection,
       });
+      this.cleanup.push(() => sshClient.finalize());
+      return sshClient;
     });
   }
 
@@ -165,10 +167,10 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     return datasetParentName;
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(callContext, capabilities) {
     // hard code this for now
     const driverZfsResourceType = "filesystem";
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
@@ -272,7 +274,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodePublishVolume(call) {
+  async NodePublishVolume(callContext, call) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -309,7 +311,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     }
 
     if (capability) {
-      const result = this.assertCapabilities([capability]);
+      const result = this.assertCapabilities(callContext, [capability]);
 
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
@@ -368,7 +370,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     }
 
     // TODO: catch out of space errors and return specifc grpc message?
-    await zb.zfs.create(datasetName, {
+    await zb.zfs.create(callContext, datasetName, {
       parents: true,
       properties: volumeProperties,
     });
@@ -386,7 +388,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodeUnpublishVolume(call) {
+  async NodeUnpublishVolume(callContext, call) {
     const zb = this.getZetabyte();
     const filesystem = new Filesystem();
     let result;
@@ -424,7 +426,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
     try {
-      await zb.zfs.destroy(datasetName, { recurse: true, force: true });
+      await zb.zfs.destroy(callContext, datasetName, { recurse: true, force: true });
     } catch (err) {
       if (err.toString().includes("filesystem has dependent clones")) {
         throw new GrpcError(
@@ -454,7 +456,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -468,7 +470,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     }
 
     if (call.request.volume_capabilities) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
       if (result.valid !== true) {
         return { available_capacity: 0 };
@@ -478,7 +480,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     const datasetName = datasetParentName;
 
     let properties;
-    properties = await zb.zfs.get(datasetName, ["avail"]);
+    properties = await zb.zfs.get(callContext, datasetName, ["avail"]);
     properties = properties[datasetName];
 
     return { available_capacity: properties.available.value };
@@ -488,9 +490,9 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
-    const result = this.assertCapabilities(call.request.volume_capabilities);
+    const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
     if (result.valid !== true) {
       return { message: result.message };

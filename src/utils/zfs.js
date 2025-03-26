@@ -238,7 +238,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} vdevs
        */
-      add: function (pool, vdevs) {
+      add: function (callContext, pool, vdevs) {
         // -f force
         // -n noop
       },
@@ -250,7 +250,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} new_device
        */
-      attach: function (pool, device, new_device) {
+      attach: function (callContext, pool, device, new_device) {
         // -f      Forces use of new_device, even if its appears to be in use.
       },
 
@@ -259,7 +259,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      checkpoint: function (pool) {},
+      checkpoint: function (callContext, pool) {},
 
       /**
        * zpool clear [-F [-n]] pool [device]
@@ -267,7 +267,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      clear: function (pool, device) {},
+      clear: function (callContext, pool, device) {},
 
       /**
        * zpool create [-fnd] [-o property=value] ... [-O
@@ -278,8 +278,8 @@ class Zetabyte {
        * zpool create command, including log devices, cache devices, and hot spares.
        * The input is an object of the form produced by the disklayout library.
        */
-      create: function (pool, options) {
-        if (arguments.length != 2)
+      create: function (callContext, pool, options) {
+        if (arguments.length != 3)
           throw Error("Invalid arguments, 2 arguments required");
 
         return new Promise((resolve, reject) => {
@@ -341,6 +341,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -357,8 +358,8 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      destroy: function (pool) {
-        if (arguments.length != 1) throw Error("Invalid arguments");
+      destroy: function (callContext, pool) {
+        if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -367,6 +368,7 @@ class Zetabyte {
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -384,8 +386,8 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      detach: function (pool, device) {
-        if (arguments.length != 2) throw Error("Invalid arguments");
+      detach: function (callContext, pool, device) {
+        if (arguments.length != 3) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -394,6 +396,7 @@ class Zetabyte {
           args.push(device);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -410,7 +413,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      export: function (pool) {
+      export: function (callContext, pool) {
         if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
@@ -426,6 +429,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -440,14 +444,14 @@ class Zetabyte {
       /**
        * zpool get [-Hp] [-o field[,...]] all | property[,...] pool ...
        */
-      get: function () {},
+      get: function (callContext) {},
 
       /**
        * zpool history [-il] [pool] ...
        *
        * @param {*} pool
        */
-      history: function (pool) {
+      history: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("history");
@@ -462,6 +466,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -486,7 +491,7 @@ class Zetabyte {
        *
        * @param {*} options
        */
-      import: function (options = {}) {
+      import: function (callContext, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("import");
@@ -495,6 +500,7 @@ class Zetabyte {
           if (options.destroyed) args.push("-D");
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -511,14 +517,14 @@ class Zetabyte {
        *
        * @param {*} options
        */
-      iostat: function (options = {}) {},
+      iostat: function (callContext, options = {}) {},
 
       /**
        * zpool labelclear [-f] device
        *
        * @param {*} device
        */
-      labelclear: function (device) {},
+      labelclear: function (callContext, device) {},
 
       /**
        * zpool list [-Hpv] [-o property[,...]] [-T d|u] [pool] ... [inverval
@@ -527,8 +533,8 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} options
        */
-      list: function (pool, properties, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      list: function (callContext, pool, properties, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
         if (!properties) properties = zb.DEFAULT_ZPOOL_LIST_PROPERTIES;
 
         return new Promise((resolve, reject) => {
@@ -564,6 +570,7 @@ class Zetabyte {
           if (options.count) args.push(options.count);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -594,7 +601,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} options
        */
-      offline: function (pool, device, options = {}) {
+      offline: function (callContext, pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("offline");
@@ -603,6 +610,7 @@ class Zetabyte {
           args.push(device);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -621,7 +629,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} options
        */
-      online: function (pool, device, options = {}) {
+      online: function (callContext, pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("online");
@@ -630,6 +638,7 @@ class Zetabyte {
           args.push(device);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -646,13 +655,14 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      reguid: function (pool) {
+      reguid: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("reguid");
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -672,7 +682,7 @@ class Zetabyte {
        * @param {*} pool
        * @param {*} device
        */
-      remove: function (pool, device, options = {}) {
+      remove: function (callContext, pool, device, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("remove");
@@ -685,6 +695,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -701,13 +712,14 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      reopen: function (pool) {
+      reopen: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("reopen");
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -726,7 +738,7 @@ class Zetabyte {
        * @param {*} device
        * @param {*} new_device
        */
-      replace: function (pool, device, new_device) {
+      replace: function (callContext, pool, device, new_device) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("replace");
@@ -738,6 +750,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -754,7 +767,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      scrub: function (pool) {
+      scrub: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("scrub");
@@ -769,6 +782,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -787,7 +801,7 @@ class Zetabyte {
        * @param {*} property
        * @param {*} value
        */
-      set: function (pool, property, value) {
+      set: function (callContext, pool, property, value) {
         value = escapeShell(value);
         return new Promise((resolve, reject) => {
           let args = [];
@@ -796,6 +810,7 @@ class Zetabyte {
           args.push(pool);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -815,12 +830,12 @@ class Zetabyte {
        * @param {*} newpool
        * @param {*} device
        */
-      split: function (pool, newpool, device) {},
+      split: function (callContext, pool, newpool, device) {},
 
       /**
        * zpool status [-vx] [-T d|u] [pool] ... [interval [count]]
        */
-      status: function (pool, options = {}) {
+      status: function (callContext, pool, options = {}) {
         return new Promise((resolve, reject) => {
           let args = [];
           if (!("parse" in options)) options.parse = true;
@@ -841,6 +856,7 @@ class Zetabyte {
           if (options.count) args.push(options.count);
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -874,7 +890,7 @@ class Zetabyte {
        *
        * @param {*} pool
        */
-      upgrade: function (pool) {
+      upgrade: function (callContext, pool) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("upgrade");
@@ -891,6 +907,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zpool,
             args,
             { timeout: zb.options.timeout },
@@ -911,8 +928,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      create: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw new (Error("Invalid arguments"))();
+      create: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw new (Error("Invalid arguments"))();
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -938,6 +955,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -962,8 +980,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      destroy: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      destroy: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -986,6 +1004,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1013,8 +1032,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      snapshot: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      snapshot: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -1040,6 +1059,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1061,8 +1081,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      rollback: function (dataset, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      rollback: function (callContext, dataset, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1073,6 +1093,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1095,8 +1116,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} options
        */
-      clone: function (snapshot, dataset, options = {}) {
-        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
+      clone: function (callContext, snapshot, dataset, options = {}) {
+        if (!(arguments.length >= 3)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -1120,6 +1141,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1143,8 +1165,8 @@ class Zetabyte {
        * @param {*} target
        * @param {*} receive_options
        */
-      send_receive(source, send_options = [], target, receive_options = []) {
-        if (arguments.length < 4) throw Error("Invalid arguments");
+      send_receive(callContext, source, send_options = [], target, receive_options = []) {
+        if (arguments.length < 5) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           // specially handle sudo here to avoid the need for using sudo on the whole script
@@ -1171,6 +1193,7 @@ class Zetabyte {
           args.push("'" + command.join(" ") + "'");
 
           zb.exec(
+            callContext,
             "/bin/sh",
             args,
             { timeout: zb.options.timeout, sudo: false },
@@ -1187,8 +1210,8 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      promote: function (dataset) {
-        if (arguments.length != 1) throw Error("Invalid arguments");
+      promote: function (callContext, dataset) {
+        if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1196,6 +1219,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1217,8 +1241,8 @@ class Zetabyte {
        * @param {*} target
        * @param {*} options
        */
-      rename: function (source, target, options = {}) {
-        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
+      rename: function (callContext, source, target, options = {}) {
+        if (!(arguments.length >= 3)) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1231,6 +1255,7 @@ class Zetabyte {
           args.push(target);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1251,8 +1276,8 @@ class Zetabyte {
        * @param {*} properties
        * @param {*} options
        */
-      list: function (dataset, properties, options = {}) {
-        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+      list: function (callContext, dataset, properties, options = {}) {
+        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
         if (!properties) properties = zb.DEFAULT_ZFS_LIST_PROPERTIES;
 
         return new Promise((resolve, reject) => {
@@ -1288,6 +1313,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1317,8 +1343,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} properties
        */
-      set: function (dataset, properties) {
-        if (arguments.length != 2) throw Error("Invalid arguments");
+      set: function (callContext, dataset, properties) {
+        if (arguments.length != 3) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           if (!Object.keys(properties).length) {
@@ -1338,6 +1364,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1361,8 +1388,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} properties
        */
-      get: function (dataset, properties = "all", options = {}) {
-        if (!(arguments.length >= 2)) throw Error("Invalid arguments");
+      get: function (callContext, dataset, properties = "all", options = {}) {
+        if (!(arguments.length >= 3)) throw Error("Invalid arguments");
         if (!properties) properties = "all";
         if (Array.isArray(properties) && !properties.length > 0)
           properties = "all";
@@ -1425,6 +1452,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1445,8 +1473,8 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} property
        */
-      inherit: function (dataset, property) {
-        if (arguments.length != 2) throw Error("Invalid arguments");
+      inherit: function (callContext, dataset, property) {
+        if (arguments.length != 3) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1457,6 +1485,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1473,8 +1502,8 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      remap: function (dataset) {
-        if (arguments.length != 1) throw Error("Invalid arguments");
+      remap: function (callContext, dataset) {
+        if (arguments.length != 2) throw Error("Invalid arguments");
 
         return new Promise((resolve, reject) => {
           let args = [];
@@ -1482,6 +1511,7 @@ class Zetabyte {
           args.push(dataset);
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1499,7 +1529,7 @@ class Zetabyte {
        *
        * @param {*} dataset
        */
-      upgrade: function (options = {}, dataset) {
+      upgrade: function (callContext, options = {}, dataset) {
         return new Promise((resolve, reject) => {
           let args = [];
           args.push("upgrade");
@@ -1512,6 +1542,7 @@ class Zetabyte {
           }
 
           zb.exec(
+            callContext,
             zb.options.paths.zfs,
             args,
             { timeout: zb.options.timeout },
@@ -1529,13 +1560,13 @@ class Zetabyte {
    * Should be a matching interface for spawn roughly
    *
    */
-  exec() {
+  exec(callContext) {
     const zb = this;
-    let command = arguments[0];
+    let command = arguments[1];
     let args, options, callback, timeout;
     let stdout = "";
     let stderr = "";
-    switch (arguments.length) {
+    switch (arguments.length - 1) {
       case 1:
         break;
       case 2:
@@ -1571,12 +1602,12 @@ class Zetabyte {
     }
 
     if (zb.options.log_commands) {
-      if (typeof zb.options.logger.verbose != "function") {
-        zb.options.logger.verbose = function () {
+      if (typeof callContext.logger.verbose != "function") {
+        callContext.logger.verbose = function () {
           console.debug(...arguments);
         };
       }
-      zb.options.logger.verbose(
+      callContext.logger.verbose(
         `executing zfs command: ${command} ${args.join(" ")}`
       );
     }

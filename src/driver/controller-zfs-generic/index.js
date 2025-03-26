@@ -16,10 +16,12 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getExecClient() {
     return this.ctx.registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
       if (this.options.sshConnection) {
-        return new SshClient({
+        const sshClient = new SshClient({
           logger: this.ctx.logger,
           connection: this.options.sshConnection,
         });
+        this.cleanup.push(() => sshClient.finalize());
+        return sshClient;
       } else {
         return new LocalCliExecClient({
           logger: this.ctx.logger,
@@ -70,14 +72,14 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       case "zfs-generic-nvmeof":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
-  generateSmbShareName(datasetName) {
+  generateSmbShareName(callContext, datasetName) {
     const driver = this;
 
-    driver.ctx.logger.verbose(
+    callContext.logger.verbose(
       `generating smb share name for dataset: ${datasetName}`
     );
 
@@ -85,7 +87,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
     name = name.replaceAll("/", "_");
     name = name.replaceAll("-", "_");
 
-    driver.ctx.logger.verbose(
+    callContext.logger.verbose(
       `generated smb share name for dataset (${datasetName}): ${name}`
     );
 
@@ -98,7 +100,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
    *
    * @param {*} datasetName
    */
-  async createShare(call, datasetName) {
+  async createShare(callContext, call, datasetName) {
     const driver = this;
     const zb = await this.getZetabyte();
     const execClient = this.getExecClient();
@@ -118,7 +120,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
                   key
                 ]
               ) {
-                await zb.zfs.set(datasetName, {
+                await zb.zfs.set(callContext, datasetName, {
                   [key]:
                     this.options.nfs.shareStrategySetDatasetProperties
                       .properties[key],
@@ -131,9 +133,9 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
             break;
         }
 
-        properties = await zb.zfs.get(datasetName, ["mountpoint"]);
+        properties = await zb.zfs.get(callContext, datasetName, ["mountpoint"]);
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         volume_context = {
           node_attach_driver: "nfs",
@@ -152,7 +154,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
                   key
                 ]
               ) {
-                await zb.zfs.set(datasetName, {
+                await zb.zfs.set(callContext, datasetName, {
                   [key]:
                     this.options.smb.shareStrategySetDatasetProperties
                       .properties[key],
@@ -160,15 +162,15 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
               }
             }
 
-            share = driver.generateSmbShareName(datasetName);
+            share = driver.generateSmbShareName(callContext, datasetName);
             break;
           default:
             break;
         }
 
-        properties = await zb.zfs.get(datasetName, ["mountpoint"]);
+        properties = await zb.zfs.get(callContext, datasetName, ["mountpoint"]);
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         volume_context = {
           node_attach_driver: "smb",
@@ -264,7 +266,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
               3,
               2000,
               async () => {
-                await this.targetCliCommand(
+                await this.targetCliCommand(callContext,
                   `
 # create target
 cd /iscsi
@@ -303,10 +305,10 @@ create /backstores/block/${assetName}
 
         // iqn = target
         let iqn = basename + ":" + assetName;
-        this.ctx.logger.info("iqn: " + iqn);
+        callContext.logger.info("iqn: " + iqn);
 
         // store this off to make delete process more bullet proof
-        await zb.zfs.set(datasetName, {
+        await zb.zfs.set(callContext, datasetName, {
           [ISCSI_ASSETS_NAME_PROPERTY_NAME]: assetName,
         });
 
@@ -403,7 +405,7 @@ create ${basename}:${assetName}
                 3,
                 2000,
                 async () => {
-                  await this.nvmetCliCommand(
+                  await this.nvmetCliCommand(callContext,
                     `
 # create subsystem
 cd /subsystems
@@ -487,7 +489,7 @@ create ${listenerAttributesText}
                 3,
                 2000,
                 async () => {
-                  await this.spdkCliCommand(
+                  await this.spdkCliCommand(callContext,
                     `
 # create bdev
 cd /bdevs/${this.options.nvmeof.shareStrategySpdkCli.bdev.type}
@@ -528,10 +530,10 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
 
         // iqn = target
         let nqn = basename + ":" + assetName;
-        this.ctx.logger.info("nqn: " + nqn);
+        callContext.logger.info("nqn: " + nqn);
 
         // store this off to make delete process more bullet proof
-        await zb.zfs.set(datasetName, {
+        await zb.zfs.set(callContext, datasetName, {
           [NVMEOF_ASSETS_NAME_PROPERTY_NAME]: assetName,
         });
 
@@ -555,7 +557,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     }
   }
 
-  async deleteShare(call, datasetName) {
+  async deleteShare(callContext, call, datasetName) {
     const zb = await this.getZetabyte();
     const execClient = this.getExecClient();
 
@@ -573,7 +575,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
                 ]
               ) {
                 try {
-                  await zb.zfs.inherit(datasetName, key);
+                  await zb.zfs.inherit(callContext, datasetName, key);
                 } catch (err) {
                   if (err.toString().includes("dataset does not exist")) {
                     // do nothing
@@ -603,7 +605,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
                 ]
               ) {
                 try {
-                  await zb.zfs.inherit(datasetName, key);
+                  await zb.zfs.inherit(callContext, datasetName, key);
                 } catch (err) {
                   if (err.toString().includes("dataset does not exist")) {
                     // do nothing
@@ -629,7 +631,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
 
         // Delete iscsi assets
         try {
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             ISCSI_ASSETS_NAME_PROPERTY_NAME,
           ]);
         } catch (err) {
@@ -640,7 +642,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
         }
 
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         assetName = properties[ISCSI_ASSETS_NAME_PROPERTY_NAME].value;
 
@@ -666,7 +668,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
               3,
               2000,
               async () => {
-                await this.targetCliCommand(
+                await this.targetCliCommand(callContext,
                   `
 # delete target
 cd /iscsi
@@ -701,7 +703,7 @@ delete ${assetName}
 
         // Delete nvmeof assets
         try {
-          properties = await zb.zfs.get(datasetName, [
+          properties = await zb.zfs.get(callContext, datasetName, [
             NVMEOF_ASSETS_NAME_PROPERTY_NAME,
           ]);
         } catch (err) {
@@ -712,7 +714,7 @@ delete ${assetName}
         }
 
         properties = properties[datasetName];
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         assetName = properties[NVMEOF_ASSETS_NAME_PROPERTY_NAME].value;
 
@@ -756,7 +758,7 @@ delete ${basename}:${assetName}
                 3,
                 2000,
                 async () => {
-                  await this.nvmetCliCommand(
+                  await this.nvmetCliCommand(callContext,
                     `
 # delete subsystem from port
 ${portCommands}
@@ -787,7 +789,7 @@ saveconfig ${savefile}
                 3,
                 2000,
                 async () => {
-                  await this.spdkCliCommand(
+                  await this.spdkCliCommand(callContext,
                     `
 # delete subsystem
 cd /nvmf/subsystem/
@@ -830,7 +832,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     return {};
   }
 
-  async expandVolume(call, datasetName) {
+  async expandVolume(callContext, call, datasetName) {
     switch (this.options.driver) {
       case "zfs-generic-nfs":
         break;
@@ -850,7 +852,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     }
   }
 
-  async targetCliCommand(data) {
+  async targetCliCommand(callContext, data) {
     const execClient = this.getExecClient();
     const driver = this;
 
@@ -887,7 +889,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       logCommand += "\n";
     });
 
-    driver.ctx.logger.verbose("TargetCLI command: " + logCommand);
+    callContext.logger.verbose("TargetCLI command: " + logCommand);
 
     // https://github.com/democratic-csi/democratic-csi/issues/127
     // https://bugs.launchpad.net/ubuntu/+source/python-configshell-fb/+bug/1776761
@@ -901,7 +903,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       execClient.buildCommand(command, args),
       options
     );
-    driver.ctx.logger.verbose(
+    callContext.logger.verbose(
       "TargetCLI response: " + JSON.stringify(response)
     );
     if (response.code != 0) {
@@ -910,7 +912,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     return response;
   }
 
-  async nvmetCliCommand(data) {
+  async nvmetCliCommand(callContext, data) {
     const execClient = this.getExecClient();
     const driver = this;
 
@@ -974,7 +976,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       logCommand += "\n";
     });
 
-    driver.ctx.logger.verbose("nvmetCLI command: " + logCommand);
+    callContext.logger.verbose("nvmetCLI command: " + logCommand);
     //process.exit(0);
 
     // https://github.com/democratic-csi/democratic-csi/issues/127
@@ -989,14 +991,14 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       execClient.buildCommand(command, args),
       options
     );
-    driver.ctx.logger.verbose("nvmetCLI response: " + JSON.stringify(response));
+    callContext.logger.verbose("nvmetCLI response: " + JSON.stringify(response));
     if (response.code != 0) {
       throw response;
     }
     return response;
   }
 
-  async spdkCliCommand(data) {
+  async spdkCliCommand(callContext, data) {
     const execClient = this.getExecClient();
     const driver = this;
 
@@ -1033,7 +1035,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       logCommand += "\n";
     });
 
-    driver.ctx.logger.verbose("spdkCLI command: " + logCommand);
+    callContext.logger.verbose("spdkCLI command: " + logCommand);
     //process.exit(0);
 
     // https://github.com/democratic-csi/democratic-csi/issues/127
@@ -1048,7 +1050,7 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       execClient.buildCommand(command, args),
       options
     );
-    driver.ctx.logger.verbose("spdkCLI response: " + JSON.stringify(response));
+    callContext.logger.verbose("spdkCLI response: " + JSON.stringify(response));
     if (response.code != 0) {
       throw response;
     }

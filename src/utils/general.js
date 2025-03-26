@@ -92,6 +92,49 @@ function lockKeysFromRequest(call, serviceMethodName) {
   }
 }
 
+function loggerIdFromRequest(call, serviceMethodName) {
+  switch (serviceMethodName) {
+    // controller
+    case "CreateVolume":
+      return call.request.name;
+    case "DeleteVolume":
+    case "ControllerExpandVolume":
+    case "ControllerPublishVolume":
+    case "ControllerUnpublishVolume":
+    case "ValidateVolumeCapabilities":
+    case "ControllerGetVolume":
+    case "ControllerModifyVolume":
+      return call.request.volume_id;
+    case "CreateSnapshot":
+      return call.request.source_volume_id;
+    case "DeleteSnapshot":
+      return call.request.snapshot_id;
+    case "ListVolumes":
+    case "GetCapacity":
+    case "ControllerGetCapabilities":
+    case "ListSnapshots":
+      return '';
+
+    // node
+    case "NodeStageVolume":
+    case "NodeUnstageVolume":
+    case "NodePublishVolume":
+    case "NodeUnpublishVolume":
+    case "NodeGetVolumeStats":
+    case "NodeExpandVolume":
+      return call.request.volume_id;
+
+    case "NodeGetCapabilities":
+    case "NodeGetInfo":
+    case "GetPluginInfo":
+    case "GetPluginCapabilities":
+    case "Probe":
+      return '';
+    default:
+      throw `loggerIdFromRequest: unknown method: ${serviceMethodName}`;
+  }
+}
+
 function getLargestNumber() {
   let number;
   for (let i = 0; i < arguments.length; i++) {
@@ -278,6 +321,7 @@ module.exports.crc32 = crc32;
 module.exports.crc16 = crc16;
 module.exports.crc8 = crc8;
 module.exports.lockKeysFromRequest = lockKeysFromRequest;
+module.exports.loggerIdFromRequest = loggerIdFromRequest;
 module.exports.getLargestNumber = getLargestNumber;
 module.exports.stringify = stringify;
 module.exports.before_string = before_string;
