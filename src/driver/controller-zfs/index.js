@@ -250,7 +250,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     return access_modes;
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(callContext, capabilities) {
     const driverZfsResourceType = this.getDriverZfsResourceType();
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
 
@@ -562,7 +562,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async Probe(call) {
+  async Probe(callContext, call) {
     const driver = this;
 
     if (driver.ctx.args.csiMode.includes("controller")) {
@@ -634,7 +634,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const execClient = this.getExecClient();
@@ -658,7 +658,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       call.request.volume_capabilities &&
       call.request.volume_capabilities.length > 0
     ) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
@@ -1269,7 +1269,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 
@@ -1401,7 +1401,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -1520,7 +1520,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 
@@ -1534,7 +1534,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
 
     if (call.request.volume_capabilities) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
       if (result.valid !== true) {
         return { available_capacity: 0 };
@@ -1569,7 +1569,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerGetVolume(call) {
+  async ControllerGetVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -1650,7 +1650,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -1790,7 +1790,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -2044,7 +2044,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -2352,7 +2352,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 
@@ -2423,7 +2423,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 
@@ -2461,7 +2461,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
     }
 
-    const result = this.assertCapabilities(call.request.volume_capabilities);
+    const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
     if (result.valid !== true) {
       return { message: result.message };

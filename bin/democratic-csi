@@ -118,6 +118,7 @@ const cache = new LRU({ max: 500 });
 const { logger } = require("../src/utils/logger");
 const { GrpcError } = require("../src/utils/grpc");
 const GeneralUtils = require("../src/utils/general");
+const uuidv4 = require("uuid").v4;
 
 if (args.logLevel) {
   logger.level = args.logLevel;
@@ -178,17 +179,25 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
     }
   }
 
+  const requestReadableID = GeneralUtils.loggerIdFromRequest(call, serviceMethodName);
+  const requestUUID = uuidv4();
+  const callContext = {
+    logger: logger.child({
+      method: serviceMethodName,
+      requestId: requestReadableID,
+      uuid: requestUUID,
+    }),
+  };
   try {
-    logger.info(
-      "new request - driver: %s method: %s call: %j",
+    callContext.logger.info(
+      "new request: driver: %s, call: %j",
       driver.constructor.name,
-      serviceMethodName,
       cleansedCall
     );
 
     const lockKeys = GeneralUtils.lockKeysFromRequest(call, serviceMethodName);
     if (lockKeys.length > 0) {
-      logger.debug("operation lock keys: %j", lockKeys);
+      callContext.logger.debug("operation lock keys: %j", lockKeys);
       // check locks
       lockKeys.forEach((key) => {
         if (operationLock.has(key)) {
@@ -216,13 +225,13 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
     let response;
     let responseError;
     try {
-      // aquire locks
+      // acquire locks
       if (lockKeys.length > 0) {
         lockKeys.forEach((key) => {
           operationLock.add(key);
         });
       }
-      response = await driver[serviceMethodName](call);
+      response = await driver[serviceMethodName](callContext, call);
     } catch (e) {
       responseError = e;
     } finally {
@@ -246,10 +255,8 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       );
     }
 
-    logger.info(
-      "new response - driver: %s method: %s response: %j",
-      driver.constructor.name,
-      serviceMethodName,
+    callContext.logger.info(
+      "new response: %j",
       response
     );
 
@@ -265,10 +272,8 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
       message = stringify(e);
     }
 
-    logger.error(
-      "handler error - driver: %s method: %s error: %s",
-      driver.constructor.name,
-      serviceMethodName,
+    callContext.logger.error(
+      "handler error: %s",
       message
     );
 

@@ -159,7 +159,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
     return ["fuse.objectivefs", "objectivefs"];
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(callContext, capabilities) {
     const driver = this;
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
 
@@ -270,7 +270,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async Probe(call) {
+  async Probe(callContext, call) {
     const driver = this;
     const pool = _.get(driver.options, "objectivefs.pool");
     const object_store = _.get(driver.options, "objectivefs.env.OBJECTSTORE");
@@ -301,7 +301,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(callContext, call) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
@@ -347,7 +347,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
       call.request.volume_capabilities &&
       call.request.volume_capabilities.length > 0
     ) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
@@ -446,7 +446,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(callContext, call) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
@@ -481,7 +481,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -493,7 +493,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -506,7 +506,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(callContext, call) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
@@ -588,7 +588,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -599,7 +599,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -612,7 +612,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -623,7 +623,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
     const ofsClient = await driver.getObjectiveFSClient();
     const pool = _.get(driver.options, "objectivefs.pool");
@@ -651,7 +651,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
       throw new GrpcError(grpc.status.INVALID_ARGUMENT, `missing capabilities`);
     }
 
-    const result = this.assertCapabilities(call.request.volume_capabilities);
+    const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
     if (result.valid !== true) {
       return { message: result.message };

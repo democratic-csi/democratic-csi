@@ -35,7 +35,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
    *
    * @param {*} call
    */
-  async Probe(call) {
+  async Probe(callContext, call) {
     const driver = this;
 
     if (driver.ctx.args.csiMode.includes("controller")) {
