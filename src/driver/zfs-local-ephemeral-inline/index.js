@@ -272,7 +272,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodePublishVolume(call) {
+  async NodePublishVolume(callContext, call) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -386,7 +386,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodeUnpublishVolume(call) {
+  async NodeUnpublishVolume(callContext, call) {
     const zb = this.getZetabyte();
     const filesystem = new Filesystem();
     let result;
@@ -454,7 +454,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -488,7 +488,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
     const result = this.assertCapabilities(call.request.volume_capabilities);
 

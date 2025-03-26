@@ -548,7 +548,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(callContext, call) {
     const driver = this;
 
     const config_key = driver.getConfigKey();
@@ -840,7 +840,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(callContext, call) {
     const driver = this;
 
     const volume_id = call.request.volume_id;
@@ -873,7 +873,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -885,7 +885,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
 
     if (
@@ -925,7 +925,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -936,7 +936,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -963,7 +963,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(callContext, call) {
     const driver = this;
 
     const config_key = driver.getConfigKey();
@@ -1305,7 +1305,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(callContext, call) {
     const driver = this;
 
     let snapshot_id = call.request.snapshot_id;
@@ -1393,7 +1393,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
 
     const volume_id = call.request.volume_id;

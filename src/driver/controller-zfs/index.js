@@ -562,7 +562,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async Probe(call) {
+  async Probe(callContext, call) {
     const driver = this;
 
     if (driver.ctx.args.csiMode.includes("controller")) {
@@ -634,7 +634,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const execClient = this.getExecClient();
@@ -1269,7 +1269,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 
@@ -1401,7 +1401,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -1520,7 +1520,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 
@@ -1569,7 +1569,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerGetVolume(call) {
+  async ControllerGetVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -1650,7 +1650,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -1790,7 +1790,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -2044,7 +2044,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
@@ -2352,7 +2352,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 
@@ -2423,7 +2423,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
     const zb = await this.getZetabyte();
 

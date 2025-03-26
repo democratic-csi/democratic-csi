@@ -2177,7 +2177,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async Probe(call) {
+  async Probe(callContext, call) {
     const driver = this;
     const httpApiClient = await driver.getTrueNASHttpApiClient();
 
@@ -2228,7 +2228,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -3000,7 +3000,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
@@ -3133,7 +3133,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -3254,7 +3254,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
@@ -3302,7 +3302,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerGetVolume(call) {
+  async ControllerGetVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -3376,7 +3376,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpClient = await this.getHttpClient();
@@ -3518,7 +3518,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpClient = await this.getHttpClient();
@@ -3935,7 +3935,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpClient = await this.getHttpClient();
@@ -4333,7 +4333,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
@@ -4413,7 +4413,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
 

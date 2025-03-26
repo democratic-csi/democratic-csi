@@ -231,7 +231,7 @@ async function requestHandlerProxy(call, callback, serviceMethodName) {
           operationLock.add(key);
         });
       }
-      response = await driver[serviceMethodName](call);
+      response = await driver[serviceMethodName](callContext, call);
     } catch (e) {
       responseError = e;
     } finally {

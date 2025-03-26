@@ -319,7 +319,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(callContext, call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
@@ -677,7 +677,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(callContext, call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
@@ -785,7 +785,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(callContext, call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
@@ -877,7 +877,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
     const location = driver.getLocation();
@@ -907,7 +907,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -918,7 +918,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(callContext, call) {
     throw new GrpcError(
       grpc.status.UNIMPLEMENTED,
       `operation not supported by driver`
@@ -929,7 +929,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(callContext, call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 
@@ -1049,7 +1049,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(callContext, call) {
     // throw new GrpcError(
     //   grpc.status.UNIMPLEMENTED,
     //   `operation not supported by driver`
@@ -1100,7 +1100,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
     const httpClient = await driver.getHttpClient();
 

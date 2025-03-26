@@ -227,7 +227,7 @@ class ControllerZfsLocalDriver extends ControllerZfsBaseDriver {
    * @param {*} call
    * @returns
    */
-  async NodeGetInfo(call) {
+  async NodeGetInfo(callContext, call) {
     const response = await super.NodeGetInfo(...arguments);
     response.accessible_topology = {
       segments: {
