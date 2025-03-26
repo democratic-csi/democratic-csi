@@ -8,12 +8,11 @@ There are 2 important values:
 - topology
 - node ID
 
-There are only 2 types of topology in democratic-csi:
-topology without constraints and node-local volumes.
-It's easy to account for with proxy settings.
+# Node ID
 
-Node ID is a bit harder to solve, but this page suggests a solution.
-Also, currently no real driver actually needs `node_id` to work,
+Node ID is a bit tricky to solve, because of limited field length.
+
+Currently no real driver actually needs `node_id` to work,
 so all of this is mostly a proof-of-concept.
 A proof that you can create a functional proxy driver even with current CSI spec.
 
@@ -23,7 +22,7 @@ before calling the actual real driver method.
 Node ID docs are not a part of user documentation because currently this is very theoretical.
 Current implementation works fine but doesn't do anything useful for users.
 
-# Node info: config example
+## Node ID: config example
 
 ```yaml
 # configured in root proxy config
@@ -62,7 +61,7 @@ proxy:
     nodeIdType: nodeName
 ```
 
-# Reasoning why such complex node_id is required
+## Node ID: Reasoning why such complex node_id is required
 
 `node_name + iqn + nqn` can be very long.
 
@@ -89,7 +88,7 @@ For example, if driver needs iqn, proxy will find field in node id starting with
 search `proxy.nodeId.iqnPrefix` for entry with `shortName = 1`, and then set `node_id` to
 `proxy.nodeId.iqnPrefix[name=1].prefix` + `qwerty`
 
-## Alternatives to prefixes
+## Node ID: Alternatives to prefixes
 
 Each driver can override `node_id` based on node name.
 
@@ -118,3 +117,28 @@ Still, if this were to be useful for some reason, this is fully compatible with 
 
 Theoretically, more info can be extracted from node to be used in `nodeIdTemplate`,
 provided the info is short enough to fit into `node_id` length limit.
+
+# Topology
+
+There are 3 cases of cluster topology:
+
+- Each node has unique topology domain (`local` drivers)
+- All nodes are the same (usually the case for non-local drivers)
+- Several availability zones that can contain several nodes
+
+Simple cases are currently supported by the proxy.
+Custom availability zones are TBD.
+
+Example configuration:
+
+```yaml
+proxy:
+  nodeTopology:
+    # allowed values:
+    # node - each node has its own storage
+    # cluster - the whole cluster has unified storage
+    type: node
+    # topology reported by CSI driver is reflected in k8s as node labels.
+    # you may want to set unique prefixes on different drivers to avoid collisions
+    prefix: org.democratic-csi.topology
+```
