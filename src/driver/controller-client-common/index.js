@@ -7,7 +7,6 @@ const fse = require("fs-extra");
 const Kopia = require("../../utils/kopia").Kopia;
 const os = require("os");
 const path = require("path");
-const registry = require("../../utils/registry");
 const Restic = require("../../utils/restic").Restic;
 const semver = require("semver");
 
@@ -458,7 +457,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   async getResticClient() {
     const driver = this;
 
-    return registry.get(`${__REGISTRY_NS__}:restic`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:restic`, () => {
       const config_key = driver.getConfigKey();
 
       const restic_env = _.get(
@@ -491,7 +490,7 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
   async getKopiaClient() {
     const driver = this;
 
-    return registry.getAsync(`${__REGISTRY_NS__}:kopia`, async () => {
+    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:kopia`, async () => {
       const config_key = driver.getConfigKey();
 
       const kopia_env = _.get(

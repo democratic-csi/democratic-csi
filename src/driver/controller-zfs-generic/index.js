@@ -2,7 +2,6 @@ const _ = require("lodash");
 const { ControllerZfsBaseDriver } = require("../controller-zfs");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const GeneralUtils = require("../../utils/general");
-const registry = require("../../utils/registry");
 const LocalCliExecClient =
   require("../../utils/zfs_local_exec_client").LocalCliClient;
 const SshClient = require("../../utils/zfs_ssh_exec_client").SshClient;
@@ -15,7 +14,7 @@ const NVMEOF_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:nvmeof_assets_name";
 const __REGISTRY_NS__ = "ControllerZfsGenericDriver";
 class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getExecClient() {
-    return registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
       if (this.options.sshConnection) {
         return new SshClient({
           logger: this.ctx.logger,
@@ -30,7 +29,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   }
 
   async getZetabyte() {
-    return registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
+    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:zb`, async () => {
       const execClient = this.getExecClient();
       const options = {};
       if (this.options.sshConnection) {

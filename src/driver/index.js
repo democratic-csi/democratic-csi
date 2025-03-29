@@ -12,7 +12,6 @@ const { OneClient } = require("../utils/oneclient");
 const { Filesystem } = require("../utils/filesystem");
 const { ISCSI } = require("../utils/iscsi");
 const { NVMEoF } = require("../utils/nvmeof");
-const registry = require("../utils/registry");
 const semver = require("semver");
 const GeneralUtils = require("../utils/general");
 const { Zetabyte } = require("../utils/zfs");
@@ -111,7 +110,7 @@ class CsiBaseDriver {
    * @returns Filesystem
    */
   getDefaultFilesystemInstance() {
-    return registry.get(
+    return this.ctx.registry.get(
       `${__REGISTRY_NS__}:default_filesystem_instance`,
       () => {
         return new Filesystem();
@@ -125,7 +124,7 @@ class CsiBaseDriver {
    * @returns Mount
    */
   getDefaultMountInstance() {
-    return registry.get(`${__REGISTRY_NS__}:default_mount_instance`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_mount_instance`, () => {
       const filesystem = this.getDefaultFilesystemInstance();
       return new Mount({ filesystem });
     });
@@ -137,7 +136,7 @@ class CsiBaseDriver {
    * @returns ISCSI
    */
   getDefaultISCSIInstance() {
-    return registry.get(`${__REGISTRY_NS__}:default_iscsi_instance`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_iscsi_instance`, () => {
       return new ISCSI();
     });
   }
@@ -149,13 +148,13 @@ class CsiBaseDriver {
    */
   getDefaultNVMEoFInstance() {
     const driver = this;
-    return registry.get(`${__REGISTRY_NS__}:default_nvmeof_instance`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_nvmeof_instance`, () => {
       return new NVMEoF({ logger: driver.ctx.logger });
     });
   }
 
   getDefaultZetabyteInstance() {
-    return registry.get(`${__REGISTRY_NS__}:default_zb_instance`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_zb_instance`, () => {
       return new Zetabyte({
         idempotent: true,
         paths: {
@@ -177,14 +176,14 @@ class CsiBaseDriver {
   }
 
   getDefaultOneClientInstance() {
-    return registry.get(`${__REGISTRY_NS__}:default_oneclient_instance`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_oneclient_instance`, () => {
       return new OneClient();
     });
   }
 
   getDefaultObjectiveFSInstance() {
     const driver = this;
-    return registry.get(
+    return this.ctx.registry.get(
       `${__REGISTRY_NS__}:default_objectivefs_instance`,
       () => {
         return new ObjectiveFS({
@@ -199,7 +198,7 @@ class CsiBaseDriver {
    * @returns CsiProxyClient
    */
   getDefaultCsiProxyClientInstance() {
-    return registry.get(`${__REGISTRY_NS__}:default_csi_proxy_instance`, () => {
+    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_csi_proxy_instance`, () => {
       const options = {};
       options.services = _.get(this.options, "node.csiProxy.services", {});
       return new CsiProxyClient(options);
@@ -207,7 +206,7 @@ class CsiBaseDriver {
   }
 
   getDefaultKubernetsConfigInstance() {
-    return registry.get(
+    return this.ctx.registry.get(
       `${__REGISTRY_NS__}:default_kubernetes_config_instance`,
       () => {
         const kc = new k8s.KubeConfig();
