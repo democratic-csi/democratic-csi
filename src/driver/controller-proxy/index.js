@@ -247,8 +247,8 @@ class CsiProxyDriver extends CsiBaseDriver {
     const driver = this.driverCache.lookUpConnection(volumeHandle.connectionName);
     call.request.source_volume_id = volumeHandle.realHandle;
     const result = await this.checkAndRun(driver, 'CreateSnapshot', call);
-    result.snapshot.source_volume_id = this.decorateVolumeHandle(connectionName, result.snapshot.source_volume_id);
-    result.snapshot.snapshot_id = this.decorateVolumeHandle(connectionName, result.snapshot.snapshot_id, snapshotIdPrefix);
+    result.snapshot.source_volume_id = this.decorateVolumeHandle(volumeHandle.connectionName, result.snapshot.source_volume_id);
+    result.snapshot.snapshot_id = this.decorateVolumeHandle(volumeHandle.connectionName, result.snapshot.snapshot_id, snapshotIdPrefix);
     return result;
   }
 
