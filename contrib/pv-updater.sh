@@ -43,19 +43,19 @@ if [[ ! -f ${PV_ORIG_FILE} ]]; then
 	kubectl get pv "${PV}" -o yaml >"${PV_ORIG_FILE}"
 fi
 
-reclaimPolicy=$(yq eval '.spec.persistentVolumeReclaimPolicy' "${PV_ORIG_FILE}")
+reclaimPolicy=$(yq '.spec.persistentVolumeReclaimPolicy' "${PV_ORIG_FILE}")
 
 # copy file for editing
 cp "${PV_ORIG_FILE}" "${PV_TMP_FILE}"
 
 # pre-process before edit
-yq -i eval 'del(.metadata.resourceVersion)' "${PV_TMP_FILE}"
+yq -i -y 'del(.metadata.resourceVersion)' "${PV_TMP_FILE}"
 
 # manually edit
 ${EDITOR} "${PV_TMP_FILE}"
 
 # ask if looks good
-yq eval '.' "${PV_TMP_FILE}"
+yq '.' "${PV_TMP_FILE}"
 yes_or_no "Would you like to delete the existing PV object and recreate with the above data?"
 
 # set relaim to Retain on PV
@@ -69,7 +69,7 @@ kubectl patch pv "${PV}" -p '{"metadata":{"finalizers": null }}' &>/dev/null || 
 kubectl apply -f "${PV_TMP_FILE}"
 
 # restore original reclaim value
-kubectl patch pv "${PV}" -p "{\"spec\":{\"persistentVolumeReclaimPolicy\":\"${reclaimPolicy}\"}}"
+kubectl patch pv "${PV}" -p "{\"spec\":{\"persistentVolumeReclaimPolicy\":${reclaimPolicy}}}"
 
 # spit out any zfs properties updates
 yes_or_no "Would you like to delete the PV backup file?" && {

@@ -13,7 +13,7 @@ case ${ISCSIADM_HOST_STRATEGY} in
 
   nsenter)
     # https://github.com/siderolabs/extensions/issues/38#issuecomment-1125403043
-    iscsid_pid=$(pgrep iscsid)
+    iscsid_pid=$(pgrep --exact --oldest iscsid)
     if [[ "${iscsid_pid}x" == "x" ]]; then
       echoerr "failed to find iscsid pid for nsenter"
       exit 1

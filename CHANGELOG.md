@@ -1,3 +1,21 @@
+# v1.9.4
+
+Release 2024-07-06
+
+- minor doc updates
+
+# v1.9.3
+
+Released 2024-06-01
+
+- minor fixes for objectivefs and iscsi
+
+# v1.9.2
+
+Released 2024-05-23
+
+- minor fixes for objectivefs and iscsi
+
 # v1.9.1
 
 Released 2024-05-06

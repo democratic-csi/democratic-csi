@@ -3,7 +3,6 @@ const { CsiBaseDriver } = require("../index");
 const { GrpcError, grpc } = require("../../utils/grpc");
 const GeneralUtils = require("../../utils/general");
 const { ObjectiveFS } = require("../../utils/objectivefs");
-const registry = require("../../utils/registry");
 const semver = require("semver");
 const uuidv4 = require("uuid").v4;
 
@@ -105,7 +104,7 @@ class ControllerObjectiveFSDriver extends CsiBaseDriver {
 
   async getObjectiveFSClient() {
     const driver = this;
-    return registry.getAsync(
+    return this.ctx.registry.getAsync(
       `${__REGISTRY_NS__}:objectivefsclient`,
       async () => {
         const options = {};
