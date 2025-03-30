@@ -335,14 +335,26 @@ class DriverCache {
     // We can delete drivers that weren't requested for a long time.
     // User can configure cache timeout so that driver re-creation is not too frequent.
 
-    this.enableCacheTimeout = timeoutMinutes != -1;
-    if (this.enableCacheTimeout) {
-      const oneMinuteInMs = 1000 * 60;
-      this.cacheTimeoutMs = timeoutMinutes * oneMinuteInMs;
-      this.ctx.logger.info(`driver cache timeout is ${timeoutMinutes} minutes`);
-    } else {
+    // TODO how do we make sure that cache timeout is bigger than RPC call duration?
+    // If the driver has cleanup, it can break the call.
+    // The smallest timeout is 1 minute.
+    // Any PRC SHOULD finish in this time, but it's possible that something hangs, or some storage backend is just slow.
+
+    const oneMinuteInMs = 1000 * 60;
+    this.cacheTimeoutMs = timeoutMinutes * oneMinuteInMs;
+
+    let cacheType = '';
+    if (timeoutMinutes === -1) {
+      this.ctx.logger.info("driver cache is disabled");
+      cacheType = 'force-create';
+    } else if (timeoutMinutes === 0) {
       this.ctx.logger.info("driver cache is permanent");
+      cacheType = 'permanent';
+    } else {
+      this.ctx.logger.info(`driver cache timeout is ${timeoutMinutes} minutes`);
+      cacheType = 'timeout';
     }
+    this.cacheType = cacheType;
   }
 
   getCleanupHandlers() {
@@ -358,9 +370,14 @@ class DriverCache {
   lookUpConnection(connectionName) {
     const configPath = this.configFolder + '/' + connectionName + '.yaml';
 
-    if (this.timeout == 0) {
+    if (this.cacheType == 'force-create') {
       // when timeout is 0, force creating a new driver on each request
-      return this.createDriverFromFile(configPath);
+      const driver = this.createDriverFromFile(configPath);
+      const oneMinuteInMs = 1000 * 60;
+      setTimeout(() => {
+        this.runDriverCleanup(driver);
+      }, oneMinuteInMs);
+      return driver;
     }
 
     let cachedDriver = this.driverCache[connectionName];
@@ -376,11 +393,11 @@ class DriverCache {
       clearTimeout(cachedDriver.timer);
       cachedDriver.timer = null;
     }
-    if (this.enableCacheTimeout) {
+    if (this.cacheType == 'timeout') {
       cachedDriver.timer = setTimeout(() => {
         this.ctx.logger.info("removing inactive connection: %s", connectionName);
         this.removeCacheEntry(cachedDriver.driver);
-      }, this.timeout);
+      }, this.cacheTimeoutMs);
     }
 
     const fileTime = this.getFileTime(configPath);
