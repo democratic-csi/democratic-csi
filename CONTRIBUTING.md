@@ -101,7 +101,16 @@ docker login ghcr.io
 ```bash
 ./hack/build_push.sh 
 ```
-2. 
+
+3. When you deploy, in the `values.yaml` add the following, using the output from the script
+```yaml
+controller:
+  driver:
+    image: ghcr.io/your_user/democratic-csi:your_branch-fc02fc4
+node:
+  driver:
+    image: ghcr.io/your_user/democratic-csi:your_branch-fc02fc4
+``` 
 
 ### Best Practices
 
