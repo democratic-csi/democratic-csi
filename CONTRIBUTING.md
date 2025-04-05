@@ -112,6 +112,14 @@ node:
     image: ghcr.io/your_user/democratic-csi:your_branch-fc02fc4
 ``` 
 
+4. Make the Image Public
+
+   By default, images pushed to GHCR are private. To make it public:
+   1. Go to GitHub → Your Repository → Packages (or directly github.com/USERNAME?tab=packages)
+   2. Select the package
+   3. Click Package Settings
+   4. Change Visibility to Public
+
 ### Best Practices
 
 - Use devcontainer for day-to-day development and coding
