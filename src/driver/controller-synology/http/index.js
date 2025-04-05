@@ -4,6 +4,7 @@ const https = require("https");
 const { axios_request, stringify } = require("../../../utils/general");
 const Mutex = require("async-mutex").Mutex;
 const { GrpcError, grpc } = require("../../../utils/grpc");
+const { Registry } = require("../../../utils/registry");
 
 const USER_AGENT = "democratic-csi";
 const __REGISTRY_NS__ = "SynologyHttpClient";
@@ -84,6 +85,7 @@ class SynologyHttpClient {
     this.logger = console;
     this.doLoginMutex = new Mutex();
     this.apiSerializeMutex = new Mutex();
+    this.registry = new Registry();
 
     if (false) {
       setInterval(() => {
@@ -94,7 +96,7 @@ class SynologyHttpClient {
   }
 
   getHttpAgent() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:http_agent`, () => {
+    return this.registry.get(`${__REGISTRY_NS__}:http_agent`, () => {
       return new http.Agent({
         keepAlive: true,
         maxSockets: Infinity,
@@ -104,7 +106,7 @@ class SynologyHttpClient {
   }
 
   getHttpsAgent() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:https_agent`, () => {
+    return this.registry.get(`${__REGISTRY_NS__}:https_agent`, () => {
       return new https.Agent({
         keepAlive: true,
         maxSockets: Infinity,
