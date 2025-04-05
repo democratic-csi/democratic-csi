@@ -272,6 +272,19 @@ async function hostname_lookup(hostname) {
   });
 }
 
+function expandenv(string, env) {
+  if (!(typeof string === "string" || string instanceof String)) {
+    throw new Error("Please pass a string into expandenv");
+  }
+
+  env = env ? env : process.env;
+
+  return string.replace(/\$\{?[a-zA-Z_]+[a-zA-Z0-9_]*\}?/g, function (match) {
+    match = match.replace(/[^A-Za-z0-9_]/g, "");
+    return env[match] || "";
+  });
+}
+
 module.exports.sleep = sleep;
 module.exports.md5 = md5;
 module.exports.crc32 = crc32;
@@ -292,3 +305,4 @@ module.exports.default_supported_file_filesystems =
 module.exports.retry = retry;
 module.exports.trimchar = trimchar;
 module.exports.hostname_lookup = hostname_lookup;
+module.exports.expandenv = expandenv;

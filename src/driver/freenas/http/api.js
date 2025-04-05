@@ -1,6 +1,7 @@
-
+const _ = require("lodash");
 const { sleep, stringify } = require("../../../utils/general");
 const { Zetabyte } = require("../../../utils/zfs");
+const { Registry } = require("../../../utils/registry");
 
 // used for in-memory cache of the version info
 const FREENAS_SYSTEM_VERSION_CACHE_KEY = "freenas:system_version";
@@ -11,6 +12,7 @@ class Api {
     this.client = client;
     this.cache = cache;
     this.options = options;
+    this.registry = new Registry();
   }
 
   async getHttpClient() {
@@ -22,7 +24,7 @@ class Api {
    * @returns
    */
   async getZetabyte() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:zb`, () => {
+    return this.registry.get(`${__REGISTRY_NS__}:zb`, () => {
       return new Zetabyte({
         executor: {
           spawn: function () {
@@ -422,13 +424,13 @@ class Api {
    * @param {*} properties
    * @returns
    */
-  async DatasetGet(datasetName, properties) {
+  async DatasetGet(datasetName, properties, queryParams = {}) {
     const httpClient = await this.getHttpClient(false);
     let response;
     let endpoint;
 
     endpoint = `/pool/dataset/id/${encodeURIComponent(datasetName)}`;
-    response = await httpClient.get(endpoint);
+    response = await httpClient.get(endpoint, queryParams);
 
     if (response.statusCode == 200) {
       return this.normalizeProperties(response.body, properties);
@@ -441,28 +443,60 @@ class Api {
     throw new Error(JSON.stringify(response.body));
   }
 
+  /**
+   * This is meant to destroy all snapshots on the given dataset
+   *
+   * @param {*} datasetName
+   * @param {*} data
+   * @returns
+   */
   async DatasetDestroySnapshots(datasetName, data = {}) {
     const httpClient = await this.getHttpClient(false);
     let response;
     let endpoint;
 
-    data.name = datasetName;
+    const major = await this.getSystemVersionMajor();
+    if (Number(major) >= 25) {
+      try {
+        response = await this.DatasetGet(
+          datasetName,
+          ["id", "type", "name", "pool", "snapshots"],
+          {
+            "extra.snapshots": "true",
+            "extra.retrieve_children": "false",
+          }
+        );
 
-    endpoint = "/pool/dataset/destroy_snapshots";
-    response = await httpClient.post(endpoint, data);
+        for (const snapshot of _.get(response, "snapshots", [])) {
+          await this.SnapshotDelete(snapshot.name, {
+            defer: true,
+          });
+        }
+      } catch (err) {
+        if (err.toString().includes("dataset does not exist")) {
+          return;
+        }
+        throw err;
+      }
+    } else {
+      data.name = datasetName;
 
-    if (response.statusCode == 200) {
-      return response.body;
+      endpoint = "/pool/dataset/destroy_snapshots";
+      response = await httpClient.post(endpoint, data);
+
+      if (response.statusCode == 200) {
+        return response.body;
+      }
+
+      if (
+        response.statusCode == 422 &&
+        JSON.stringify(response.body).includes("already exists")
+      ) {
+        return;
+      }
+
+      throw new Error(JSON.stringify(response.body));
     }
-
-    if (
-      response.statusCode == 422 &&
-      JSON.stringify(response.body).includes("already exists")
-    ) {
-      return;
-    }
-
-    throw new Error(JSON.stringify(response.body));
   }
 
   async SnapshotSet(snapshotName, properties) {

@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y locales && rm -rf /var/lib/apt/lists/* 
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
 ENV LANG=en_US.utf8
-ENV NODE_VERSION=v20.11.1
+ENV NODE_VERSION=v20.19.0
 ENV NODE_ENV=production
 
 # install build deps
@@ -80,17 +80,23 @@ RUN apt-get update && \
   apt-get install -y wget netbase zip bzip2 socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse3 && \
   rm -rf /var/lib/apt/lists/*
 
-ARG RCLONE_VERSION=1.66.0
+# TODO: remove nvme unique files
+
+ARG RCLONE_VERSION=1.69.1
 ADD docker/rclone-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/rclone-installer.sh && rclone-installer.sh
 
-ARG RESTIC_VERSION=0.16.4
+ARG RESTIC_VERSION=0.18.0
 ADD docker/restic-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/restic-installer.sh && restic-installer.sh
 
-ARG KOPIA_VERSION=0.16.1
+ARG KOPIA_VERSION=0.19.0
 ADD docker/kopia-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/kopia-installer.sh && kopia-installer.sh
+
+ARG YQ_VERSION=v4.45.1
+ADD docker/yq-installer.sh /usr/local/sbin
+RUN chmod +x /usr/local/sbin/yq-installer.sh && yq-installer.sh
 
 # controller requirements
 #RUN apt-get update && \

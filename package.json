@@ -34,6 +34,7 @@
     "reconnecting-websocket": "^4.4.0",
     "semver": "^7.3.4",
     "ssh2": "^1.1.0",
+    "traverse": "^0.6.11",
     "uri-js": "^4.4.1",
     "uuid": "^9.0.0",
     "winston": "^3.6.0",

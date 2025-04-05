@@ -1798,8 +1798,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
   async removeSnapshotsFromDatatset(datasetName) {
     const httpApiClient = await this.getTrueNASHttpApiClient();
+    // const httpClient = await this.getHttpClient();
+    // const major = await httpApiClient.getSystemVersionMajor();
+
     let job_id = await httpApiClient.DatasetDestroySnapshots(datasetName);
-    await httpApiClient.CoreWaitForJob(job_id, 30);
+    if (job_id) {
+      await httpApiClient.CoreWaitForJob(job_id, 30);
+    }
   }
 
   /**
@@ -2033,10 +2038,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   async getTrueNASHttpApiClient() {
-    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
-      const httpClient = await this.getHttpClient();
-      return new TrueNASApiClient(httpClient, this.ctx.cache);
-    });
+    return this.ctx.registry.getAsync(
+      `${__REGISTRY_NS__}:api_client`,
+      async () => {
+        const httpClient = await this.getHttpClient();
+        return new TrueNASApiClient(httpClient, this.ctx.cache);
+      }
+    );
   }
 
   getAccessModes(capability) {

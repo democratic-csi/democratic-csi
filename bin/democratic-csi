@@ -10,7 +10,12 @@ require("../src/utils/polyfills");
 const yaml = require("js-yaml");
 const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
-const { stringify, stripWindowsDriveLetter } = require("../src/utils/general");
+const {
+  stringify,
+  stripWindowsDriveLetter,
+  expandenv,
+} = require("../src/utils/general");
+const traverse = require("traverse");
 
 let driverConfigFile;
 let options;
@@ -67,6 +72,8 @@ const args = require("yargs")
       "1.7.0",
       "1.8.0",
       "1.9.0",
+      "1.10.0",
+      "1.11.0",
     ],
   })
   .demandOption(["csi-version"], "csi-version is required")
@@ -106,6 +113,20 @@ if (!args.serverSocket && !args.serverAddress && !args.serverPort) {
   process.exit(1);
 }
 
+//console.log(JSON.stringify(options, null, 2));
+traverse(options).forEach(function (v) {
+  if (typeof v === "string" || v instanceof String) {
+    v = expandenv(v);
+    try {
+      v = JSON.parse(v);
+    } catch (e) {
+      // ignore
+    }
+    this.update(v);
+  }
+});
+//console.log(JSON.stringify(options, null, 2));
+//process.exit(1);
 //console.log(args);
 //console.log(process.env);
 
@@ -529,6 +550,9 @@ if (process.env.LOG_GRPC_SESSIONS == "1") {
 if (require.main === module) {
   (async function () {
     try {
+      //nvme gen-hostnqn > /etc/nvme/hostnqn
+      //uuidgen > /etc/nvme/hostid
+
       if (bindAddress) {
         await new Promise((resolve, reject) => {
           csiServer.bindAsync(
