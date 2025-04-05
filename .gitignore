@@ -5,3 +5,4 @@ dev
 .vagrant
 hack/*
 !hack/run.sh
+!hack/build_push.sh

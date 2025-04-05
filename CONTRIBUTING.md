@@ -78,6 +78,31 @@ vagrant rsync
 vagrant rsync-auto
 ```
 
+#### 3. Deploy development version to K8s cluster
+
+Deployment provides a good environment for:
+- Final testing in a real world scenario
+- Run the final version until included in a release
+
+> [!Note]
+> Make sure to do the build on the architecture you will be running it.
+> For example, don't build in Apple Silicon if your cluster runs in amd64.
+
+
+1. Login to your github container registry
+```bash
+docker login ghcr.io
+```
+
+> [!Important]
+> Login to the container registry is stored plain text, use a PAT instead of your Github password. [Create a PAT with write:packages](https://github.com/settings/tokens/new?scopes=write:packages).
+
+2. Compile and push to your github container registry.
+```bash
+./hack/build_push.sh 
+```
+2. 
+
 ### Best Practices
 
 - Use devcontainer for day-to-day development and coding
