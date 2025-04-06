@@ -7,7 +7,7 @@
 
 // polyfills
 require("../src/utils/polyfills");
-const yaml = require("js-yaml");
+const cp = require("child_process");
 const fs = require("fs");
 const { grpc } = require("../src/utils/grpc");
 const {
@@ -16,6 +16,8 @@ const {
   expandenv,
 } = require("../src/utils/general");
 const traverse = require("traverse");
+const uuidv4 = require("uuid").v4;
+const yaml = require("js-yaml");
 
 let driverConfigFile;
 let options;
@@ -550,8 +552,27 @@ if (process.env.LOG_GRPC_SESSIONS == "1") {
 if (require.main === module) {
   (async function () {
     try {
-      //nvme gen-hostnqn > /etc/nvme/hostnqn
-      //uuidgen > /etc/nvme/hostid
+      switch (process.platform) {
+        case "linux":
+          const nvme_dir = "/etc/nvme";
+
+          // ensure directory
+          if (!fs.existsSync(nvme_dir)) {
+            fs.mkdirSync(nvme_dir);
+          }
+
+          //uuidgen > /etc/nvme/hostid
+          if (!fs.existsSync(`${nvme_dir}/hostid`)) {
+            fs.writeFileSync(`${nvme_dir}/hostid`, uuidv4() + "\n");
+          }
+
+          //nvme gen-hostnqn > /etc/nvme/hostnqn
+          if (!fs.existsSync(`${nvme_dir}/hostnqn`)) {
+            const nqn = String(cp.execSync(`nvme gen-hostnqn`));
+            fs.writeFileSync(`${nvme_dir}/hostnqn`, nqn);
+          }
+          break;
+      }
 
       if (bindAddress) {
         await new Promise((resolve, reject) => {

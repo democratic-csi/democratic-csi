@@ -90,7 +90,9 @@ RUN apt-get update && \
   apt-get install -y wget netbase zip bzip2 socat e2fsprogs exfatprogs xfsprogs btrfs-progs fatresize dosfstools ntfs-3g nfs-common cifs-utils fdisk gdisk cloud-guest-utils sudo rsync procps util-linux nvme-cli fuse3 && \
   rm -rf /var/lib/apt/lists/*
 
-# TODO: remove nvme unique files
+RUN \
+  echo '83e7a026-2564-455b-ada6-ddbdaf0bc519' > /etc/nvme/hostid && \
+  echo 'nqn.2014-08.org.nvmexpress:uuid:941e4f03-2cd6-435e-86df-731b1c573d86' > /etc/nvme/hostnqn
 
 ARG RCLONE_VERSION=1.69.1
 ADD docker/rclone-installer.sh /usr/local/sbin
