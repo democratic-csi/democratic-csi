@@ -1,3 +1,6 @@
+# docker build --pull -t foobar .
+# docker buildx build --pull -t foobar --platform linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le .
+
 FROM debian:12-slim AS build
 #FROM --platform=$BUILDPLATFORM debian:10-slim AS build
 
@@ -23,6 +26,13 @@ RUN apt-get update && apt-get install -y wget xz-utils
 ADD docker/node-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/node-installer.sh && node-installer.sh
 ENV PATH=/usr/local/lib/nodejs/bin:$PATH
+
+# Workaround for https://github.com/nodejs/node/issues/37219
+RUN test $(uname -m) != armv7l || ( \
+  apt-get update \
+  && apt-get install -y libatomic1 \
+  && rm -rf /var/lib/apt/lists/* \
+  )
 
 # Run as a non-root user
 RUN useradd --create-home csi \
