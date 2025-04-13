@@ -41,9 +41,9 @@ const MAX_ZVOL_NAME_LENGTH_CACHE_KEY = "controller-zfs:max_zvol_name_length";
  *  - getFSTypes() // optional
  *  - getAccessModes(capability) // optional
  *  - async getAccessibleTopology() // optional
- *  - async createShare(call, datasetName) // return appropriate volume_context for Node operations
- *  - async deleteShare(call, datasetName) // no return expected
- *  - async expandVolume(call, datasetName) // no return expected, used for restarting services etc if needed
+ *  - async createShare(callContext, call, datasetName) // return appropriate volume_context for Node operations
+ *  - async deleteShare(callContext, call, datasetName) // no return expected
+ *  - async expandVolume(callContext, call, datasetName) // no return expected, used for restarting services etc if needed
  */
 class ControllerZfsBaseDriver extends CsiBaseDriver {
   constructor(ctx, options) {
@@ -152,11 +152,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
   }
 
-  async getWhoAmI() {
+  async getWhoAmI(callContext) {
     const driver = this;
     const execClient = driver.getExecClient();
     const command = "whoami";
-    driver.ctx.logger.verbose("whoami command: %s", command);
+    callContext.logger.verbose("whoami command: %s", command);
     const response = await execClient.exec(command);
     if (response.code !== 0) {
       throw new Error("failed to run uname to determine max zvol name length");
@@ -252,7 +252,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
   assertCapabilities(callContext, capabilities) {
     const driverZfsResourceType = this.getDriverZfsResourceType();
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
@@ -346,7 +346,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     return volume_status;
   }
 
-  async populateCsiVolumeFromData(row) {
+  async populateCsiVolumeFromData(callContext, row) {
     const driver = this;
     const zb = await this.getZetabyte();
     const driverZfsResourceType = this.getDriverZfsResourceType();
@@ -360,7 +360,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     if (
       !zb.helpers.isPropertyValueSet(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME])
     ) {
-      driver.ctx.logger.warn(`${row.name} is missing share context`);
+      callContext.logger.warn(`${row.name} is missing share context`);
       return;
     }
 
@@ -430,7 +430,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    * https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=238112
    * https://svnweb.freebsd.org/base?view=revision&revision=343485
    */
-  async getMaxZvolNameLength() {
+  async getMaxZvolNameLength(callContext) {
     const driver = this;
     const execClient = driver.getExecClient();
 
@@ -449,7 +449,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // get kernel
     command = "uname -s";
-    driver.ctx.logger.verbose("uname command: %s", command);
+    callContext.logger.verbose("uname command: %s", command);
     response = await execClient.exec(command);
     if (response.code !== 0) {
       throw new Error("failed to run uname to determine max zvol name length");
@@ -468,7 +468,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       case "freebsd":
         // get kernel_release
         command = "uname -r";
-        driver.ctx.logger.verbose("uname command: %s", command);
+        callContext.logger.verbose("uname command: %s", command);
         response = await execClient.exec(command);
         if (response.code !== 0) {
           throw new Error(
@@ -496,16 +496,16 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     return max;
   }
 
-  async setFilesystemMode(path, mode) {
+  async setFilesystemMode(callContext, path, mode) {
     const driver = this;
     const execClient = this.getExecClient();
 
     let command = execClient.buildCommand("chmod", [mode, path]);
-    if ((await driver.getWhoAmI()) != "root") {
+    if ((await driver.getWhoAmI(callContext)) != "root") {
       command = (await driver.getSudoPath()) + " " + command;
     }
 
-    driver.ctx.logger.verbose("set permission command: %s", command);
+    callContext.logger.verbose("set permission command: %s", command);
 
     let response = await execClient.exec(command);
     if (response.code != 0) {
@@ -516,7 +516,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
   }
 
-  async setFilesystemOwnership(path, user = false, group = false) {
+  async setFilesystemOwnership(callContext, path, user = false, group = false) {
     const driver = this;
     const execClient = this.getExecClient();
 
@@ -539,11 +539,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       (user.length > 0 ? user : "") + ":" + (group.length > 0 ? group : ""),
       path,
     ]);
-    if ((await driver.getWhoAmI()) != "root") {
+    if ((await driver.getWhoAmI(callContext)) != "root") {
       command = (await driver.getSudoPath()) + " " + command;
     }
 
-    driver.ctx.logger.verbose("set ownership command: %s", command);
+    callContext.logger.verbose("set ownership command: %s", command);
 
     let response = await execClient.exec(command);
     if (response.code != 0) {
@@ -590,7 +590,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
        */
       if (!driver.currentExecShell || timerEnabled === false) {
         const execClient = this.getExecClient();
-        driver.ctx.logger.debug("performing exec sanity check..");
+        callContext.logger.debug("performing exec sanity check..");
         const response = await execClient.exec("echo $0");
         driver.currentExecShell = response.stdout.split("\n")[0];
       }
@@ -600,7 +600,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         const intervalTime = 60000;
         driver.currentExecShellInterval = setInterval(async () => {
           try {
-            driver.ctx.logger.debug("performing exec sanity check..");
+            callContext.logger.debug("performing exec sanity check..");
             const execClient = this.getExecClient();
             const response = await execClient.exec("echo $0");
             driver.currentExecShell = response.stdout.split("\n")[0];
@@ -792,8 +792,8 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
      */
     if (driverZfsResourceType == "volume") {
       let extentDiskName = "zvol/" + datasetName;
-      let maxZvolNameLength = await driver.getMaxZvolNameLength();
-      driver.ctx.logger.debug("max zvol name length: %s", maxZvolNameLength);
+      let maxZvolNameLength = await driver.getMaxZvolNameLength(callContext);
+      callContext.logger.debug("max zvol name length: %s", maxZvolNameLength);
 
       if (extentDiskName.length > maxZvolNameLength) {
         throw new GrpcError(
@@ -849,7 +849,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       volumeProperties[VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME] =
         volume_content_source.type;
       switch (volume_content_source.type) {
-        // must be available when adverstising CREATE_DELETE_SNAPSHOT
+        // must be available when advertising CREATE_DELETE_SNAPSHOT
         // simply clone
         case "snapshot":
           try {
@@ -883,7 +883,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
               volume_id;
           }
 
-          driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
+          callContext.logger.debug("full snapshot name: %s", fullSnapshotName);
 
           if (!zb.helpers.isZfsSnapshot(volume_content_source_snapshot_id)) {
             try {
@@ -997,7 +997,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
             volume_id;
 
-          driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
+          callContext.logger.debug("full snapshot name: %s", fullSnapshotName);
 
           // create snapshot
           try {
@@ -1130,11 +1130,12 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
           VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME,
         ]);
         properties = properties[datasetName];
-        driver.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         // set mode
         if (this.options.zfs.datasetPermissionsMode) {
           await driver.setFilesystemMode(
+            callContext,
             properties.mountpoint.value,
             this.options.zfs.datasetPermissionsMode
           );
@@ -1148,6 +1149,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
             .length > 0
         ) {
           await driver.setFilesystemOwnership(
+            callContext,
             properties.mountpoint.value,
             this.options.zfs.datasetPermissionsUser,
             this.options.zfs.datasetPermissionsGroup
@@ -1155,7 +1157,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         }
 
         // set acls
-        // TODO: this is unsfafe approach, make it better
+        // TODO: this is unsafe approach, make it better
         // probably could see if ^-.*\s and split and then shell escape
         if (this.options.zfs.datasetPermissionsAcls) {
           let aclBinary = _.get(
@@ -1168,11 +1170,11 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
               acl,
               properties.mountpoint.value,
             ]);
-            if ((await this.getWhoAmI()) != "root") {
+            if ((await driver.getWhoAmI(callContext)) != "root") {
               command = (await this.getSudoPath()) + " " + command;
             }
 
-            driver.ctx.logger.verbose("set acl command: %s", command);
+            callContext.logger.verbose("set acl command: %s", command);
             response = await execClient.exec(command);
             if (response.code != 0) {
               throw new GrpcError(
@@ -1222,7 +1224,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         break;
     }
 
-    volume_context = await this.createShare(call, datasetName);
+    volume_context = await this.createShare(callContext, call, datasetName);
     await zb.zfs.set(datasetName, {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
     });
@@ -1314,7 +1316,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
     }
 
-    driver.ctx.logger.debug("dataset properties: %j", properties);
+    callContext.logger.debug("dataset properties: %j", properties);
 
     // deleteStrategy
     const delete_strategy = _.get(
@@ -1328,7 +1330,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
 
     // remove share resources
-    await this.deleteShare(call, datasetName);
+    await this.deleteShare(callContext, call, datasetName);
 
     // remove parent snapshot if appropriate with defer
     if (
@@ -1339,7 +1341,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         .extractSnapshotName(properties.origin.value)
         .startsWith(VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX)
     ) {
-      driver.ctx.logger.debug(
+      callContext.logger.debug(
         "removing with defer source snapshot: %s",
         properties.origin.value
       );
@@ -1503,7 +1505,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       await zb.zfs.set(datasetName, properties);
     }
 
-    await this.expandVolume(call, datasetName);
+    await this.expandVolume(callContext, call, datasetName);
 
     return {
       capacity_bytes:
@@ -1632,8 +1634,8 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       throw err;
     }
 
-    driver.ctx.logger.debug("list volumes result: %j", response);
-    let volume = await driver.populateCsiVolumeFromData(response.indexed[0]);
+    callContext.logger.debug("list volumes result: %j", response);
+    let volume = await driver.populateCsiVolumeFromData(callContext, response.indexed[0]);
     let status = await driver.getVolumeStatus(datasetName);
 
     let res = { volume };
@@ -1747,7 +1749,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       throw err;
     }
 
-    driver.ctx.logger.debug("list volumes result: %j", response);
+    callContext.logger.debug("list volumes result: %j", response);
 
     // remove parent dataset from results
     if (driverZfsResourceType == "filesystem") {
@@ -1761,7 +1763,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         continue;
       }
 
-      let volume = await driver.populateCsiVolumeFromData(row);
+      let volume = await driver.populateCsiVolumeFromData(callContext, row);
       if (volume) {
         let status = await driver.getVolumeStatus(datasetName);
         entries.push({
@@ -2113,7 +2115,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       source_volume_id;
     snapshotProperties[MANAGED_PROPERTY_NAME] = "true";
 
-    driver.ctx.logger.verbose("requested snapshot name: %s", name);
+    callContext.logger.verbose("requested snapshot name: %s", name);
 
     let invalid_chars;
     invalid_chars = name.match(/[^a-z0-9_\-:.+]+/gi);
@@ -2130,7 +2132,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // https://stackoverflow.com/questions/32106243/regex-to-remove-all-non-alpha-numeric-and-replace-spaces-with/32106277
     name = name.replace(/[^a-z0-9_\-:.+]+/gi, "");
 
-    driver.ctx.logger.verbose("cleansed snapshot name: %s", name);
+    callContext.logger.verbose("cleansed snapshot name: %s", name);
 
     // check for other snapshopts with the same name on other volumes and fail as appropriate
     {
@@ -2189,7 +2191,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       fullSnapshotName = datasetName + "@" + name;
     }
 
-    driver.ctx.logger.verbose("full snapshot name: %s", fullSnapshotName);
+    callContext.logger.verbose("full snapshot name: %s", fullSnapshotName);
 
     if (detachedSnapshot) {
       tmpSnapshotName =
@@ -2297,7 +2299,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       { types }
     );
     properties = properties[fullSnapshotName];
-    driver.ctx.logger.verbose("snapshot properties: %j", properties);
+    callContext.logger.verbose("snapshot properties: %j", properties);
 
     // TODO: properly handle use-case where datasetEnableQuotas is not turned on
     if (driverZfsResourceType == "filesystem") {
@@ -2383,7 +2385,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     const fullSnapshotName = datasetParentName + "/" + snapshot_id;
 
-    driver.ctx.logger.verbose("deleting snapshot: %s", fullSnapshotName);
+    callContext.logger.verbose("deleting snapshot: %s", fullSnapshotName);
 
     try {
       await zb.zfs.destroy(fullSnapshotName, {

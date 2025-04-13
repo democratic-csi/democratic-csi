@@ -168,7 +168,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
   assertCapabilities(callContext, capabilities) {
     // hard code this for now
     const driverZfsResourceType = "filesystem";
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
