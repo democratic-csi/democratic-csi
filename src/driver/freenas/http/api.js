@@ -162,11 +162,20 @@ class Api {
 
   async getIsScale() {
     const systemVersion = await this.getSystemVersion();
-
-    if (systemVersion.v2 && systemVersion.v2.toLowerCase().includes("scale")) {
+    const versionRaw = systemVersion.v2?.toLowerCase() || "";
+  
+    if (versionRaw.includes("scale")) {
       return true;
     }
-
+  
+    const match = versionRaw.match(/^truenas-(\d+)\.(\d+)/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      if (major >= 22) {
+        return true;
+      }
+    }
+  
     return false;
   }
 
