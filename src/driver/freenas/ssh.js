@@ -2166,11 +2166,15 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
   async getIsScale() {
     const systemVersion = await this.getSystemVersion();
-
-    if (systemVersion.v2 && systemVersion.v2.toLowerCase().includes("scale")) {
+  
+    if (
+      systemVersion.v2 &&
+      (systemVersion.v2.toLowerCase().includes("scale") ||
+       systemVersion.v2.toLowerCase().includes("community"))
+    ) {
       return true;
     }
-
+  
     return false;
   }
 
