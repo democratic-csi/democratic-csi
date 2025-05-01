@@ -304,7 +304,7 @@ create /backstores/block/${assetName}
 
               let extraTerms = ['group', `${pcs_group}`, '--wait']; // The wait is important to avoid race conditions
               let createTargetTerms = [
-                'resource', 'create', '--future', `target-${assetName}`, 'ocf:heartbeat:iSCSITarget',
+                'resource', 'create', '--future', '--force', `target-${assetName}`, 'ocf:heartbeat:iSCSITarget',
                 'implementation="lio-t"', 'portals=":::3260"', `iqn="${basename}:${assetName}"`
               ];
 
