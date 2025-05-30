@@ -120,6 +120,15 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
           chroot: "/usr/sbin/chroot",
         };
       }
+
+      if (isScale && Number(majorMinor) >= 25) {
+        options.paths = {
+          zfs: "/usr/sbin/zfs",
+          zpool: "/usr/sbin/zpool",
+          sudo: "/usr/bin/sudo",
+          chroot: "/usr/sbin/chroot",
+        };
+      }
     }
   }
 
@@ -142,10 +151,13 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async getTrueNASHttpApiClient() {
-    return this.ctx.registry.getAsync(`${__REGISTRY_NS__}:api_client`, async () => {
-      const httpClient = await this.getHttpClient();
-      return new TrueNASApiClient(httpClient, this.ctx.cache);
-    });
+    return this.ctx.registry.getAsync(
+      `${__REGISTRY_NS__}:api_client`,
+      async () => {
+        const httpClient = await this.getHttpClient();
+        return new TrueNASApiClient(httpClient, this.ctx.cache);
+      }
+    );
   }
 
   getDriverShareType() {
