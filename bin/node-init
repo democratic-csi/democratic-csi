@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+
+const { run } = require('../src/node-init');
+const args = require('yargs')
+  .scriptName('node-init')
+  .usage('$0 --driver <name> [--driver <name> ...]')
+  .option('driver', {
+    alias: 'd',
+    type: 'array',
+    demandOption: true,
+    describe: 'CSI driver name to initialize',
+  })
+  .help().argv;
+
+run(args.driver).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

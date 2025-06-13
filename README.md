@@ -68,7 +68,13 @@ Predominantly 3 things are needed:
 
 ## Node Prep
 
-You should install/configure the requirements for both nfs and iscsi.
+You should install/configure the requirements for both nfs and iscsi. A helper
+command `node-init` is provided to automate this process. Invoke it with one or
+more driver names and it will run the appropriate initialization steps:
+
+```
+node-init --driver iscsi --driver nfs
+```
 
 ### cifs
 

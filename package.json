@@ -3,8 +3,12 @@
   "version": "1.9.0",
   "description": "kubernetes csi driver framework",
   "main": "bin/democratic-csi",
+  "bin": {
+    "democratic-csi": "bin/democratic-csi",
+    "node-init": "bin/node-init"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "start": "./bin/democratic-csi"
   },
   "author": "Travis Glenn Hansen <travisghansen@yahoo.com>",
