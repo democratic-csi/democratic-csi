@@ -15,6 +15,15 @@ zfs:
   # the example below is useful for TrueNAS 12
   #cli:
   #  sudoEnabled: true
+  #
+  # instead of setting sudoEnabled to true, sudo can be
+  # reduced only to specific (supported) zfs commands
+  #  sudoEnabledCommands:
+  #    - mount
+  #    - unmount
+  #    - share
+  #    - unshare
+  #
   #  paths:
   #    zfs: /usr/local/sbin/zfs
   #    zpool: /usr/local/sbin/zpool

@@ -904,6 +904,13 @@ class Zetabyte {
     };
 
     zb.zfs = {
+      SUDO_COMMANDS: [
+        "mount",
+        "unmount",
+        "share",
+        "unshare"
+      ],
+
       /**
        * zfs create [-pu] [-o property=value]... filesystem
        * zfs create [-ps] [-b blocksize] [-o property=value]... -V size volume
@@ -913,6 +920,7 @@ class Zetabyte {
        */
       create: function (dataset, options = {}) {
         if (!(arguments.length >= 1)) throw new (Error("Invalid arguments"))();
+        const zfs = this;
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -921,11 +929,12 @@ class Zetabyte {
               : "idempotent" in zb.options
               ? zb.options.idempotent
               : false;
+          const shouldSudoMount = !zb.options.sudo && zb.options.sudoCommands.includes("mount");
 
           let args = [];
           args.push("create");
           if (options.parents) args.push("-p");
-          if (options.unmounted) args.push("-u");
+          if (options.unmounted || shouldSudoMount) args.push("-u");
           if (options.blocksize) args = args.concat(["-b", options.blocksize]);
           if (options.properties) {
             for (let [key, value] of Object.entries(options.properties)) {
@@ -945,9 +954,17 @@ class Zetabyte {
               if (
                 error &&
                 !(idempotent && stderr.includes("dataset already exists"))
-              )
+              ) {
                 return reject(zb.helpers.zfsError(error, stderr));
-              return resolve(stdout);
+              }
+
+              if (shouldSudoMount) {
+                zfs.mount(dataset, { idempotent })
+                  .then(out => resolve(stdout + "; " + out))
+                  .catch(err => reject(err));
+              } else {
+                return resolve(stdout);
+              }
             }
           );
         });
@@ -964,6 +981,7 @@ class Zetabyte {
        */
       destroy: function (dataset, options = {}) {
         if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+        const zfs = this;
 
         return new Promise((resolve, reject) => {
           const idempotent =
@@ -985,23 +1003,32 @@ class Zetabyte {
           if (options.defer) args.push("-d");
           args.push(dataset);
 
-          zb.exec(
-            zb.options.paths.zfs,
-            args,
-            { timeout: zb.options.timeout },
-            function (error, stdout, stderr) {
-              if (
-                error &&
-                !(
-                  idempotent &&
-                  (stderr.includes("dataset does not exist") ||
-                    stderr.includes("could not find any snapshots to destroy"))
+          const destroyExec = function() {
+            zb.exec(
+              zb.options.paths.zfs,
+              args,
+              { timeout: zb.options.timeout },
+              function (error, stdout, stderr) {
+                if (
+                  error &&
+                  !(
+                    idempotent &&
+                    (stderr.includes("dataset does not exist") ||
+                      stderr.includes("could not find any snapshots to destroy"))
+                  )
                 )
-              )
-                return reject(zb.helpers.zfsError(error, stderr));
-              return resolve(stdout);
-            }
-          );
+                  return reject(zb.helpers.zfsError(error, stderr));
+                return resolve(stdout);
+              }
+            );
+          };
+          if (zb.options.sudoCommands.includes("unmount")) {
+            zfs.unmount(dataset, { idempotent })
+              .then(() => destroyExec())
+              .catch(err => reject(err));
+          } else {
+            destroyExec();
+          }
         });
       },
 
@@ -1224,7 +1251,7 @@ class Zetabyte {
           let args = [];
           args.push("rename");
           if (options.parents) args.push("-p");
-          if (options.unmounted) args.push("-u");
+          if (options.unmounted || (!zb.options.sudo && zb.options.sudoCommands.includes("mount"))) args.push("-u");
           if (options.force) args.push("-f");
           if (options.recurse) args.push("-r");
           args.push(source);
@@ -1522,6 +1549,145 @@ class Zetabyte {
           );
         });
       },
+
+      /**
+       * zfs mount filesystem
+       *
+       * @param {*} dataset
+       * @param {*} options
+       */
+      mount: function (dataset, options = {}) {
+        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+
+        return new Promise((resolve, reject) => {
+          const idempotent =
+            "idempotent" in options
+              ? options.idempotent
+              : "idempotent" in zb.options
+              ? zb.options.idempotent
+              : false;
+
+          let args = [];
+          args.push("mount");
+          args.push(dataset);
+
+          zb.exec(
+            zb.options.paths.zfs,
+            args,
+            { timeout: zb.options.timeout },
+            function (error, stdout, stderr) {
+              if (
+                error &&
+                !(idempotent && stderr.includes("filesystem already mounted"))
+              ) {
+                return reject(zb.helpers.zfsError(error, stderr));
+              }
+              return resolve(stdout);
+            }
+          );
+        });
+      },
+
+      /**
+       * zfs unmount filesystem
+       *
+       * @param {*} dataset
+       * @param {*} options
+       */
+       unmount: function (dataset, options = {}) {
+        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+
+        return new Promise((resolve, reject) => {
+          const idempotent =
+            "idempotent" in options
+              ? options.idempotent
+              : "idempotent" in zb.options
+              ? zb.options.idempotent
+              : false;
+
+          let args = [];
+          args.push("unmount");
+          args.push(dataset);
+
+          zb.exec(
+            zb.options.paths.zfs,
+            args,
+            { timeout: zb.options.timeout },
+            function (error, stdout, stderr) {
+              if (
+                error &&
+                !(idempotent && stderr.includes("not currently mounted"))
+              ) {
+                return reject(zb.helpers.zfsError(error, stderr));
+              }
+              return resolve(stdout);
+            }
+          );
+        });
+      },
+
+      /**
+       * zfs share filesystem
+       *
+       * @param {*} dataset
+       */
+       share: function (dataset) {
+        if (arguments.length != 1) throw Error("Invalid arguments");
+
+        return new Promise((resolve, reject) => {
+          let args = [];
+          args.push("share");
+          args.push(dataset);
+
+          zb.exec(
+            zb.options.paths.zfs,
+            args,
+            { timeout: zb.options.timeout },
+            function (error, stdout, stderr) {
+              if (error) return reject(zb.helpers.zfsError(error, stderr));
+              return resolve(stdout);
+            }
+          );
+        });
+       },
+
+       /**
+       * zfs unshare filesystem
+       *
+       * @param {*} dataset
+       * @param {*} options
+       */
+      unshare: function (dataset, options = {}) {
+        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+
+        return new Promise((resolve, reject) => {
+          const idempotent =
+            "idempotent" in options
+              ? options.idempotent
+              : "idempotent" in zb.options
+              ? zb.options.idempotent
+              : false;
+
+          let args = [];
+          args.push("unshare");
+          args.push(dataset);
+
+          zb.exec(
+            zb.options.paths.zfs,
+            args,
+            { timeout: zb.options.timeout },
+            function (error, stdout, stderr) {
+              if (
+                error &&
+                !(idempotent && stderr.includes("not currently shared"))
+              ) {
+                return reject(zb.helpers.zfsError(error, stderr));
+              }
+              return resolve(stdout);
+            }
+          );
+        });
+      },
     };
   }
 
@@ -1564,7 +1730,13 @@ class Zetabyte {
       use_sudo = options.sudo;
     }
 
-    if (use_sudo) {
+    if (
+      use_sudo || (
+        Array.isArray(args) && args.length > 0 &&
+        zb.zfs.SUDO_COMMANDS.includes(args[0]) &&
+        zb.options.sudoCommands.includes(args[0])
+      )
+    ) {
       args = args || [];
       args.unshift(command);
       command = zb.options.paths.sudo;
