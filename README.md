@@ -460,6 +460,7 @@ useradd -u 1001 -g 1001 -M -N -s /sbin/nologin smbroot
 passwd smbroot (optional)
 
 # create smb user and set password
+# The pw you will later also need in the client mount options
 smbpasswd -L -a smbroot
 
 ####### nvmeof
