@@ -1128,9 +1128,8 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 target = null;
                 if (
                   response.statusCode == 422 &&
-                  JSON.stringify(response.body).includes(
-                    "Target name already exists"
-                  )
+                  JSON.stringify(response.body)
+                    .match(/Target(.*)name already exists/g)?.length > 0
                 ) {
                   target = await httpApiClient.findResourceByProperties(
                     "/iscsi/target",
