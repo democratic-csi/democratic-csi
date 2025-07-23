@@ -2207,7 +2207,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       if (!(await httpApiClient.getIsScale())) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
-          `driver is only availalbe with TrueNAS SCALE`
+          `driver is only available with TrueNAS SCALE`
         );
       }
 
