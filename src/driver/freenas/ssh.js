@@ -2178,12 +2178,10 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
   async getIsScale() {
     const systemVersion = await this.getSystemVersion();
+    const major = await this.getSystemVersionMajor();
 
-    if (systemVersion.v2 && systemVersion.v2.toLowerCase().includes("scale")) {
-      return true;
-    }
-
-    return false;
+    // the first SCALE version was Angelfish ALPHA
+    return (systemVersion.v2 && Number(major) >= 20);
   }
 
   async getSystemVersionMajorMinor() {

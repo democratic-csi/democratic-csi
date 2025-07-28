@@ -127,15 +127,8 @@ class Api {
     const systemVersion = await this.getSystemVersion();
     const major = await this.getSystemVersionMajor();
 
-    // starting with version 25 the version string no longer contains `-SCALE`
-    if (
-      systemVersion.v2 &&
-      (systemVersion.v2.toLowerCase().includes("scale") || Number(major) >= 20)
-    ) {
-      return true;
-    }
-
-    return false;
+    // the first SCALE version was Angelfish ALPHA
+    return (systemVersion.v2 && Number(major) >= 20);
   }
 
   async getSystemVersionMajorMinor() {
