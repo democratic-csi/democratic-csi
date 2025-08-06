@@ -176,6 +176,48 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     }
   }
 
+  /**
+   * Check if an error response indicates a target already exists.
+   * This method handles variations in TrueNAS API error messages across different API versions.
+   * 
+   * @param {string|Object} responseBody - The HTTP response body (string or object)
+   * @returns {boolean} - true if the error indicates target already exists
+   */
+  isTargetAlreadyExistsError(responseBody) {
+    // Extract error message more efficiently
+    let errorString = '';
+    
+    if (typeof responseBody === 'string') {
+      errorString = responseBody;
+    } else if (responseBody && typeof responseBody === 'object') {
+      // Try common error message fields first to avoid full JSON.stringify
+      errorString = responseBody.message || 
+                    responseBody.error || 
+                    responseBody.detail || 
+                    JSON.stringify(responseBody);
+    } else {
+      return false;
+    }
+    
+    // Handle multiple variations of the target already exists error message
+    const targetExistsPatterns = [
+      "Target name already exists",        // Original pattern in code (API v1)
+      "Target with this name already exists", // Actual TrueNAS error message (API v2)
+      "Target\\b.*\\balready\\b.*\\bexists"     // Flexible pattern with word boundaries
+    ];
+
+    return targetExistsPatterns.some(pattern => {
+      if (pattern.includes("\\")) {
+        // Use regex for flexible patterns with word boundaries
+        const regex = new RegExp(pattern, "i");
+        return regex.test(errorString);
+      } else {
+        // Use case-insensitive simple string matching for exact patterns
+        return errorString.toLowerCase().includes(pattern.toLowerCase());
+      }
+    });
+  }
+
   async findResourceByProperties(endpoint, match) {
     if (!match) {
       return;
@@ -924,21 +966,30 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                 target
               );
 
-              // 409 if invalid
+              // 409 Conflict - target already exists or other validation errors
               if (response.statusCode != 201) {
                 target = null;
                 if (
                   response.statusCode == 409 &&
-                  JSON.stringify(response.body).includes(
-                    "Target name already exists"
-                  )
+                  this.isTargetAlreadyExistsError(response.body)
                 ) {
+                  this.ctx.logger.debug(
+                    "iSCSI target already exists, attempting to find existing target with name: %s",
+                    iscsiName
+                  );
                   target = await this.findResourceByProperties(
                     "/services/iscsi/target",
                     {
                       iscsi_target_name: iscsiName,
                     }
                   );
+                  if (target) {
+                    this.ctx.logger.debug(
+                      "Found existing iSCSI target with ID: %s, name: %s",
+                      target.id,
+                      target.iscsi_target_name
+                    );
+                  }
                 } else {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
@@ -1212,21 +1263,30 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
               response = await httpClient.post("/iscsi/target", target);
 
-              // 409 if invalid
+              // 422 Unprocessable Entity - validation errors including duplicate targets
               if (response.statusCode != 200) {
                 target = null;
                 if (
                   response.statusCode == 422 &&
-                  JSON.stringify(response.body).includes(
-                    "Target name already exists"
-                  )
+                  this.isTargetAlreadyExistsError(response.body)
                 ) {
+                  this.ctx.logger.debug(
+                    "iSCSI target already exists, attempting to find existing target with name: %s",
+                    iscsiName
+                  );
                   target = await this.findResourceByProperties(
                     "/iscsi/target",
                     {
                       name: iscsiName,
                     }
                   );
+                  if (target) {
+                    this.ctx.logger.debug(
+                      "Found existing iSCSI target with ID: %s, name: %s",
+                      target.id,
+                      target.name
+                    );
+                  }
                 } else {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
