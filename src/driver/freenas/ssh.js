@@ -252,7 +252,8 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       // crude stoppage attempt
       let response = await httpClient.get(endpoint, queryParams);
       if (lastReponse) {
-        if (JSON.stringify(lastReponse) == JSON.stringify(response)) {
+        // Compare only the response body to avoid circular reference issues
+        if (JSON.stringify(lastReponse.body) == JSON.stringify(response.body)) {
           break;
         }
       }
