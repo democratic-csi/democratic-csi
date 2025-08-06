@@ -151,6 +151,48 @@ class FreeNASApiDriver extends CsiBaseDriver {
   }
 
   /**
+   * Check if an error response indicates a target already exists.
+   * This method handles variations in TrueNAS API error messages across different API versions.
+   * 
+   * @param {string|Object} responseBody - The HTTP response body (string or object)
+   * @returns {boolean} - true if the error indicates target already exists
+   */
+  isTargetAlreadyExistsError(responseBody) {
+    // Extract error message more efficiently
+    let errorString = '';
+    
+    if (typeof responseBody === 'string') {
+      errorString = responseBody;
+    } else if (responseBody && typeof responseBody === 'object') {
+      // Try common error message fields first to avoid full JSON.stringify
+      errorString = responseBody.message || 
+                    responseBody.error || 
+                    responseBody.detail || 
+                    JSON.stringify(responseBody);
+    } else {
+      return false;
+    }
+    
+    // Handle multiple variations of the target already exists error message
+    const targetExistsPatterns = [
+      "Target name already exists",        // Original pattern in code (API v1)
+      "Target with this name already exists", // Actual TrueNAS error message (API v2)
+      "Target\\b.*\\balready\\b.*\\bexists"     // Flexible pattern with word boundaries
+    ];
+
+    return targetExistsPatterns.some(pattern => {
+      if (pattern.includes("\\")) {
+        // Use regex for flexible patterns with word boundaries
+        const regex = new RegExp(pattern, "i");
+        return regex.test(errorString);
+      } else {
+        // Use case-insensitive simple string matching for exact patterns
+        return errorString.toLowerCase().includes(pattern.toLowerCase());
+      }
+    });
+  }
+
+  /**
    * only here for the helpers
    * @returns
    */
@@ -835,14 +877,12 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 target
               );
 
-              // 409 if invalid
+              // 409 Conflict - target already exists or other validation errors
               if (response.statusCode != 201) {
                 target = null;
                 if (
                   response.statusCode == 409 &&
-                  JSON.stringify(response.body).includes(
-                    "Target name already exists"
-                  )
+                  this.isTargetAlreadyExistsError(response.body)
                 ) {
                   target = await httpApiClient.findResourceByProperties(
                     "/services/iscsi/target",
@@ -1123,14 +1163,12 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
               response = await httpClient.post("/iscsi/target", target);
 
-              // 409 if invalid
+              // 422 Unprocessable Entity - validation errors including duplicate targets
               if (response.statusCode != 200) {
                 target = null;
                 if (
                   response.statusCode == 422 &&
-                  JSON.stringify(response.body).includes(
-                    "Target name already exists"
-                  )
+                  this.isTargetAlreadyExistsError(response.body)
                 ) {
                   target = await httpApiClient.findResourceByProperties(
                     "/iscsi/target",
