@@ -49,7 +49,7 @@ reclaimPolicy=$(yq '.spec.persistentVolumeReclaimPolicy' "${PV_ORIG_FILE}")
 cp "${PV_ORIG_FILE}" "${PV_TMP_FILE}"
 
 # pre-process before edit
-yq -i -y 'del(.metadata.resourceVersion)' "${PV_TMP_FILE}"
+yq -i 'del(.metadata.resourceVersion)' "${PV_TMP_FILE}"
 
 # manually edit
 ${EDITOR} "${PV_TMP_FILE}"
@@ -69,7 +69,7 @@ kubectl patch pv "${PV}" -p '{"metadata":{"finalizers": null }}' &>/dev/null || 
 kubectl apply -f "${PV_TMP_FILE}"
 
 # restore original reclaim value
-kubectl patch pv "${PV}" -p "{\"spec\":{\"persistentVolumeReclaimPolicy\":${reclaimPolicy}}}"
+kubectl patch pv "${PV}" -p "{\"spec\":{\"persistentVolumeReclaimPolicy\":\"${reclaimPolicy}\"}}"
 
 # spit out any zfs properties updates
 yes_or_no "Would you like to delete the PV backup file?" && {
