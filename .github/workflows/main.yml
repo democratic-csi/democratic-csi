@@ -487,15 +487,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-2019, windows-2022]
+        os: [windows-2022, windows-2025]
         include:
-          - os: windows-2019
-            core_base_tag: ltsc2019
-            nano_base_tag: "1809"
-            file: Dockerfile.Windows
           - os: windows-2022
             core_base_tag: ltsc2022
             nano_base_tag: ltsc2022
+            file: Dockerfile.Windows
+          - os: windows-2025
+            core_base_tag: ltsc2025
+            nano_base_tag: ltsc2025
             file: Dockerfile.Windows
     steps:
       - uses: actions/checkout@v4
@@ -528,10 +528,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: democratic-csi-windows-ltsc2019.tar
+          name: democratic-csi-windows-ltsc2022.tar
       - uses: actions/download-artifact@v4
         with:
-          name: democratic-csi-windows-ltsc2022.tar
+          name: democratic-csi-windows-ltsc2025.tar
       - name: push windows images with buildah
         run: |
           #.github/bin/install_latest_buildah.sh

@@ -1,0 +1,31 @@
+diff --git a/cmd/ctr/commands/images/mount.go b/cmd/ctr/commands/images/mount.go
+index c97954267..63c5a7746 100644
+--- a/cmd/ctr/commands/images/mount.go
++++ b/cmd/ctr/commands/images/mount.go
+@@ -25,6 +25,7 @@ import (
+ 	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+ 	"github.com/containerd/containerd/v2/core/leases"
+ 	"github.com/containerd/containerd/v2/core/mount"
++	"github.com/containerd/containerd/v2/core/snapshots"
+ 	"github.com/containerd/containerd/v2/defaults"
+ 	"github.com/containerd/errdefs"
+ 	"github.com/containerd/platforms"
+@@ -114,11 +115,16 @@ When you are done, use the unmount command.
+ 
+ 		s := client.SnapshotService(snapshotter)
+ 
++		labels := commands.LabelArgs(cliContext.StringSlice("label"))
++		opts := []snapshots.Opt{
++			snapshots.WithLabels(labels),
++		}
++
+ 		var mounts []mount.Mount
+ 		if cliContext.Bool("rw") {
+-			mounts, err = s.Prepare(ctx, target, chainID)
++			mounts, err = s.Prepare(ctx, target, chainID, opts...)
+ 		} else {
+-			mounts, err = s.View(ctx, target, chainID)
++			mounts, err = s.View(ctx, target, chainID, opts...)
+ 		}
+ 		if err != nil {
+ 			if errdefs.IsAlreadyExists(err) {

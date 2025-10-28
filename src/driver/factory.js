@@ -14,6 +14,9 @@ const { ControllerSmbClientDriver } = require("./controller-smb-client");
 const { ControllerLustreClientDriver } = require("./controller-lustre-client");
 const { ControllerObjectiveFSDriver } = require("./controller-objectivefs");
 const { ControllerSynologyDriver } = require("./controller-synology");
+const {
+  EphemeralInlineContainerDOciDriver,
+} = require("./ephemeral-inline-containerd-oci");
 const { NodeManualDriver } = require("./node-manual");
 
 function factory(ctx, options) {
@@ -53,6 +56,8 @@ function factory(ctx, options) {
       return new ControllerLustreClientDriver(ctx, options);
     case "objectivefs":
       return new ControllerObjectiveFSDriver(ctx, options);
+    case "containerd-oci-ephemeral-inline":
+      return new EphemeralInlineContainerDOciDriver(ctx, options);
     case "node-manual":
       return new NodeManualDriver(ctx, options);
     default:

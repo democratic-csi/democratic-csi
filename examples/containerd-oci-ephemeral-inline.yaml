@@ -1,0 +1,6 @@
+driver: containerd-oci-ephemeral-inline
+containerd:
+  #address: /run/containerd/containerd.sock
+  #windowsAddress: \\\\.\\pipe\\containerd-containerd
+  #namespace: default
+  #creds encryption key

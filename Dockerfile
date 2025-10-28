@@ -1,6 +1,25 @@
 # docker build --pull -t foobar .
 # docker buildx build --pull -t foobar --platform linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le .
+# docker run --rm -ti --user root --entrypoint /bin/bash foobar
 
+######################
+# golang builder
+######################
+FROM golang:1.25.3-bookworm as ctrbuilder
+
+# /go/containerd/ctr
+ADD docker/ctr-mount-labels.diff /tmp
+RUN \
+  git clone https://github.com/containerd/containerd.git; \
+  cd containerd && \
+  git checkout v2.0.4 && \
+  git apply /tmp/ctr-mount-labels.diff && \
+  CGO_ENABLED=0 go build ./cmd/ctr/;
+
+
+######################
+# nodejs builder
+######################
 FROM debian:12-slim AS build
 #FROM --platform=$BUILDPLATFORM debian:10-slim AS build
 
@@ -78,6 +97,9 @@ RUN test $(uname -m) != armv7l || ( \
   && rm -rf /var/lib/apt/lists/* \
   )
 
+# install ctr
+COPY --from=ctrbuilder /go/containerd/ctr /usr/local/bin/ctr
+
 # install node
 #ENV PATH=/usr/local/lib/nodejs/bin:$PATH
 #COPY --from=build /usr/local/lib/nodejs /usr/local/lib/nodejs
@@ -116,31 +138,27 @@ RUN chmod +x /usr/local/sbin/yq-installer.sh && yq-installer.sh
 #        rm -rf /var/lib/apt/lists/*
 
 # install objectivefs
-ARG OBJECTIVEFS_VERSION=7.2
+ARG OBJECTIVEFS_VERSION=7.3
 ADD docker/objectivefs-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/objectivefs-installer.sh && objectivefs-installer.sh
 
 # install wrappers
 ADD docker/iscsiadm /usr/local/sbin
-RUN chmod +x /usr/local/sbin/iscsiadm
 
 ADD docker/multipath /usr/local/sbin
-RUN chmod +x /usr/local/sbin/multipath
 
 ## USE_HOST_MOUNT_TOOLS=1
 ADD docker/mount /usr/local/bin/mount
-RUN chmod +x /usr/local/bin/mount
 
 ## USE_HOST_MOUNT_TOOLS=1
 ADD docker/umount /usr/local/bin/umount
-RUN chmod +x /usr/local/bin/umount
 
 ADD docker/zfs /usr/local/bin/zfs
-RUN chmod +x /usr/local/bin/zfs
 ADD docker/zpool /usr/local/bin/zpool
-RUN chmod +x /usr/local/bin/zpool
 ADD docker/oneclient /usr/local/bin/oneclient
-RUN chmod +x /usr/local/bin/oneclient
+
+RUN chown -R root:root /usr/local/bin/*
+RUN chmod +x /usr/local/bin/*
 
 # Run as a non-root user
 RUN useradd --create-home csi \

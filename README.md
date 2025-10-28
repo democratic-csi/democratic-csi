@@ -463,6 +463,7 @@ passwd smbroot (optional)
 smbpasswd -L -a smbroot
 
 ####### nvmeof
+# apt-get install linux-modules-extra-$(uname -r)
 # ensure nvmeof target modules are loaded at startup
 cat <<EOF > /etc/modules-load.d/nvmet.conf
 nvmet
@@ -483,7 +484,8 @@ cd nvmetcli
 
 ## install globally
 python3 setup.py install --prefix=/usr
-pip install configshell_fb
+pip install configshell_fb # apt-get install -y pip python3-configshell-fb
+
 
 ## install to root home dir
 python3 setup.py install --user

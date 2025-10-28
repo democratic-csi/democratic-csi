@@ -99,6 +99,7 @@ COPY --from=build /PowerShell /PowerShell
 COPY --from=build /app /app
 WORKDIR /app
 
+ADD https://github.com/democratic-csi/democratic-csi/releases/download/v1.0.0/ctr.exe ./bin
 COPY --from=build /nodejs/node.exe ./bin
 COPY --from=build /usr/local/bin/ ./bin
 
