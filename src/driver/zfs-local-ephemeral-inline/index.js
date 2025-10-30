@@ -140,7 +140,8 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
         sshClient = this.getSshClient();
         executor = new ZfsSshProcessManager(sshClient);
       }
-      return new Zetabyte({
+
+      const options = {
         executor,
         idempotent: true,
         chroot: this.options.zfs.chroot,
@@ -148,7 +149,21 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
           zpool: "/usr/sbin/zpool",
           zfs: "/usr/sbin/zfs",
         },
-      });
+      };
+
+      if (process.env.DEMOCRATIC_CSI_IS_CONTAINER == "true") {
+        delete options.chroot;
+        options.paths.zpool = "/usr/local/bin/zpool";
+        options.paths.zfs = "/usr/local/bin/zfs";
+      }
+
+      options.paths = Object.assign(
+        {},
+        options.paths,
+        _.get(this.options, "zfs.cli.paths", {})
+      );
+
+      return new Zetabyte(options);
     });
   }
 

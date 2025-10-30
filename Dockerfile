@@ -38,7 +38,7 @@ ENV NODE_VERSION=v20.19.0
 ENV NODE_ENV=production
 
 # install build deps
-#RUN apt-get update && apt-get install -y python3 make cmake gcc g++
+RUN apt-get update && apt-get install -y python3 make cmake gcc g++
 
 # install node
 RUN apt-get update && apt-get install -y wget xz-utils

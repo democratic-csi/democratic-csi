@@ -70,26 +70,17 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       const options = {};
       options.executor = new ZfsSshProcessManager(sshClient);
       options.idempotent = true;
-
       options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-
-      // Run automatic detection first
       if (typeof this.setZetabyteCustomOptions === "function") {
         await this.setZetabyteCustomOptions(options);
       }
 
-      // Manual override comes after automatic detection
-      // Only apply if user explicitly provided non-empty paths
-      if (
-        this.options.zfs.hasOwnProperty("cli") &&
-        this.options.zfs.cli &&
-        this.options.zfs.cli.hasOwnProperty("paths") &&
-        this.options.zfs.cli.paths &&
-        Object.keys(this.options.zfs.cli.paths).length > 0
-      ) {
-        // User explicitly configured paths - use them
-        options.paths = this.options.zfs.cli.paths;
-      }
+      options.paths = options.paths || {};
+      options.paths = Object.assign(
+        {},
+        options.paths,
+        _.get(this.options, "zfs.cli.paths", {})
+      );
 
       return new Zetabyte(options);
     });
@@ -108,6 +99,8 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
         return "filesystem";
       case "freenas-iscsi":
       case "truenas-iscsi":
+      case "freenas-nvmeof":
+      case "truenas-nvmeof":
         return "volume";
       default:
         throw new Error("unknown driver: " + this.ctx.args.driver);
@@ -115,36 +108,31 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
   }
 
   async setZetabyteCustomOptions(options) {
-    if (!options.hasOwnProperty("paths")) {
-      const majorMinor = await this.getSystemVersionMajorMinor();
-      const isScale = await this.getIsScale();
-      
-      if (!isScale && Number(majorMinor) >= 12) {
-        // TrueNAS CORE/Enterprise version 12+
+    const major = await this.getSystemVersionMajor();
+    const isScale = await this.getIsScale();
+
+    if (!isScale && Number(major) >= 12) {
+      options.paths = {
+        zfs: "/usr/local/sbin/zfs",
+        zpool: "/usr/local/sbin/zpool",
+        sudo: "/usr/local/bin/sudo",
+        chroot: "/usr/sbin/chroot",
+      };
+    } else if (isScale) {
+      if (Number(major) >= 25) {
+        options.paths = {
+          zfs: "/usr/sbin/zfs",
+          zpool: "/usr/sbin/zpool",
+          sudo: "/usr/bin/sudo",
+          chroot: "/usr/sbin/chroot",
+        };
+      } else {
         options.paths = {
           zfs: "/usr/local/sbin/zfs",
           zpool: "/usr/local/sbin/zpool",
-          sudo: "/usr/local/bin/sudo",
+          sudo: "/usr/bin/sudo",
           chroot: "/usr/sbin/chroot",
         };
-      } else if (isScale) {
-        if (Number(majorMinor) >= 25) {
-          // TrueNAS SCALE version 25+ (paths changed to /usr/sbin in 25.04)
-          options.paths = {
-            zfs: "/usr/sbin/zfs",
-            zpool: "/usr/sbin/zpool",
-            sudo: "/usr/bin/sudo",
-            chroot: "/usr/sbin/chroot",
-          };
-        } else {
-          // TrueNAS SCALE versions before 25
-          options.paths = {
-            zfs: "/usr/local/sbin/zfs",
-            zpool: "/usr/local/sbin/zpool",
-            sudo: "/usr/bin/sudo",
-            chroot: "/usr/sbin/chroot",
-          };
-        }
       }
     }
   }
@@ -2226,20 +2214,14 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
 
   async getIsScale() {
     const systemVersion = await this.getSystemVersion();
+    const major = await this.getSystemVersionMajor();
 
-    if (systemVersion.v2) {
-      const versionLower = systemVersion.v2.toLowerCase();
-      // Check for explicit "scale" in version string
-      if (versionLower.includes("scale")) {
-        return true;
-      }
-      // TrueNAS 25+ doesn't include "SCALE" in version string, but versions 25+ are SCALE-only
-      if (versionLower.includes("truenas")) {
-        const majorVersion = await this.getSystemVersionMajor();
-        if (Number(majorVersion) >= 25) {
-          return true;
-        }
-      }
+    // starting with version 25 the version string no longer contains `-SCALE`
+    if (
+      systemVersion.v2 &&
+      (systemVersion.v2.toLowerCase().includes("scale") || Number(major) >= 20)
+    ) {
+      return true;
     }
 
     return false;
