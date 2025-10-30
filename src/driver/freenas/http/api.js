@@ -1,4 +1,5 @@
 const _ = require("lodash");
+const semver = require("semver");
 const { sleep, stringify } = require("../../../utils/general");
 const { Zetabyte } = require("../../../utils/zfs");
 const { Registry } = require("../../../utils/registry");
@@ -183,6 +184,12 @@ class Api {
     return majorMinor.split(".")[0];
   }
 
+  async getSystemVersionSemver() {
+    return semver.coerce(await this.getSystemVersionMajorMinor(), {
+      loose: true,
+    });
+  }
+
   async setVersionInfoCache(versionInfo) {
     await this.cache.set(FREENAS_SYSTEM_VERSION_CACHE_KEY, versionInfo, {
       ttl: 60 * 1000,
@@ -250,7 +257,7 @@ class Api {
     let user_properties = {};
     for (const property in properties) {
       if (this.getIsUserProperty(property)) {
-        user_properties[property] = properties[property];
+        user_properties[property] = String(properties[property]);
       }
     }
 
@@ -271,7 +278,15 @@ class Api {
   getPropertiesKeyValueArray(properties) {
     let arr = [];
     for (const property in properties) {
-      arr.push({ key: property, value: properties[property] });
+      let value = properties[property];
+      if (
+        this.getIsUserProperty(property) &&
+        value != null &&
+        value !== undefined
+      ) {
+        value = String(value);
+      }
+      arr.push({ key: property, value });
     }
 
     return arr;
@@ -501,10 +516,17 @@ class Api {
 
   async SnapshotSet(snapshotName, properties) {
     const httpClient = await this.getHttpClient(false);
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
     let response;
     let endpoint;
 
-    endpoint = `/zfs/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = `/pool/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    } else {
+      endpoint = `/zfs/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    }
+
     response = await httpClient.put(endpoint, {
       //...this.getSystemProperties(properties),
       user_properties_update: this.getPropertiesKeyValueArray(
@@ -529,10 +551,17 @@ class Api {
    */
   async SnapshotGet(snapshotName, properties) {
     const httpClient = await this.getHttpClient(false);
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
     let response;
     let endpoint;
 
-    endpoint = `/zfs/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = `/pool/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    } else {
+      endpoint = `/zfs/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    }
+
     response = await httpClient.get(endpoint);
 
     if (response.statusCode == 200) {
@@ -540,7 +569,7 @@ class Api {
     }
 
     if (response.statusCode == 404) {
-      throw new Error("dataset does not exist");
+      throw new Error("snapshot does not exist");
     }
 
     throw new Error(JSON.stringify(response.body));
@@ -549,6 +578,7 @@ class Api {
   async SnapshotCreate(snapshotName, data = {}) {
     const httpClient = await this.getHttpClient(false);
     const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
 
     let response;
     let endpoint;
@@ -559,7 +589,12 @@ class Api {
     data.dataset = dataset;
     data.name = snapshot;
 
-    endpoint = "/zfs/snapshot";
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/pool/snapshot";
+    } else {
+      endpoint = "/zfs/snapshot";
+    }
+
     response = await httpClient.post(endpoint, data);
 
     if (response.statusCode == 200) {
@@ -579,11 +614,17 @@ class Api {
   async SnapshotDelete(snapshotName, data = {}) {
     const httpClient = await this.getHttpClient(false);
     const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
 
     let response;
     let endpoint;
 
-    endpoint = `/zfs/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = `/pool/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    } else {
+      endpoint = `/zfs/snapshot/id/${encodeURIComponent(snapshotName)}`;
+    }
+
     response = await httpClient.delete(endpoint, data);
 
     if (response.statusCode == 200) {
@@ -607,6 +648,7 @@ class Api {
   async CloneCreate(snapshotName, datasetName, data = {}) {
     const httpClient = await this.getHttpClient(false);
     const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
 
     let response;
     let endpoint;
@@ -614,7 +656,12 @@ class Api {
     data.snapshot = snapshotName;
     data.dataset_dst = datasetName;
 
-    endpoint = "/zfs/snapshot/clone";
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/pool/snapshot/clone";
+    } else {
+      endpoint = "/zfs/snapshot/clone";
+    }
+
     response = await httpClient.post(endpoint, data);
 
     if (response.statusCode == 200) {

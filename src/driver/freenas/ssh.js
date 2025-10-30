@@ -269,10 +269,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
-    const truenasVersion = semver.coerce(
-      await httpApiClient.getSystemVersionMajorMinor(),
-      { loose: true }
-    );
+    const truenasVersion = await httpApiClient.getSystemVersionSemver();
 
     if (!truenasVersion) {
       throw new GrpcError(
@@ -591,6 +588,40 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                       break;
                   }
                   share[propertyMapping[key]] = value;
+                }
+              }
+
+              if (isScale && semver.satisfies(truenasVersion, ">=25.10")) {
+                let topLevelProperties = [
+                  "purpose",
+                  "name",
+                  "path",
+                  "enabled",
+                  "comment",
+                  "readonly",
+                  "browsable",
+                  "access_based_share_enumeration",
+                  "audit",
+                ];
+                let disallowedOptions = ["abe"];
+                share.purpose = "LEGACY_SHARE";
+                share.options = {
+                  purpose: "LEGACY_SHARE",
+                };
+                for (const key in share) {
+                  switch (key) {
+                    case "options":
+                      // ignore
+                      break;
+                    default:
+                      if (!topLevelProperties.includes(key)) {
+                        if (!disallowedOptions.includes(key)) {
+                          share.options[key] = share[key];
+                        }
+                        delete share[key];
+                      }
+                      break;
+                  }
                 }
               }
 

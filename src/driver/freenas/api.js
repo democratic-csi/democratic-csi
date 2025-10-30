@@ -181,10 +181,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const apiVersion = httpClient.getApiVersion();
     const zb = await this.getZetabyte();
-    const truenasVersion = semver.coerce(
-      await httpApiClient.getSystemVersionMajorMinor(),
-      { loose: true }
-    );
+    const truenasVersion = await httpApiClient.getSystemVersionSemver();
 
     if (!truenasVersion) {
       throw new GrpcError(
@@ -503,6 +500,40 @@ class FreeNASApiDriver extends CsiBaseDriver {
                       break;
                   }
                   share[propertyMapping[key]] = value;
+                }
+              }
+
+              if (isScale && semver.satisfies(truenasVersion, ">=25.10")) {
+                let topLevelProperties = [
+                  "purpose",
+                  "name",
+                  "path",
+                  "enabled",
+                  "comment",
+                  "readonly",
+                  "browsable",
+                  "access_based_share_enumeration",
+                  "audit",
+                ];
+                let disallowedOptions = ["abe"];
+                share.purpose = "LEGACY_SHARE";
+                share.options = {
+                  purpose: "LEGACY_SHARE",
+                };
+                for (const key in share) {
+                  switch (key) {
+                    case "options":
+                      // ignore
+                      break;
+                    default:
+                      if (!topLevelProperties.includes(key)) {
+                        if (!disallowedOptions.includes(key)) {
+                          share.options[key] = share[key];
+                        }
+                        delete share[key];
+                      }
+                      break;
+                  }
                 }
               }
 
@@ -2819,13 +2850,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
         // set quota
         if (this.options.zfs.datasetEnableQuotas) {
           setProps = true;
-          properties.refquota = capacity_bytes;
+          properties.refquota = Number(capacity_bytes);
         }
 
         // set reserve
         if (this.options.zfs.datasetEnableReservation) {
           setProps = true;
-          properties.refreservation = capacity_bytes;
+          properties.refreservation = Number(capacity_bytes);
         }
 
         // quota for dataset and all children
@@ -2933,7 +2964,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
         // this should be already set, but when coming from a volume source
         // it may not match that of the source
-        properties.volsize = capacity_bytes;
+        properties.volsize = Number(capacity_bytes);
 
         // dedup
         // on, off, verify
@@ -3221,17 +3252,17 @@ class FreeNASApiDriver extends CsiBaseDriver {
         // set quota
         if (this.options.zfs.datasetEnableQuotas) {
           setProps = true;
-          properties.refquota = capacity_bytes;
+          properties.refquota = Number(capacity_bytes);
         }
 
         // set reserve
         if (this.options.zfs.datasetEnableReservation) {
           setProps = true;
-          properties.refreservation = capacity_bytes;
+          properties.refreservation = Number(capacity_bytes);
         }
         break;
       case "volume":
-        properties.volsize = capacity_bytes;
+        properties.volsize = Number(capacity_bytes);
         setProps = true;
 
         // managed automatically for zvols
@@ -3532,6 +3563,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const httpClient = await this.getHttpClient();
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
+    const truenasVersion = await httpApiClient.getSystemVersionSemver();
 
     let entries = [];
     let entries_length = 0;
@@ -3693,11 +3725,19 @@ class FreeNASApiDriver extends CsiBaseDriver {
               response = await httpClient.get(endpoint, {
                 "extra.snapshots": 1,
                 "extra.snapshots_properties": JSON.stringify(zfsProperties),
+                //"extra.snapshots_properties": "null",
               });
               if (response.statusCode == 404) {
                 throw new Error("dataset does not exist");
               } else if (response.statusCode == 200) {
                 for (let snapshot of response.body.snapshots) {
+                  if (semver.satisfies(truenasVersion, ">=25.10")) {
+                    // request the snapshot because fetching properties is broken with the dataset is broken
+                    snapshot.properties = await httpApiClient.SnapshotGet(
+                      snapshot.id,
+                      zfsProperties
+                    );
+                  }
                   let row = {};
                   for (let p in snapshot.properties) {
                     row[p] = snapshot.properties[p].rawvalue;
@@ -3716,12 +3756,20 @@ class FreeNASApiDriver extends CsiBaseDriver {
               response = await httpClient.get(endpoint, {
                 "extra.snapshots": 1,
                 "extra.snapshots_properties": JSON.stringify(zfsProperties),
+                //"extra.snapshots_properties": "null",
               });
               if (response.statusCode == 404) {
                 throw new Error("dataset does not exist");
               } else if (response.statusCode == 200) {
                 for (let child of response.body.children) {
                   for (let snapshot of child.snapshots) {
+                    if (semver.satisfies(truenasVersion, ">=25.10")) {
+                      // request the snapshot because fetching properties is broken with the dataset is broken
+                      snapshot.properties = await httpApiClient.SnapshotGet(
+                        snapshot.id,
+                        zfsProperties
+                      );
+                    }
                     let row = {};
                     for (let p in snapshot.properties) {
                       row[p] = snapshot.properties[p].rawvalue;
