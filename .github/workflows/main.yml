@@ -115,7 +115,7 @@ jobs:
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
-  csi-sanity-truenas-scale-25_04:
+  csi-sanity-truenas-scale-25_10:
     needs:
       - build-npm-linux-amd64
     strategy:
@@ -123,10 +123,10 @@ jobs:
       max-parallel: 1
       matrix:
         config:
-          - truenas/scale/25.04/scale-iscsi.yaml
-          - truenas/scale/25.04/scale-nfs.yaml
+          - truenas/scale/25.10/scale-iscsi.yaml
+          - truenas/scale/25.10/scale-nfs.yaml
           # 80 char limit
-          - truenas/scale/25.04/scale-smb.yaml
+          - truenas/scale/25.10/scale-smb.yaml
     runs-on:
       - self-hosted
       - Linux
@@ -435,7 +435,7 @@ jobs:
       - determine-image-tag
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-25_04
+      - csi-sanity-truenas-scale-25_10
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-objectivefs
@@ -468,14 +468,15 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GHCR_PASSWORD }}
           OBJECTIVEFS_DOWNLOAD_ID: ${{ secrets.OBJECTIVEFS_DOWNLOAD_ID }}
           DOCKER_CLI_EXPERIMENTAL: enabled
-          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le
+          # DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x,linux/ppc64le
+          DOCKER_BUILD_PLATFORM: linux/amd64,linux/arm64
           IMAGE_TAG: ${{needs.determine-image-tag.outputs.tag}}
 
   build-docker-windows:
     needs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-25_04
+      - csi-sanity-truenas-scale-25_10
       - csi-sanity-truenas-core-13_0
       - csi-sanity-zfs-generic
       - csi-sanity-objectivefs
