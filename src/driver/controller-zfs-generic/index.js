@@ -39,18 +39,24 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       }
       options.idempotent = true;
 
+      options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
+
+      // Run automatic detection first
+      if (typeof this.setZetabyteCustomOptions === "function") {
+        await this.setZetabyteCustomOptions(options);
+      }
+
+      // Manual override comes after automatic detection
+      // Only apply if user explicitly provided non-empty paths
       if (
         this.options.zfs.hasOwnProperty("cli") &&
         this.options.zfs.cli &&
-        this.options.zfs.cli.hasOwnProperty("paths")
+        this.options.zfs.cli.hasOwnProperty("paths") &&
+        this.options.zfs.cli.paths &&
+        Object.keys(this.options.zfs.cli.paths).length > 0
       ) {
+        // User explicitly configured paths - use them
         options.paths = this.options.zfs.cli.paths;
-      }
-
-      options.sudo = _.get(this.options, "zfs.cli.sudoEnabled", false);
-
-      if (typeof this.setZetabyteCustomOptions === "function") {
-        await this.setZetabyteCustomOptions(options);
       }
 
       return new Zetabyte(options);
