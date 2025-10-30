@@ -38,7 +38,7 @@ ENV NODE_VERSION=v20.19.0
 ENV NODE_ENV=production
 
 # install build deps
-RUN apt-get update && apt-get install -y python3 make cmake gcc g++
+# RUN apt-get update && apt-get install -y python3 make cmake gcc g++
 
 # install node
 RUN apt-get update && apt-get install -y wget xz-utils
@@ -59,6 +59,10 @@ RUN useradd --create-home csi \
   && chown -R csi: /home/csi
 WORKDIR /home/csi/app
 USER csi
+
+# prevent need to build re2 module
+ENV RE2_DOWNLOAD_MIRROR="https://grpc-uds-binaries.s3-us-west-2.amazonaws.com/re2"
+ENV RE2_DOWNLOAD_SKIP_PATH=1
 
 COPY --chown=csi:csi package*.json ./
 RUN npm install --only=production --grpc_node_binary_host_mirror=https://grpc-uds-binaries.s3-us-west-2.amazonaws.com/debian-buster
