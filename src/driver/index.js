@@ -124,10 +124,13 @@ class CsiBaseDriver {
    * @returns Mount
    */
   getDefaultMountInstance() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_mount_instance`, () => {
-      const filesystem = this.getDefaultFilesystemInstance();
-      return new Mount({ filesystem });
-    });
+    return this.ctx.registry.get(
+      `${__REGISTRY_NS__}:default_mount_instance`,
+      () => {
+        const filesystem = this.getDefaultFilesystemInstance();
+        return new Mount({ filesystem });
+      }
+    );
   }
 
   /**
@@ -136,9 +139,12 @@ class CsiBaseDriver {
    * @returns ISCSI
    */
   getDefaultISCSIInstance() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_iscsi_instance`, () => {
-      return new ISCSI();
-    });
+    return this.ctx.registry.get(
+      `${__REGISTRY_NS__}:default_iscsi_instance`,
+      () => {
+        return new ISCSI();
+      }
+    );
   }
 
   /**
@@ -148,37 +154,46 @@ class CsiBaseDriver {
    */
   getDefaultNVMEoFInstance() {
     const driver = this;
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_nvmeof_instance`, () => {
-      return new NVMEoF({ logger: driver.ctx.logger });
-    });
+    return this.ctx.registry.get(
+      `${__REGISTRY_NS__}:default_nvmeof_instance`,
+      () => {
+        return new NVMEoF({ logger: driver.ctx.logger });
+      }
+    );
   }
 
   getDefaultZetabyteInstance() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_zb_instance`, () => {
-      return new Zetabyte({
-        idempotent: true,
-        paths: {
-          zfs: "zfs",
-          zpool: "zpool",
-          sudo: "sudo",
-          chroot: "chroot",
-        },
-        //logger: driver.ctx.logger,
-        executor: {
-          spawn: function () {
-            const command = `${arguments[0]} ${arguments[1].join(" ")}`;
-            return cp.exec(command);
+    return this.ctx.registry.get(
+      `${__REGISTRY_NS__}:default_zb_instance`,
+      () => {
+        return new Zetabyte({
+          idempotent: true,
+          paths: {
+            zfs: "zfs",
+            zpool: "zpool",
+            sudo: "sudo",
+            chroot: "chroot",
           },
-        },
-        log_commands: true,
-      });
-    });
+          //logger: driver.ctx.logger,
+          executor: {
+            spawn: function () {
+              const command = `${arguments[0]} ${arguments[1].join(" ")}`;
+              return cp.exec(command);
+            },
+          },
+          log_commands: true,
+        });
+      }
+    );
   }
 
   getDefaultOneClientInstance() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_oneclient_instance`, () => {
-      return new OneClient();
-    });
+    return this.ctx.registry.get(
+      `${__REGISTRY_NS__}:default_oneclient_instance`,
+      () => {
+        return new OneClient();
+      }
+    );
   }
 
   getDefaultObjectiveFSInstance() {
@@ -198,11 +213,14 @@ class CsiBaseDriver {
    * @returns CsiProxyClient
    */
   getDefaultCsiProxyClientInstance() {
-    return this.ctx.registry.get(`${__REGISTRY_NS__}:default_csi_proxy_instance`, () => {
-      const options = {};
-      options.services = _.get(this.options, "node.csiProxy.services", {});
-      return new CsiProxyClient(options);
-    });
+    return this.ctx.registry.get(
+      `${__REGISTRY_NS__}:default_csi_proxy_instance`,
+      () => {
+        const options = {};
+        options.services = _.get(this.options, "node.csiProxy.services", {});
+        return new CsiProxyClient(options);
+      }
+    );
   }
 
   getDefaultKubernetsConfigInstance() {
@@ -1054,7 +1072,7 @@ class CsiBaseDriver {
               for (let nvmeofConnection of nvmeofConnections) {
                 // connect
                 try {
-                  await GeneralUtils.retry(15, 2000, async () => {
+                  await GeneralUtils.retry(30, 2000, async () => {
                     await nvmeof.connectByNQNTransport(
                       nvmeofConnection.nqn,
                       nvmeofConnection.transport
@@ -1069,15 +1087,36 @@ class CsiBaseDriver {
                   continue;
                 }
 
+                // wait for connection to actually be connected
+                try {
+                  await GeneralUtils.retry(30, 2000, async () => {
+                    let state = await nvmeof.getSubsystemStateByNQNTransport(
+                      nvmeofConnection.nqn,
+                      nvmeofConnection.transport
+                    );
+                    if (state != "live") {
+                      throw new Error("nvmeof connection is not live");
+                    }
+                  });
+                } catch (err) {
+                  driver.ctx.logger.warn(
+                    `error: ${JSON.stringify(
+                      err
+                    )} transport never became live: ${
+                      nvmeofConnection.transport
+                    }`
+                  );
+                  continue;
+                }
+
                 // find controller device
                 let controllerDevice;
                 try {
-                  await GeneralUtils.retry(15, 2000, async () => {
+                  await GeneralUtils.retry(30, 2000, async () => {
                     controllerDevice =
                       await nvmeof.controllerDevicePathByTransportNQN(
                         nvmeofConnection.transport,
-                        nvmeofConnection.nqn,
-                        nvmeofConnection.nsid
+                        nvmeofConnection.nqn
                       );
 
                     if (!controllerDevice) {
@@ -1488,11 +1527,13 @@ class CsiBaseDriver {
                 // format
                 result = await filesystem.deviceIsFormatted(device);
                 if (!result) {
-                  let formatOptions = _.get(
-                    driver.options.node.format,
-                    [fs_type, "customOptions"],
-                    []
-                  );
+                  let formatOptions = [
+                    ..._.get(
+                      driver.options.node.format,
+                      [fs_type, "customOptions"],
+                      []
+                    ),
+                  ];
                   if (!Array.isArray(formatOptions)) {
                     formatOptions = [];
                   }

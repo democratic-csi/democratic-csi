@@ -125,6 +125,7 @@ jobs:
         config:
           - truenas/scale/25.10/scale-iscsi.yaml
           - truenas/scale/25.10/scale-nfs.yaml
+          - truenas/scale/25.10/scale-nvmeof.yaml
           # 80 char limit
           - truenas/scale/25.10/scale-smb.yaml
     runs-on:

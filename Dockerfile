@@ -5,7 +5,7 @@
 ######################
 # golang builder
 ######################
-FROM golang:1.25.3-bookworm as ctrbuilder
+FROM golang:1.25.3-bookworm AS ctrbuilder
 
 # /go/containerd/ctr
 ADD docker/ctr-mount-labels.diff /tmp
@@ -61,6 +61,7 @@ WORKDIR /home/csi/app
 USER csi
 
 # prevent need to build re2 module
+# https://github.com/uhop/install-artifact-from-github/wiki/Making-local-mirror
 ENV RE2_DOWNLOAD_MIRROR="https://grpc-uds-binaries.s3-us-west-2.amazonaws.com/re2"
 ENV RE2_DOWNLOAD_SKIP_PATH=1
 

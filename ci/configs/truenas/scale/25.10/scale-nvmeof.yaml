@@ -1,0 +1,32 @@
+driver: freenas-api-nvmeof
+
+httpConnection:
+  protocol: http
+  host: ${TRUENAS_HOST}
+  port: 80
+  #apiKey:
+  username: ${TRUENAS_USERNAME}
+  password: ${TRUENAS_PASSWORD}
+
+zfs:
+  datasetParentName: tank/ci/${CI_BUILD_KEY}/v
+  detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
+
+  zvolCompression:
+  zvolDedup:
+  zvolEnableReservation: false
+  zvolBlocksize:
+
+nvmeof:
+  transports:
+    - tcp://${TRUENAS_HOST}:4420
+  namePrefix: "csi-ci-${CI_BUILD_KEY}-"
+  ports:
+    - 1
+
+# https://github.com/SCST-project/scst/blob/master/scst/src/dev_handlers/scst_vdisk.c#L203
+_private:
+  csi:
+    volume:
+      idHash:
+        strategy: crc16

@@ -645,6 +645,356 @@ class Api {
     throw new Error(JSON.stringify(response.body));
   }
 
+  async NvmetSubsysList(data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/subsys";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.get(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetSubsysCreate(subsysName, data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    data.name = subsysName;
+    data.allow_any_host = true;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/subsys";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.post(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    if (
+      response.statusCode == 422 &&
+      JSON.stringify(response.body).includes("already exists")
+    ) {
+      return this.NvmetSubsysGetByName(subsysName);
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetSubsysGetByName(subsysName, data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    data.name = subsysName;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/subsys";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.get(endpoint, data);
+
+    if (response.statusCode == 200) {
+      for (const subsys of response.body) {
+        if (subsys.name == subsysName) {
+          return subsys;
+        }
+      }
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetSubsysGetById(id, data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = `/nvmet/subsys/id/${id}`;
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.get(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetSubsysDeleteById(id, data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = `/nvmet/subsys/id/${id}`;
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.delete(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    if (
+      response.statusCode == 422 &&
+      JSON.stringify(response.body).includes("does not exist")
+    ) {
+      return;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetPortList(data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/port";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.get(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetPortSubsysList(data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/port_subsys";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.get(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetPortSubsysCreate(port_id, subsys_id) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    let data = {
+      port_id,
+      subsys_id,
+    };
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/port_subsys";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.post(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    //already exists
+    if (
+      response.statusCode == 422 &&
+      JSON.stringify(response.body).includes("already exists")
+    ) {
+      response = await this.NvmetPortSubsysList({ port_id, subsys_id });
+      if (Array.isArray(response) && response.length == 1) {
+        return response[0];
+      }
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetNamespaceCreate(zvol, subsysId, data = {}) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    zvol = String(zvol);
+    if (zvol.startsWith("/dev/")) {
+      zvol = zvol.substring(5);
+    }
+
+    if (zvol.startsWith("/")) {
+      zvol = zvol.substring(1);
+    }
+
+    if (!zvol.startsWith("zvol/")) {
+      zvol = `zvol/${zvol}`;
+    }
+
+    data.device_type = "ZVOL";
+    data.device_path = zvol;
+    data.subsys_id = subsysId;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/namespace";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.post(endpoint, data);
+
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+
+    if (
+      response.statusCode == 422 &&
+      JSON.stringify(response.body).includes("already exists")
+    ) {
+      return this.NvmetSubsysGetByName(subsysName);
+    }
+
+    if (
+      response.statusCode == 422 &&
+      JSON.stringify(response.body).includes("already used by subsystem")
+    ) {
+      //This device_path already used by subsystem: csi-pvc-111-clustera
+      return this.NvmetNamespaceGetByDeivcePath(zvol);
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetNamespaceGetByDeivcePath(zvol) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    zvol = String(zvol);
+    if (zvol.startsWith("/dev/")) {
+      zvol = zvol.substring(5);
+    }
+
+    if (zvol.startsWith("/")) {
+      zvol = zvol.substring(1);
+    }
+
+    if (!zvol.startsWith("zvol/")) {
+      zvol = `zvol/${zvol}`;
+    }
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = "/nvmet/namespace";
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    let data = {
+      device_path: zvol,
+    };
+
+    response = await httpClient.get(endpoint, data);
+
+    if (response.statusCode == 200) {
+      if (Array.isArray(response.body) && response.body.length == 1) {
+        return response.body[0];
+      }
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
+  async NvmetNamespaceDeleteById(id) {
+    const httpClient = await this.getHttpClient(false);
+    const zb = await this.getZetabyte();
+    const systemVersionSemver = await this.getSystemVersionSemver();
+
+    let response;
+    let endpoint;
+
+    if (semver.satisfies(systemVersionSemver, ">=25.10")) {
+      endpoint = `/nvmet/namespace/id/${id}`;
+    } else {
+      throw new Error("nvmet is unavailable with TrueNAS versions <25.10");
+    }
+
+    response = await httpClient.delete(endpoint);
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    if (
+      response.statusCode == 422 &&
+      JSON.stringify(response.body).includes("does not exist")
+    ) {
+      return;
+    }
+
+    throw new Error(JSON.stringify(response.body));
+  }
+
   async CloneCreate(snapshotName, datasetName, data = {}) {
     const httpClient = await this.getHttpClient(false);
     const zb = await this.getZetabyte();

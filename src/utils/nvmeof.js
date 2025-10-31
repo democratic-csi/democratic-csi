@@ -218,6 +218,50 @@ class NVMEoF {
     return false;
   }
 
+  async parseTransportFromPath(path) {
+    let address;
+    let service;
+    switch (path.Transport) {
+      case "fc":
+      case "rdma":
+      case "tcp":
+        let controllerAddress = path.Address;
+        /**
+         * For backwards compatibility with older nvme-cli versions (at least < 2.2.1)
+         * old: "Address":"traddr=127.0.0.1 trsvcid=4420"
+         * new: "Address":"traddr=127.0.0.1,trsvcid=4420"
+         */
+        controllerAddress = controllerAddress.replace(
+          new RegExp(/ ([a-z_]*=)/, "g"),
+          ",$1"
+        );
+        let parts = controllerAddress.split(",");
+
+        for (let i_part of parts) {
+          let i_parts = i_part.split("=");
+          switch (i_parts[0].trim()) {
+            case "traddr":
+              address = i_parts[1].trim();
+              break;
+            case "trsvcid":
+              service = i_parts[1].trim();
+              break;
+          }
+        }
+
+        break;
+      case "pcie":
+        address = path.Address;
+        break;
+    }
+
+    return {
+      type: path.Transport,
+      address,
+      service,
+    };
+  }
+
   async parseTransport(transport) {
     if (typeof transport === "object") {
       return transport;
@@ -338,11 +382,17 @@ class NVMEoF {
 
   async controllerDevicePathByTransportNQN(transport, nqn) {
     const nvmeof = this;
+
     transport = await nvmeof.parseTransport(transport);
-    let controller = await nvmeof.getControllerByTransportNQN(transport, nqn);
-    if (controller) {
-      return `/dev/${controller.Controller}`;
+    let path = await nvmeof.getSubsystemPathByNQNTransport(nqn, transport);
+    if (path) {
+      return `/dev/${path.Name}`;
     }
+
+    // let controller = await nvmeof.getControllerByTransportNQN(transport, nqn);
+    // if (controller) {
+    //   return `/dev/${controller.Controller}`;
+    // }
   }
 
   async getSubsystems() {
@@ -396,7 +446,7 @@ class NVMEoF {
       for (let subsystem of subsystems) {
         if (subsystem.Namespaces) {
           for (let namespace of subsystem.Namespaces) {
-            if (namespace.NameSpace == name) {
+            if (namespace.NameSpace == name && subsystem.Controllers) {
               return subsystem.Controllers;
             }
           }
@@ -433,37 +483,18 @@ class NVMEoF {
           continue;
         }
 
-        let controllerAddress = controller.Address;
-        /**
-         * For backwards compatibility with older nvme-cli versions (at least < 2.2.1)
-         * old: "Address":"traddr=127.0.0.1 trsvcid=4420"
-         * new: "Address":"traddr=127.0.0.1,trsvcid=4420"
-         */
-        controllerAddress = controllerAddress.replace(
-          new RegExp(/ ([a-z_]*=)/, "g"),
-          ",$1"
+        let controller_transport = await nvmeof.parseTransportFromPath(
+          controller
         );
-        let parts = controllerAddress.split(",");
 
-        let traddr;
-        let trsvcid;
-        for (let i_part of parts) {
-          let i_parts = i_part.split("=");
-          switch (i_parts[0].trim()) {
-            case "traddr":
-              traddr = i_parts[1].trim();
-              break;
-            case "trsvcid":
-              trsvcid = i_parts[1].trim();
-              break;
-          }
-        }
-
-        if (traddr != transport.address) {
+        if (controller_transport.address != transport.address) {
           continue;
         }
 
-        if (transport.service && trsvcid != transport.service) {
+        if (
+          transport.service &&
+          controller_transport.service != transport.service
+        ) {
           continue;
         }
 
@@ -513,6 +544,39 @@ class NVMEoF {
     }
 
     nvmeof.logger.warn(`failed to find nqn for device: ${name}`);
+  }
+
+  async getSubsystemStateByNQNTransport(nqn, transport) {
+    const nvmeof = this;
+    transport = await nvmeof.parseTransport(transport);
+    const path = await nvmeof.getSubsystemPathByNQNTransport(nqn, transport);
+    return path?.State;
+  }
+
+  async getSubsystemPathByNQNTransport(nqn, transport) {
+    const nvmeof = this;
+    transport = await nvmeof.parseTransport(transport);
+    const subsysList = await nvmeof.listSubsys(["-v"]);
+    host_label: for (const host of subsysList) {
+      subsys_label: for (const subsys of host.Subsystems) {
+        if (subsys.NQN != nqn) {
+          continue;
+        }
+        path_label: for (const path of subsys.Paths) {
+          let parsed_path_transport = await nvmeof.parseTransportFromPath(path);
+          for (const key of Object.keys(transport)) {
+            if (
+              ["type", "address", "service"].includes(key) &&
+              transport[key] != parsed_path_transport[key]
+            ) {
+              break path_label;
+            }
+          }
+
+          return path;
+        }
+      }
+    }
   }
 
   devicePathByModelNumberSerialNumber(modelNumber, serialNumber) {

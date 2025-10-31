@@ -24,13 +24,20 @@ function factory(ctx, options) {
     case "freenas-nfs":
     case "freenas-smb":
     case "freenas-iscsi":
+    case "freenas-nvmeof":
     case "truenas-nfs":
     case "truenas-smb":
     case "truenas-iscsi":
+    case "truenas-nvmeof":
       return new FreeNASSshDriver(ctx, options);
-    case "freenas-api-iscsi":
     case "freenas-api-nfs":
     case "freenas-api-smb":
+    case "freenas-api-iscsi":
+    case "freenas-api-nvmeof":
+    case "truenas-api-nfs":
+    case "truenas-api-smb":
+    case "truenas-api-iscsi":
+    case "truenas-api-nvmeof":
       return new FreeNASApiDriver(ctx, options);
     case "synology-nfs":
     case "synology-smb":
