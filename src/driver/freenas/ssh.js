@@ -113,7 +113,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       case "truenas-nvmeof":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
@@ -190,7 +190,7 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
       case "truenas-nvmeof":
         return "nvmeof";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 

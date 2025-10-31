@@ -2306,7 +2306,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       case "truenas-api-nvmeof":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
@@ -2325,7 +2325,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       case "truenas-api-nvmeof":
         return "nvmeof";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
