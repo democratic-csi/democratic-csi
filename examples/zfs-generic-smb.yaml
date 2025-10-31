@@ -28,6 +28,8 @@ zfs:
     #aclinherit: passthrough
     #acltype: nfsv4
     casesensitivity: insensitive
+  # snapshotProperties:
+  #  "org.freenas:key": "value"
 
   datasetParentName: tank/k8s/test
   # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
