@@ -41,22 +41,22 @@ RUN Invoke-WebRequest $('https://nodejs.org/dist/v{0}/node-v{0}-win-x64.zip' -f 
 
 RUN mkdir \usr\local\bin; mkdir \tmp
 
-ARG RCLONE_VERSION=v1.69.1
+ARG RCLONE_VERSION=v1.71.2
 RUN Invoke-WebRequest "https://github.com/rclone/rclone/releases/download/${env:RCLONE_VERSION}/rclone-${env:RCLONE_VERSION}-windows-amd64.zip" -OutFile '/tmp/rclone.zip' -UseBasicParsing ; \
   Expand-Archive C:\tmp\rclone.zip -DestinationPath C:\tmp ; \
   Copy-Item $('C:\tmp\rclone-{0}-windows-amd64\rclone.exe' -f $env:RCLONE_VERSION) -Destination "C:\usr\local\bin"
 
-ARG RESTIC_VERSION=0.18.0
+ARG RESTIC_VERSION=0.18.1
 RUN Invoke-WebRequest "https://github.com/restic/restic/releases/download/v${env:RESTIC_VERSION}/restic_${env:RESTIC_VERSION}_windows_amd64.zip" -OutFile '/tmp/restic.zip' -UseBasicParsing ; \
   Expand-Archive C:\tmp\restic.zip -DestinationPath C:\tmp ; \
   Copy-Item $('C:\tmp\restic_{0}_windows_amd64.exe' -f $env:RESTIC_VERSION) -Destination "C:\usr\local\bin\restic.exe"
 
-ARG KOPIA_VERSION=0.19.0
+ARG KOPIA_VERSION=0.21.1
 RUN Invoke-WebRequest "https://github.com/kopia/kopia/releases/download/v${env:KOPIA_VERSION}/kopia-${env:KOPIA_VERSION}-windows-x64.zip" -OutFile '/tmp/kopia.zip' -UseBasicParsing ; \
   Expand-Archive C:\tmp\kopia.zip -DestinationPath C:\tmp ; \
   Copy-Item $('C:\tmp\kopia-{0}-windows-x64\kopia.exe' -f $env:KOPIA_VERSION) -Destination "C:\usr\local\bin"
 
-ARG YQ_VERSION=v4.45.1
+ARG YQ_VERSION=v4.48.1
 RUN Invoke-WebRequest "https://github.com/mikefarah/yq/releases/download/${env:YQ_VERSION}/yq_windows_amd64.zip" -OutFile '/tmp/yq.zip' -UseBasicParsing ; \
   Expand-Archive C:\tmp\yq.zip -DestinationPath C:\tmp ; \
   Copy-Item $('C:\tmp\yq_windows_amd64.exe') -Destination "C:\usr\local\bin\yq.exe"

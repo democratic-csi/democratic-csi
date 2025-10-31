@@ -67,7 +67,7 @@ class Api {
       // crude stoppage attempt
       let response = await httpClient.get(endpoint, queryParams);
       if (lastReponse) {
-        if (JSON.stringify(lastReponse) == JSON.stringify(response)) {
+        if (JSON.stringify(lastReponse.body) == JSON.stringify(response.body)) {
           break;
         }
       }

@@ -121,19 +121,19 @@ RUN \
   echo '83e7a026-2564-455b-ada6-ddbdaf0bc519' > /etc/nvme/hostid && \
   echo 'nqn.2014-08.org.nvmexpress:uuid:941e4f03-2cd6-435e-86df-731b1c573d86' > /etc/nvme/hostnqn
 
-ARG RCLONE_VERSION=1.69.1
+ARG RCLONE_VERSION=1.71.2
 ADD docker/rclone-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/rclone-installer.sh && rclone-installer.sh
 
-ARG RESTIC_VERSION=0.18.0
+ARG RESTIC_VERSION=0.18.1
 ADD docker/restic-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/restic-installer.sh && restic-installer.sh
 
-ARG KOPIA_VERSION=0.19.0
+ARG KOPIA_VERSION=0.21.1
 ADD docker/kopia-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/kopia-installer.sh && kopia-installer.sh
 
-ARG YQ_VERSION=v4.45.1
+ARG YQ_VERSION=v4.48.1
 ADD docker/yq-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/yq-installer.sh && yq-installer.sh
 
