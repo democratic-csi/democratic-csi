@@ -2367,7 +2367,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       case "truenas-api-nvmeof":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
@@ -2386,7 +2386,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       case "truenas-api-nvmeof":
         return "nvmeof";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 
@@ -4413,6 +4413,19 @@ class FreeNASApiDriver extends CsiBaseDriver {
         grpc.status.INVALID_ARGUMENT,
         `snapshot name is required`
       );
+    }
+
+    // user-supplied properties
+    // put early to prevent stupid (user-supplied values overwriting system values)
+    if (driver.options.zfs.snapshotProperties) {
+      for (let property in driver.options.zfs.snapshotProperties) {
+        let value = driver.options.zfs.snapshotProperties[property];
+        const template = Handlebars.compile(value);
+
+        snapshotProperties[property] = template({
+          parameters: call.request.parameters,
+        });
+      }
     }
 
     const datasetName = datasetParentName + "/" + source_volume_id;

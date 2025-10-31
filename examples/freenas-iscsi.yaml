@@ -43,6 +43,8 @@ zfs:
   #  "org.freenas:description": "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
   #  "org.freenas:test": "{{ parameters.foo }}"
   #  "org.freenas:test2": "some value"
+  # snapshotProperties:
+  #  "org.freenas:key": "value"
 
   # total volume name (zvol/<datasetParentName>/<pvc name>) length cannot exceed 63 chars
   # https://www.ixsystems.com/documentation/freenas/11.2-U5/storage.html#zfs-zvol-config-opts-tab
