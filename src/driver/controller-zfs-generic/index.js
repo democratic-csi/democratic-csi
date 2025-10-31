@@ -16,10 +16,12 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
   getExecClient() {
     return this.ctx.registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
       if (this.options.sshConnection) {
-        return new SshClient({
+        const sshClient = new SshClient({
           logger: this.ctx.logger,
           connection: this.options.sshConnection,
         });
+        this.cleanup.push(() => sshClient.finalize());
+        return sshClient;
       } else {
         return new LocalCliExecClient({
           logger: this.ctx.logger,
@@ -70,7 +72,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
       case "zfs-generic-nvmeof":
         return "volume";
       default:
-        throw new Error("unknown driver: " + this.ctx.args.driver);
+        throw new Error("unknown driver: " + this.options.driver);
     }
   }
 

@@ -1,0 +1,49 @@
+
+driver: proxy
+
+proxy:
+  # path to folder where real driver config files are located
+  # this value is required for the proxy to work
+  configFolder: /mnt/connections/
+  # connections that are no longer used are eventually deleted
+  # when timeout is 0, caching will be completely disabled, each request will create a new driver
+  # when timeout is -1, cache timeout is disabled, drivers are cached forever
+  # default: 60
+  cacheTimeoutMinutes: 60
+  nodeTopology:
+    # allowed values:
+    # node - each node has its own storage
+    # cluster - the whole cluster has unified storage (usually the case with external NAS systems)
+    # custom - there are several custom zones with internal storage
+    # default: cluster
+    type: cluster
+    # topology reported by CSI driver is reflected in k8s as node labels.
+    # you may want to set unique prefixes on different drivers to avoid collisions
+    prefix: org.democratic-csi.topology
+    customRules:
+    # resulting topology looks like this:
+    # ${ prefix }/${ customRules[*].keySuffix } == ${ customRules[*].resultTemplate }
+    - keySuffix: zone
+      # possible sources:
+      # - nodeName
+      # - hostname
+      # - env
+      # - file
+      source: nodeName
+      # envName is used only when "source: env"
+      envName: DEMOCRATIC_CSI_REGION
+      # file is used only when "source: file"
+      # file must be mounted into container filesystem manually
+      file: /mnt/topology/region
+      # match can:
+      # - be exact: "matchRegexp: my-node-1.domain" (though technically this is still regex)
+      # - use regex: "matchRegexp: .*\.domain"
+      # - use capture groups: "matchRegexp: .*\.(zone-.*)\.domain"
+      # Partial matches are not allowed: driver implicitly appends ^ and $ to regex.
+      matchRegexp: my-node-1.domain
+      # result template can:
+      # - be exact: zone-1
+      # - use values from capture groups: zone-${match:1}
+      # - - ${match:0} contains the whole input
+      # - - ${match:1} contains the first capture group, and so on
+      resultTemplate: zone1
