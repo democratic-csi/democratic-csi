@@ -4,6 +4,7 @@ const { GrpcError, grpc } = require("../../utils/grpc");
 const GeneralUtils = require("../../utils/general");
 const LocalCliExecClient =
   require("../../utils/zfs_local_exec_client").LocalCliClient;
+const Mutex = require("async-mutex").Mutex;
 const SshClient = require("../../utils/zfs_ssh_exec_client").SshClient;
 const { Zetabyte, ZfsSshProcessManager } = require("../../utils/zfs");
 
@@ -13,6 +14,14 @@ const ISCSI_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:iscsi_assets_name";
 const NVMEOF_ASSETS_NAME_PROPERTY_NAME = "democratic-csi:nvmeof_assets_name";
 const __REGISTRY_NS__ = "ControllerZfsGenericDriver";
 class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
+  constructor(ctx, options) {
+    super(...arguments);
+
+    this.targetCliMutex = new Mutex();
+    this.nvmetCliMutex = new Mutex();
+    this.spdkCliMutex = new Mutex();
+  }
+
   getExecClient() {
     return this.ctx.registry.get(`${__REGISTRY_NS__}:exec_client`, () => {
       if (this.options.sshConnection) {
@@ -894,17 +903,20 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     let options = {
       pty: true,
     };
-    let response = await execClient.exec(
-      execClient.buildCommand(command, args),
-      options
-    );
-    driver.ctx.logger.verbose(
-      "TargetCLI response: " + JSON.stringify(response)
-    );
-    if (response.code != 0) {
-      throw response;
-    }
-    return response;
+
+    return driver.targetCliMutex.runExclusive(async () => {
+      let response = await execClient.exec(
+        execClient.buildCommand(command, args),
+        options
+      );
+      driver.ctx.logger.verbose(
+        "TargetCLI response: " + JSON.stringify(response)
+      );
+      if (response.code != 0) {
+        throw response;
+      }
+      return response;
+    });
   }
 
   async nvmetCliCommand(data) {
@@ -982,15 +994,20 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     let options = {
       pty: true,
     };
-    let response = await execClient.exec(
-      execClient.buildCommand(command, args),
-      options
-    );
-    driver.ctx.logger.verbose("nvmetCLI response: " + JSON.stringify(response));
-    if (response.code != 0) {
-      throw response;
-    }
-    return response;
+
+    return driver.nvmetCliMutex.runExclusive(async () => {
+      let response = await execClient.exec(
+        execClient.buildCommand(command, args),
+        options
+      );
+      driver.ctx.logger.verbose(
+        "nvmetCLI response: " + JSON.stringify(response)
+      );
+      if (response.code != 0) {
+        throw response;
+      }
+      return response;
+    });
   }
 
   async spdkCliCommand(data) {
@@ -1041,15 +1058,20 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
     let options = {
       pty: true,
     };
-    let response = await execClient.exec(
-      execClient.buildCommand(command, args),
-      options
-    );
-    driver.ctx.logger.verbose("spdkCLI response: " + JSON.stringify(response));
-    if (response.code != 0) {
-      throw response;
-    }
-    return response;
+
+    return driver.spdkCliMutex.runExclusive(async () => {
+      let response = await execClient.exec(
+        execClient.buildCommand(command, args),
+        options
+      );
+      driver.ctx.logger.verbose(
+        "spdkCLI response: " + JSON.stringify(response)
+      );
+      if (response.code != 0) {
+        throw response;
+      }
+      return response;
+    });
   }
 }
 
