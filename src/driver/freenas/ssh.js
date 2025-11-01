@@ -474,7 +474,10 @@ class FreeNASSshDriver extends ControllerZfsBaseDriver {
                   }
 
                   // FreeNAS responding with bad data
-                  if (!sharePaths.includes(properties.mountpoint.value)) {
+                  if (
+                    !Array.isArray(sharePaths) ||
+                    !sharePaths.includes(properties.mountpoint.value)
+                  ) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `FreeNAS responded with incorrect share data: ${

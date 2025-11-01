@@ -377,7 +377,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   }
 
                   // FreeNAS responding with bad data
-                  if (!sharePaths.includes(properties.mountpoint.value)) {
+                  if (
+                    !Array.isArray(sharePaths) ||
+                    !sharePaths.includes(properties.mountpoint.value)
+                  ) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
                       `FreeNAS responded with incorrect share data: ${
@@ -2606,7 +2609,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       if (!(await httpApiClient.getIsScale())) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
-          `driver is only availalbe with TrueNAS SCALE`
+          `driver is only available with TrueNAS SCALE`
         );
       }
 

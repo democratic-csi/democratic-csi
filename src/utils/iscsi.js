@@ -613,7 +613,29 @@ class ISCSI {
       args.unshift(command);
       command = iscsi.options.paths.sudo;
     }
-    console.log("executing iscsi command: %s %s", command, args.join(" "));
+
+    // --name node.session.auth.password --value FOOBAR
+    let argIndex;
+    let cleansedArgs = [...args];
+    argIndex = args.findIndex((value) => {
+      return value.trim() == "node.session.auth.password";
+    });
+
+    if (argIndex >= 0 && cleansedArgs[argIndex + 1].trim() == "--value") {
+      cleansedArgs[argIndex + 2] = "redacted";
+    }
+
+    // --name node.session.auth.password_id --value FOOBAR
+    argIndex = args.findIndex((value) => {
+      return value.trim() == "node.session.auth.password_in";
+    });
+
+    if (argIndex >= 0 && cleansedArgs[argIndex + 1].trim() == "--value") {
+      cleansedArgs[argIndex + 2] = "redacted";
+    }
+
+    const cleansedLog = `${command} ${cleansedArgs.join(" ")}`;
+    console.log("executing iscsi command: %s", cleansedLog);
 
     return new Promise((resolve, reject) => {
       const child = iscsi.options.executor.spawn(command, args, options);
