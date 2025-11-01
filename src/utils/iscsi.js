@@ -614,6 +614,9 @@ class ISCSI {
       command = iscsi.options.paths.sudo;
     }
 
+    // ensure all args are converted to string values
+    args = args.map(String);
+
     // --name node.session.auth.password --value FOOBAR
     let argIndex;
     let cleansedArgs = [...args];

@@ -254,6 +254,9 @@ class Kopia {
       command = kopia.options.paths.sudo;
     }
 
+    // ensure all args are converted to string values
+    args = args.map(String);
+
     options.env = {
       ...{},
       ...process.env,
