@@ -137,6 +137,10 @@ ARG YQ_VERSION=v4.48.1
 ADD docker/yq-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/yq-installer.sh && yq-installer.sh
 
+ARG CTR_VERSION=v2.0.4
+ADD docker/ctr-installer.sh /usr/local/sbin
+RUN chmod +x /usr/local/sbin/ctr-installer.sh && ctr-installer.sh
+
 # controller requirements
 #RUN apt-get update && \
 #        apt-get install -y ansible && \
