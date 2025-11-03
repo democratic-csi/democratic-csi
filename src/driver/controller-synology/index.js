@@ -163,7 +163,7 @@ class ControllerSynologyDriver extends CsiBaseDriver {
   parseParameterYamlData(data, fieldHint = "") {
     try {
       return yaml.load(data);
-    } catch {
+    } catch (err) {
       if (err instanceof yaml.YAMLException) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,

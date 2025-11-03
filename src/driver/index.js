@@ -56,7 +56,7 @@ class CsiBaseDriver {
    * in order of preference:
    *  - democratic-csi.org/{instance_id}/{key}
    *  - democratic-csi.org/{driver}/{key}
-   *  - {key}
+   *  - democratic-csi.org/{key}
    *
    * @param {*} parameters
    * @param {*} key
@@ -102,6 +102,32 @@ class CsiBaseDriver {
     }
 
     return normalized;
+  }
+
+  getMergedDriverOptions(optionOverlays = []) {
+    const driver = this;
+    let driverOptions = Object.assign({}, driver.options);
+
+    const allowedOptionsOverrides = ["zfs.zvolBlocksize"];
+
+    optionOverlays.forEach((optionOverlay) => {
+      allowedOptionsOverrides.forEach((prop) => {
+        if (_.has(optionOverlay, prop)) {
+          switch (prop) {
+            // TODO: specific cases can be added here to do merge/replace logic etc
+            default:
+              driverOptions = _.set(
+                driverOptions,
+                prop,
+                _.get(optionOverlay, prop)
+              );
+              break;
+          }
+        }
+      });
+    });
+
+    return driverOptions;
   }
 
   /**
@@ -232,6 +258,15 @@ class CsiBaseDriver {
         return kc;
       }
     );
+  }
+
+  async getPersistentVolumeClaim(name, namespace) {
+    const driver = this;
+    const kc = driver.getDefaultKubernetsConfigInstance();
+    const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+
+    let res = await k8sApi.readNamespacedPersistentVolumeClaim(name, namespace);
+    return res.body;
   }
 
   getCsiProxyEnabled() {

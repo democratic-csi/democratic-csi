@@ -624,7 +624,7 @@ class ISCSI {
       return value.trim() == "node.session.auth.password";
     });
 
-    if (argIndex >= 0 && cleansedArgs[argIndex + 1].trim() == "--value") {
+    if (argIndex >= 0 && cleansedArgs[argIndex + 1]?.trim() == "--value") {
       cleansedArgs[argIndex + 2] = "redacted";
     }
 
@@ -633,7 +633,7 @@ class ISCSI {
       return value.trim() == "node.session.auth.password_in";
     });
 
-    if (argIndex >= 0 && cleansedArgs[argIndex + 1].trim() == "--value") {
+    if (argIndex >= 0 && cleansedArgs[argIndex + 1]?.trim() == "--value") {
       cleansedArgs[argIndex + 2] = "redacted";
     }
 

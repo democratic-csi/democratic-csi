@@ -7,6 +7,7 @@ const getLargestNumber = require("../../utils/general").getLargestNumber;
 const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
 const semver = require("semver");
+const yaml = require("js-yaml");
 
 // zfs common properties
 const MANAGED_PROPERTY_NAME = "democratic-csi:managed_resource";
@@ -32,7 +33,7 @@ const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
 const MAX_ZVOL_NAME_LENGTH_CACHE_KEY = "controller-zfs:max_zvol_name_length";
 
 /**
- * Base driver to provisin zfs assets using zfs cli commands.
+ * Base driver to provision zfs assets using zfs cli commands.
  * Derived drivers only need to implement:
  *  - getExecClient()
  *  - async getZetabyte()
@@ -640,9 +641,67 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const execClient = this.getExecClient();
     const zb = await this.getZetabyte();
 
+    const normalizedParameters = driver.getNormalizedParameters(
+      call.request.parameters,
+      driver.options.driver,
+      driver.options.instance_id
+    );
+
+    let parametersOptions = {};
+    if (normalizedParameters["config"]) {
+      try {
+        parametersOptions = yaml.load(normalizedParameters["config"]);
+      } catch (err) {
+        if (err instanceof yaml.YAMLException) {
+          throw new GrpcError(
+            grpc.status.INVALID_ARGUMENT,
+            `parameter 'config' not a valid YAML/JSON document.`.trim()
+          );
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    let pvcOptions = {};
+    if (
+      normalizedParameters["load-config-from-pvc"] == "true" &&
+      call.request.parameters["csi.storage.k8s.io/pvc/name"] &&
+      call.request.parameters["csi.storage.k8s.io/pvc/namespace"]
+    ) {
+      let pvc = await driver.getPersistentVolumeClaim(
+        call.request.parameters["csi.storage.k8s.io/pvc/name"],
+        call.request.parameters["csi.storage.k8s.io/pvc/namespace"]
+      );
+
+      if (
+        _.has(pvc, ["metadata", "annotations", "democratic-csi.org/config"])
+      ) {
+        try {
+          pvcOptions = yaml.load(
+            _.get(pvc, ["metadata", "annotations", "democratic-csi.org/config"])
+          );
+        } catch (err) {
+          if (err instanceof yaml.YAMLException) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `pvc 'democratic-csi.org/config' annotation not a valid YAML/JSON document.`.trim()
+            );
+          } else {
+            throw err;
+          }
+        }
+      }
+    }
+
+    const driverOptions = driver.getMergedDriverOptions([
+      parametersOptions,
+      pvcOptions,
+    ]);
+
     let datasetParentName = this.getVolumeParentDatasetName();
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
-    let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
+    let zvolBlocksize = driverOptions.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
     let volume_id = await driver.getVolumeIdFromCall(call);
     let volume_content_source = call.request.volume_content_source;
@@ -755,7 +814,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
       if (
         driverZfsResourceType == "filesystem" &&
-        this.options.zfs.datasetEnableQuotas
+        driverOptions.zfs.datasetEnableQuotas
       ) {
         check = true;
       }
@@ -811,9 +870,9 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // user-supplied properties
     // put early to prevent stupid (user-supplied values overwriting system values)
-    if (driver.options.zfs.datasetProperties) {
-      for (let property in driver.options.zfs.datasetProperties) {
-        let value = driver.options.zfs.datasetProperties[property];
+    if (driverOptions.zfs.datasetProperties) {
+      for (let property in driverOptions.zfs.datasetProperties) {
+        let value = driverOptions.zfs.datasetProperties[property];
         const template = Handlebars.compile(value);
 
         volumeProperties[property] = template({
@@ -822,13 +881,15 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
     }
 
+    // TODO: add call.request.parameters properties here
+
     volumeProperties[VOLUME_CSI_NAME_PROPERTY_NAME] = name;
     volumeProperties[MANAGED_PROPERTY_NAME] = "true";
     volumeProperties[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME] =
-      driver.options.driver;
-    if (driver.options.instance_id) {
+      driverOptions.driver;
+    if (driverOptions.instance_id) {
       volumeProperties[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME] =
-        driver.options.instance_id;
+        driverOptions.instance_id;
     }
 
     // TODO: also set access_mode as property?
@@ -837,7 +898,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // zvol enables reservation by default
     // this implements 'sparse' zvols
     if (driverZfsResourceType == "volume") {
-      if (!this.options.zfs.zvolEnableReservation) {
+      if (!driverOptions.zfs.zvolEnableReservation) {
         volumeProperties.refreservation = 0;
       }
     }
@@ -1097,13 +1158,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     switch (driverZfsResourceType) {
       case "filesystem":
         // set quota
-        if (this.options.zfs.datasetEnableQuotas) {
+        if (driverOptions.zfs.datasetEnableQuotas) {
           setProps = true;
           properties.refquota = capacity_bytes;
         }
 
         // set reserve
-        if (this.options.zfs.datasetEnableReservation) {
+        if (driverOptions.zfs.datasetEnableReservation) {
           setProps = true;
           properties.refreservation = capacity_bytes;
         }
@@ -1133,37 +1194,37 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         driver.ctx.logger.debug("zfs props data: %j", properties);
 
         // set mode
-        if (this.options.zfs.datasetPermissionsMode) {
+        if (driverOptions.zfs.datasetPermissionsMode) {
           await driver.setFilesystemMode(
             properties.mountpoint.value,
-            this.options.zfs.datasetPermissionsMode
+            driverOptions.zfs.datasetPermissionsMode
           );
         }
 
         // set ownership
         if (
-          String(_.get(this.options, "zfs.datasetPermissionsUser", "")).length >
-            0 ||
-          String(_.get(this.options, "zfs.datasetPermissionsGroup", ""))
+          String(_.get(driverOptions, "zfs.datasetPermissionsUser", ""))
+            .length > 0 ||
+          String(_.get(driverOptions, "zfs.datasetPermissionsGroup", ""))
             .length > 0
         ) {
           await driver.setFilesystemOwnership(
             properties.mountpoint.value,
-            this.options.zfs.datasetPermissionsUser,
-            this.options.zfs.datasetPermissionsGroup
+            driverOptions.zfs.datasetPermissionsUser,
+            driverOptions.zfs.datasetPermissionsGroup
           );
         }
 
         // set acls
         // TODO: this is unsfafe approach, make it better
         // probably could see if ^-.*\s and split and then shell escape
-        if (this.options.zfs.datasetPermissionsAcls) {
+        if (driverOptions.zfs.datasetPermissionsAcls) {
           let aclBinary = _.get(
-            driver.options,
+            driverOptions,
             "zfs.datasetPermissionsAclsBinary",
             "setfacl"
           );
-          for (const acl of this.options.zfs.datasetPermissionsAcls) {
+          for (const acl of driverOptions.zfs.datasetPermissionsAcls) {
             command = execClient.buildCommand(aclBinary, [
               acl,
               properties.mountpoint.value,
@@ -1198,21 +1259,21 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         // restore default must use the below
         // zfs inherit [-rS] property filesystem|volume|snapshot…
         if (
-          (typeof this.options.zfs.zvolDedup === "string" ||
-            this.options.zfs.zvolDedup instanceof String) &&
-          this.options.zfs.zvolDedup.length > 0
+          (typeof driverOptions.zfs.zvolDedup === "string" ||
+            driverOptions.zfs.zvolDedup instanceof String) &&
+          driverOptions.zfs.zvolDedup.length > 0
         ) {
-          properties.dedup = this.options.zfs.zvolDedup;
+          properties.dedup = driverOptions.zfs.zvolDedup;
         }
 
         // compression
         // lz4, gzip-9, etc
         if (
-          (typeof this.options.zfs.zvolCompression === "string" ||
-            this.options.zfs.zvolCompression instanceof String) &&
-          this.options.zfs.zvolCompression > 0
+          (typeof driverOptions.zfs.zvolCompression === "string" ||
+            driverOptions.zfs.zvolCompression instanceof String) &&
+          driverOptions.zfs.zvolCompression > 0
         ) {
-          properties.compression = this.options.zfs.zvolCompression;
+          properties.compression = driverOptions.zfs.zvolCompression;
         }
 
         if (setProps) {
@@ -1227,10 +1288,10 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
     });
 
-    volume_context["provisioner_driver"] = driver.options.driver;
-    if (driver.options.instance_id) {
+    volume_context["provisioner_driver"] = driverOptions.driver;
+    if (driverOptions.instance_id) {
       volume_context["provisioner_driver_instance_id"] =
-        driver.options.instance_id;
+        driverOptions.instance_id;
     }
 
     // set this just before sending out response so we know if volume completed
@@ -1247,7 +1308,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         volume_id,
         //capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
         capacity_bytes:
-          this.options.zfs.datasetEnableQuotas ||
+          driverOptions.zfs.datasetEnableQuotas ||
           driverZfsResourceType == "volume"
             ? capacity_bytes
             : 0,
@@ -1272,6 +1333,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   async DeleteVolume(call) {
     const driver = this;
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let name = call.request.volume_id;
@@ -1318,7 +1380,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // deleteStrategy
     const delete_strategy = _.get(
-      driver.options,
+      driverOptions,
       "_private.csi.volume.deleteStrategy",
       ""
     );
@@ -1405,6 +1467,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let name = call.request.volume_id;
@@ -1477,13 +1540,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     switch (driverZfsResourceType) {
       case "filesystem":
         // set quota
-        if (this.options.zfs.datasetEnableQuotas) {
+        if (driverOptions.zfs.datasetEnableQuotas) {
           setProps = true;
           properties.refquota = capacity_bytes;
         }
 
         // set reserve
-        if (this.options.zfs.datasetEnableReservation) {
+        if (driverOptions.zfs.datasetEnableReservation) {
           setProps = true;
           properties.refreservation = capacity_bytes;
         }
@@ -1493,7 +1556,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         setProps = true;
 
         // managed automatically for zvols
-        //if (this.options.zfs.zvolEnableReservation) {
+        //if (driverOptions.zfs.zvolEnableReservation) {
         //  properties.refreservation = capacity_bytes;
         //}
         break;
@@ -1507,7 +1570,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     return {
       capacity_bytes:
-        this.options.zfs.datasetEnableQuotas ||
+        driverOptions.zfs.datasetEnableQuotas ||
         driverZfsResourceType == "volume"
           ? capacity_bytes
           : 0,
@@ -1523,6 +1586,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   async GetCapacity(call) {
     const driver = this;
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     let datasetParentName = this.getVolumeParentDatasetName();
 
@@ -1573,6 +1637,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let response;
@@ -1654,6 +1719,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let entries = [];
@@ -1794,6 +1860,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     let entries = [];
     let entries_length = 0;
@@ -2048,6 +2115,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     let size_bytes = 0;
     let detachedSnapshot = false;
@@ -2108,9 +2176,9 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
 
     // user-supplied properties
     // put early to prevent stupid (user-supplied values overwriting system values)
-    if (driver.options.zfs.snapshotProperties) {
-      for (let property in driver.options.zfs.snapshotProperties) {
-        let value = driver.options.zfs.snapshotProperties[property];
+    if (driverOptions.zfs.snapshotProperties) {
+      for (let property in driverOptions.zfs.snapshotProperties) {
+        let value = driverOptions.zfs.snapshotProperties[property];
         const template = Handlebars.compile(value);
 
         snapshotProperties[property] = template({
@@ -2368,6 +2436,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   async DeleteSnapshot(call) {
     const driver = this;
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     const snapshot_id = call.request.snapshot_id;
 
@@ -2439,6 +2508,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   async ValidateVolumeCapabilities(call) {
     const driver = this;
     const zb = await this.getZetabyte();
+    const driverOptions = driver.getMergedDriverOptions([]);
 
     const volume_id = call.request.volume_id;
     if (!volume_id) {
