@@ -5,16 +5,16 @@
 ######################
 # golang builder
 ######################
-FROM golang:1.25.3-bookworm AS ctrbuilder
-
-# /go/containerd/ctr
-ADD docker/ctr-mount-labels.diff /tmp
-RUN \
-  git clone https://github.com/containerd/containerd.git; \
-  cd containerd && \
-  git checkout v2.0.4 && \
-  git apply /tmp/ctr-mount-labels.diff && \
-  CGO_ENABLED=0 go build ./cmd/ctr/;
+# FROM golang:1.25.3-bookworm AS ctrbuilder
+#
+# # /go/containerd/ctr
+# ADD docker/ctr-mount-labels.diff /tmp
+# RUN \
+#   git clone https://github.com/containerd/containerd.git; \
+#   cd containerd && \
+#   git checkout v2.0.4 && \
+#   git apply /tmp/ctr-mount-labels.diff && \
+#   CGO_ENABLED=0 go build ./cmd/ctr/;
 
 
 ######################
@@ -103,7 +103,7 @@ RUN test $(uname -m) != armv7l || ( \
   )
 
 # install ctr
-COPY --from=ctrbuilder /go/containerd/ctr /usr/local/bin/ctr
+#COPY --from=ctrbuilder /go/containerd/ctr /usr/local/bin/ctr
 
 # install node
 #ENV PATH=/usr/local/lib/nodejs/bin:$PATH
