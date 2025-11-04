@@ -34,7 +34,7 @@ fi
 
 echo "I am installing ctr $CTR_VERSION"
 
-export CTR_FILE="ctr-${CTR_VERSION}-linux-arm64"
+export CTR_FILE="ctr-${CTR_VERSION}-linux-${PLATFORM_ARCH}"
 wget -O "${CTR_FILE}" "https://github.com/democratic-csi/democratic-csi/releases/download/v1.0.0/${CTR_FILE}"
 
 mv ${CTR_FILE} /usr/local/bin/ctr
