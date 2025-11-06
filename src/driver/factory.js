@@ -17,6 +17,9 @@ const { ControllerSynologyDriver } = require("./controller-synology");
 const {
   EphemeralInlineContainerDOciDriver,
 } = require("./ephemeral-inline-containerd-oci");
+const {
+  EphemeralInlineVHDDriver,
+} = require("./ephemeral-inline-vhd");
 const { NodeManualDriver } = require("./node-manual");
 
 function factory(ctx, options) {
@@ -65,6 +68,8 @@ function factory(ctx, options) {
       return new ControllerObjectiveFSDriver(ctx, options);
     case "containerd-oci-ephemeral-inline":
       return new EphemeralInlineContainerDOciDriver(ctx, options);
+    case "vhd-ephemeral-inline":
+      return new EphemeralInlineVHDDriver(ctx, options);
     case "node-manual":
       return new NodeManualDriver(ctx, options);
     default:

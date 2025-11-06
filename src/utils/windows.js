@@ -89,6 +89,24 @@ class Windows {
     } catch (err) {}
   }
 
+  async DeleteItem(localPath) {
+    let command;
+    let result;
+    command = '(Get-Item "$Env:localpath").Delete() | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          localpath: localPath,
+        },
+      });
+    } catch (err) {
+      let details = _.get(err, "stderr", "");
+      if (!details.includes("does not exist")) {
+        throw err;
+      }
+    }
+  }
+
   async GetSmbGlobalMapping(remotePath) {
     let command;
     // cannot have trailing slash nor a path
@@ -423,11 +441,28 @@ class Windows {
     let command;
     let result;
 
-    command = "Get-WmiObject Win32_DiskDrive | ConvertTo-Json";
+    //command = "Get-WmiObject Win32_DiskDrive | ConvertTo-Json";
+    command = "Get-CimInstance Win32_DiskDrive | ConvertTo-Json";
     result = await this.ps.exec(command);
     this.resultToArray(result);
 
     return result.parsed;
+  }
+
+  async GetWin32DiskDriveByDiskNumber(diskNumber) {
+    let result;
+    result = await this.GetWin32DiskDrives();
+    for (let drive of result) {
+      if (drive.Index == diskNumber) {
+        return drive;
+      }
+    }
+  }
+
+  async GetWin32DiskDriveByUniqueId(uniqueId) {
+    let result;
+    result = await this.GetDiskByUniqueId(uniqueId);
+    return this.GetWin32DiskDriveByDiskNumber(result.DiskNumber);
   }
 
   async GetDiskLunByDiskNumber(diskNumber) {
@@ -514,6 +549,75 @@ class Windows {
     return result.parsed;
   }
 
+  async GetDiskByUniqueId(uniqueId) {
+    let command;
+    let result;
+    command = 'Get-Disk -UniqueId "$Env:uniqueid" | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          uniqueid: uniqueId,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async GetDisksByFriendlyName(friendlyName) {
+    let command;
+    let result;
+    command = 'Get-Disk -FriendlyName "$Env:friendlyname" | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          friendlyname: friendlyName,
+        },
+      });
+      this.resultToArray(result);
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async GetDisksByBusType(busTpe) {
+    let command;
+    let result;
+    command =
+      'Get-Disk | Where-Object { $_.BusType -eq "$Env:bustype" } | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          bustype: busTpe,
+        },
+      });
+      this.resultToArray(result);
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async GetDisksByLocation(location) {
+    let command;
+    let result;
+    command =
+      'Get-Disk | Where-Object { $_.Location -eq "$Env:location" } | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          location,
+        },
+      });
+      this.resultToArray(result);
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
   async GetDisks() {
     let command;
     let result;
@@ -557,6 +661,20 @@ class Windows {
     let command;
 
     command = `Initialize-Disk -Number ${diskNumber} -PartitionStyle GPT`;
+    await this.ps.exec(command);
+  }
+
+  async OnlineDisk(diskNumber) {
+    let command;
+
+    command = `Set-Disk -Number ${diskNumber} -IsOffline $false`;
+    await this.ps.exec(command);
+  }
+
+  async OfflineDisk(diskNumber) {
+    let command;
+
+    command = `Set-Disk -Number ${diskNumber} -IsOffline $true`;
     await this.ps.exec(command);
   }
 
@@ -632,6 +750,8 @@ class Windows {
     let command;
     let result;
 
+    // NOTE: this syntax is more forgiving
+    // Get-Volume | Where-Object { $_.UniqueId -match "Volume{74798398-bb39-11f0-af08-00155dab0c98}\\" }
     command = `Get-Volume -UniqueId \"${volumeId}\" -ErrorAction Stop | ConvertTo-Json`;
     result = await this.ps.exec(command);
 
@@ -690,6 +810,20 @@ class Windows {
     let disks = await this.GetDisksByVolumeId(volumeId);
     for (let disk of disks) {
       if (_.get(disk, "BusType", "").toLowerCase() == "iscsi") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  async VolumeIsVHD(volumeId) {
+    let disks = await this.GetDisksByVolumeId(volumeId);
+    for (let disk of disks) {
+      if (
+        _.get(disk, "BusType", "").toLowerCase() ==
+        "File Backed Virtual".toLowerCase()
+      ) {
         return true;
       }
     }
@@ -780,6 +914,332 @@ class Windows {
     command = `Get-Volume -UniqueId \"${volumeId}\" | Write-Volumecache`;
 
     await this.ps.exec(command);
+  }
+
+  async GetStoragePoolByFriendlyName(friendlyName) {
+    let command;
+    let result;
+    command =
+      'Get-StoragePool -FriendlyName "$Env:friendlyname" | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          friendlyname: friendlyName,
+        },
+      });
+      this.resultToArray(result);
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async GetVirtualDisksByFriendlyName(friendlyName) {
+    let command;
+    let result;
+    command =
+      'Get-VirtualDisk -FriendlyName "$Env:friendlyname" | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          friendlyname: friendlyName,
+        },
+      });
+      this.resultToArray(result);
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async GetVirtualDiskByUniqueId(uniqueId) {
+    let command;
+    let result;
+    command = 'Get-VirtualDisk -UniqueId "$Env:uniqueid" | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          uniqueid: uniqueId,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async RemoveVirtualDisksByFriendlyName(friendlyName) {
+    let command;
+    command =
+      'Remove-VirtualDisk -Confirm:$false -FriendlyName "$Env:friendlyname"';
+    try {
+      await this.ps.exec(command, {
+        env: {
+          friendlyname: friendlyName,
+        },
+      });
+    } catch (err) {
+      let details = _.get(err, "stderr", "");
+      if (details.includes("No MSFT_VirtualDisk objects found")) {
+        return;
+      }
+      throw err;
+    }
+  }
+
+  async RemoveVirtualDiskByUniqueId(uniqueId) {
+    let command;
+    command = 'Remove-VirtualDisk -Confirm:$false -UniqueId "$Env:uniqueid"';
+    try {
+      await this.ps.exec(command, {
+        env: {
+          uniqueid: uniqueId,
+        },
+      });
+    } catch (err) {
+      let details = _.get(err, "stderr", "");
+      if (details.includes("No MSFT_VirtualDisk objects found")) {
+        return;
+      }
+      throw err;
+    }
+  }
+
+  async ResizeVirtualDisksByFriendlyName(friendlyName, size) {
+    let command;
+    command = `Resize-VirtualDisk -Confirm:$false -FriendlyName "$Env:friendlyname" -Size ${size}`;
+    try {
+      await this.ps.exec(command, {
+        env: {
+          friendlyname: friendlyName,
+        },
+      });
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async ResizeVirtualDiskByUniqueId(uniqueId, size) {
+    let command;
+    command = `Remove-VirtualDisk -Confirm:$false -UniqueId "$Env:uniqueid" -Size ${size}`;
+    try {
+      await this.ps.exec(command, {
+        env: {
+          uniqueid: uniqueId,
+        },
+      });
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async NewVirtualDisk(
+    storagePoolFriendlyName,
+    friendlyName,
+    size,
+    extraArgs = []
+  ) {
+    /**
+     * -ProvisioningType Thin|Fixed
+     * -ResiliencySettingName Simple|Mirror|Parity
+     * -Usage Data
+     */
+    let command;
+    let result;
+
+    extraArgs.push("-ResiliencySettingName", '"Simple"');
+    extraArgs.push("-ProvisioningType", '"Thin"');
+
+    command = `New-VirtualDisk -StoragePoolFriendlyName "$Env:storagepoolfriendlyname" -FriendlyName "$Env:friendlyname" -Size ${size} ${extraArgs.join(
+      " "
+    )} | ConvertTo-Json`;
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          storagepoolfriendlyname: storagePoolFriendlyName,
+          friendlyname: friendlyName,
+          size,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async NewVirtualDiskCloneByFriendlyName(
+    storagePoolFriendlyName,
+    virutalDiskFriendlyName,
+    friendlyName
+  ) {
+    let command;
+    let result;
+
+    command = `New-VirtualDiskClone -FriendlyName "$Env:friendlyname" -VirtualDiskFriendlyName "$Env:virutaldiskfriendlyname" -TargetStoragePoolName "$Env:storagepoolfriendlyname" | ConvertTo-Json`;
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          storagepoolfriendlyname: storagePoolFriendlyName,
+          friendlyname: friendlyName,
+          virutaldiskfriendlyname: virutalDiskFriendlyName,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async NewVirtualDiskCloneByUniqueId(
+    storagePoolFriendlyName,
+    uniqueId,
+    friendlyName
+  ) {
+    let command;
+    let result;
+
+    command = `New-VirtualDiskClone -FriendlyName "$Env:friendlyname" -VirtualDiskUniqueId "$Env:uniqueid" -TargetStoragePoolName "$Env:storagepoolfriendlyname" | ConvertTo-Json`;
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          storagepoolfriendlyname: storagePoolFriendlyName,
+          friendlyname: friendlyName,
+          uniqueid: uniqueId,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async NewVirtualDiskSnapshotByFriendlyName(
+    storagePoolFriendlyName,
+    virutalDiskFriendlyName,
+    friendlyName
+  ) {
+    let command;
+    let result;
+
+    command = `New-VirtualDiskSnapshot -FriendlyName "$Env:friendlyname" -VirtualDiskFriendlyName "$Env:virutaldiskfriendlyname" -TargetStoragePoolName "$Env:storagepoolfriendlyname" | ConvertTo-Json`;
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          storagepoolfriendlyname: storagePoolFriendlyName,
+          friendlyname: friendlyName,
+          virutaldiskfriendlyname: virutalDiskFriendlyName,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async NewVirtualDiskCloneByUniqueId(
+    storagePoolFriendlyName,
+    uniqueId,
+    friendlyName
+  ) {
+    let command;
+    let result;
+
+    command = `New-VirtualDiskSnapshot -FriendlyName "$Env:friendlyname" -VirtualDiskUniqueId "$Env:uniqueid" -TargetStoragePoolName "$Env:storagepoolfriendlyname" | ConvertTo-Json`;
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          storagepoolfriendlyname: storagePoolFriendlyName,
+          friendlyname: friendlyName,
+          uniqueid: uniqueId,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  // $volumeinfo = GWMI -namespace root\cimv2 -class win32_volume
+  // $volumeid = $volumeinfo[1].deviceid
+  // $taskname = "ShadowCopyVolume" + $volumeid.replace("\","").replace("?Volume","")
+  // $taskrun = "C:\Windows\system32\vssadmin.exe Create Shadow /AutoRetry=15 /For=$volumeid"
+  // Get-CimInstance Win32_ShadowCopy | ConvertTo-Json
+
+  async VssCreateShadowByVolumeId(
+    storagePoolFriendlyName,
+    uniqueId,
+    friendlyName
+  ) {
+    let command;
+    let result;
+
+    command = `New-VirtualDiskSnapshot -FriendlyName \"$Env:friendlyname" -VirtualDiskUniqueId "$Env:uniqueid" -TargetStoragePoolName "$Env:storagepoolfriendlyname" | ConvertTo-Json`;
+    try {
+      result = await this.ps.exec(command, {
+        env: {
+          storagepoolfriendlyname: storagePoolFriendlyName,
+          friendlyname: friendlyName,
+          uniqueid: uniqueId,
+        },
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async NewVHDDifferencing(parentPath, childPath) {
+    let command;
+    let result;
+
+    command =
+      'New-VHD -ParentPath "${Env:parentpath}" -Path "${Env:childpath}" -Differencing | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: Object.assign({}, process.env, {
+          parentpath: parentPath,
+          childpath: childPath,
+        }),
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async MountVHD(path) {
+    let command;
+    let result;
+
+    command =
+      'Mount-VHD -NoDriveLetter -Path "${Env:vhdpath}" | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: Object.assign({}, process.env, {
+          vhdpath: path,
+        }),
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async DismountVHD(path) {
+    let command;
+    let result;
+
+    command = 'Dismount-VHD -Path "${Env:vhdpath}" | ConvertTo-Json';
+    try {
+      result = await this.ps.exec(command, {
+        env: Object.assign({}, process.env, {
+          vhdpath: path,
+        }),
+      });
+      return result.parsed;
+    } catch (err) {
+      throw err;
+    }
   }
 }
 

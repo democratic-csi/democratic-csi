@@ -2118,7 +2118,11 @@ class CsiBaseDriver {
                   result = await wutils.GetItem(win_staging_target_path);
                 }
 
-                if (!volume.UniqueId.includes(result.Target[0])) {
+                if (
+                  !result.Target.some((target) => {
+                    return volume.UniqueId.includes(target);
+                  })
+                ) {
                   // mount up!
                   await wutils.MountVolume(
                     volume.UniqueId,
@@ -3663,6 +3667,9 @@ class CsiBaseDriver {
           if (await wutils.VolumeIsIscsi(target)) {
             node_attach_driver = "iscsi";
           }
+          if (await wutils.VolumeIsVHD(target)) {
+            node_attach_driver = "vhd";
+          }
         }
 
         if (!node_attach_driver) {
@@ -3675,6 +3682,7 @@ class CsiBaseDriver {
             res.usage = [{ total: 0, unit: "BYTES" }];
             break;
           case "iscsi":
+          case "vhd":
             let node_volume = await wutils.GetVolumeByVolumeId(target);
             res.usage = [
               {
