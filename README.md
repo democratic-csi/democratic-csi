@@ -182,7 +182,7 @@ node:
         value: nsenter
       - name: ISCSIADM_HOST_PATH
         value: /usr/local/sbin/iscsiadm
-    iscsiDirHostPath: /usr/local/etc/iscsi
+    iscsiDirHostPath: /var/iscsi
     iscsiDirHostPathType: ""
 ```
 
