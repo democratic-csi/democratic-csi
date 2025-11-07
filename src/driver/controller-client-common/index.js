@@ -113,19 +113,27 @@ class ControllerClientCommonDriver extends CsiBaseDriver {
       }
     }
 
-    if (this.ctx.args.csiMode.includes("controller")) {
-      setInterval(() => {
+    if (this.ctx.args.csiMode.includes("controller") && !options.disableBackgroundSnapshotChecks) {
+      let cutCheckIndex = setInterval(() => {
+        if (SNAPSHOTS_CUT_IN_FLIGHT.size == 0) {
+          return;
+        }
         this.ctx.logger.info("snapshots cut in flight", {
           names: [...SNAPSHOTS_CUT_IN_FLIGHT],
           count: SNAPSHOTS_CUT_IN_FLIGHT.size,
         });
       }, 30 * 1000);
-      setInterval(() => {
+      this.cleanup.push(() => clearInterval(cutCheckIndex));
+      let restoreCheckIndex = setInterval(() => {
+        if (SNAPSHOTS_RESTORE_IN_FLIGHT.size == 0) {
+          return;
+        }
         this.ctx.logger.info("snapshots restore in flight", {
           names: [...SNAPSHOTS_RESTORE_IN_FLIGHT],
           count: SNAPSHOTS_RESTORE_IN_FLIGHT.size,
         });
       }, 30 * 1000);
+      this.cleanup.push(() => clearInterval(restoreCheckIndex));
     }
   }
 
