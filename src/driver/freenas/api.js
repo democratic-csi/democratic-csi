@@ -174,7 +174,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} datasetName
    */
-  async createShare(call, datasetName) {
+  async createShare(callContext, call, datasetName) {
     const driver = this;
     const driverShareType = this.getDriverShareType();
     const httpClient = await this.getHttpClient();
@@ -207,7 +207,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           "mountpoint",
           FREENAS_NFS_SHARE_PROPERTY_NAME,
         ]);
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         // create nfs share
         if (
@@ -419,7 +419,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           "mountpoint",
           FREENAS_SMB_SHARE_PROPERTY_NAME,
         ]);
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         let smbName;
 
@@ -442,7 +442,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
         smbName = smbName.toLowerCase();
 
-        this.ctx.logger.info(
+        callContext.logger.info(
           "FreeNAS creating smb share with name: " + smbName
         );
 
@@ -668,7 +668,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME,
           FREENAS_ISCSI_TARGETTOEXTENT_ID_PROPERTY_NAME,
         ]);
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         let basename;
         let iscsiName;
@@ -698,7 +698,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
         let extentDiskName = "zvol/" + datasetName;
         let maxZvolNameLength = await driver.getMaxZvolNameLength();
-        driver.ctx.logger.debug("max zvol name length: %s", maxZvolNameLength);
+        callContext.logger.debug("max zvol name length: %s", maxZvolNameLength);
 
         /**
          * limit is a FreeBSD limitation
@@ -719,7 +719,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           );
         }
 
-        this.ctx.logger.info(
+        callContext.logger.info(
           "FreeNAS creating iscsi assets with name: " + iscsiName
         );
 
@@ -793,7 +793,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               );
             }
             basename = response.body.iscsi_basename;
-            this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
+            callContext.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
             break;
           case 2:
             response = await httpClient.get("/iscsi/global");
@@ -806,7 +806,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               );
             }
             basename = response.body.basename;
-            this.ctx.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
+            callContext.logger.verbose("FreeNAS ISCSI BASENAME: " + basename);
             break;
           default:
             throw new GrpcError(
@@ -876,7 +876,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 );
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+              callContext.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
               // set target.id on zvol
               await zb.zfs.set(datasetName, {
@@ -958,7 +958,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   );
                 }
 
-                this.ctx.logger.verbose(
+                callContext.logger.verbose(
                   "FreeNAS ISCSI TARGET_GROUP: %j",
                   targetGroup
                 );
@@ -1024,7 +1024,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 );
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+              callContext.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
               await httpApiClient.DatasetSet(datasetName, {
                 [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
@@ -1082,7 +1082,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   `unknown error creating iscsi targettoextent`
                 );
               }
-              this.ctx.logger.verbose(
+              callContext.logger.verbose(
                 "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
                 targetToExtent
               );
@@ -1208,7 +1208,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 }
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
+              callContext.logger.verbose("FreeNAS ISCSI TARGET: %j", target);
 
               // set target.id on zvol
               await httpApiClient.DatasetSet(datasetName, {
@@ -1273,7 +1273,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                 );
               }
 
-              this.ctx.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
+              callContext.logger.verbose("FreeNAS ISCSI EXTENT: %j", extent);
 
               await httpApiClient.DatasetSet(datasetName, {
                 [FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME]: extent.id,
@@ -1330,7 +1330,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                   `unknown error creating iscsi targetextent`
                 );
               }
-              this.ctx.logger.verbose(
+              callContext.logger.verbose(
                 "FreeNAS ISCSI TARGET_TO_EXTENT: %j",
                 targetToExtent
               );
@@ -1351,7 +1351,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
         // iqn = target
         let iqn = basename + ":" + iscsiName;
-        this.ctx.logger.info("FreeNAS iqn: " + iqn);
+        callContext.logger.info("FreeNAS iqn: " + iqn);
 
         // store this off to make delete process more bullet proof
         await httpApiClient.DatasetSet(datasetName, {
@@ -1378,7 +1378,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
   }
 
-  async deleteShare(call, datasetName) {
+  async deleteShare(callContext, call, datasetName) {
     const driverShareType = this.getDriverShareType();
     const httpClient = await this.getHttpClient();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -1405,7 +1405,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           }
           throw err;
         }
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         shareId = properties[FREENAS_NFS_SHARE_PROPERTY_NAME].value;
 
@@ -1507,7 +1507,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           }
           throw err;
         }
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         shareId = properties[FREENAS_SMB_SHARE_PROPERTY_NAME].value;
 
@@ -1618,7 +1618,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           throw err;
         }
 
-        this.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         let targetId = properties[FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME].value;
         let extentId = properties[FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME].value;
@@ -1684,7 +1684,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                     _.get(response, "body.errno") == 14
                   ) {
                     retries++;
-                    this.ctx.logger.debug(
+                    callContext.logger.debug(
                       "target: %s is in use, retry %s shortly",
                       targetId,
                       retries
@@ -1709,7 +1709,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                     FREENAS_ISCSI_TARGET_ID_PROPERTY_NAME
                   );
                 } else {
-                  this.ctx.logger.debug(
+                  callContext.logger.debug(
                     "not deleting iscsitarget asset as it appears ID %s has been re-used: zfs name - %s, iscsitarget name - %s",
                     targetId,
                     iscsiName,
@@ -1771,7 +1771,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
                     FREENAS_ISCSI_EXTENT_ID_PROPERTY_NAME
                   );
                 } else {
-                  this.ctx.logger.debug(
+                  callContext.logger.debug(
                     "not deleting iscsiextent asset as it appears ID %s has been re-used: zfs name - %s, iscsiextent name - %s",
                     extentId,
                     iscsiName,
@@ -1809,7 +1809,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    * @param {*} datasetName
    * @returns
    */
-  async expandVolume(call, datasetName) {
+  async expandVolume(callContext, call, datasetName) {
     // TODO: fix me
     return;
     const driverShareType = this.getDriverShareType();
@@ -1833,7 +1833,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
             command = (await this.getSudoPath()) + " " + command;
           }
 
-          this.ctx.logger.verbose(
+          callContext.logger.verbose(
             "FreeNAS reloading iscsi daemon: %s",
             command
           );
@@ -1887,7 +1887,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     return volume_status;
   }
 
-  async populateCsiVolumeFromData(row) {
+  async populateCsiVolumeFromData(callContext, row) {
     const driver = this;
     const zb = await this.getZetabyte();
     const driverZfsResourceType = this.getDriverZfsResourceType();
@@ -1901,7 +1901,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     if (
       !zb.helpers.isPropertyValueSet(row[SHARE_VOLUME_CONTEXT_PROPERTY_NAME])
     ) {
-      driver.ctx.logger.warn(`${row.name} is missing share context`);
+      callContext.logger.warn(`${row.name} is missing share context`);
       return;
     }
 
@@ -2082,9 +2082,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
     return access_modes;
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(callContext, capabilities) {
     const driverZfsResourceType = this.getDriverZfsResourceType();
-    this.ctx.logger.verbose("validating capabilities: %j", capabilities);
+    callContext.logger.verbose("validating capabilities: %j", capabilities);
 
     let message = null;
     //[{"access_mode":{"mode":"SINGLE_NODE_WRITER"},"mount":{"mount_flags":["noatime","_netdev"],"fs_type":"nfs"},"access_type":"mount"}]
@@ -2177,7 +2177,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async Probe(call) {
+  async Probe(callContext, call) {
     const driver = this;
     const httpApiClient = await driver.getTrueNASHttpApiClient();
 
@@ -2228,7 +2228,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateVolume(call) {
+  async CreateVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -2254,7 +2254,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       call.request.volume_capabilities &&
       call.request.volume_capabilities.length > 0
     ) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
       }
@@ -2403,7 +2403,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     if (driverZfsResourceType == "volume") {
       let extentDiskName = "zvol/" + datasetName;
       let maxZvolNameLength = await driver.getMaxZvolNameLength();
-      driver.ctx.logger.debug("max zvol name length: %s", maxZvolNameLength);
+      callContext.logger.debug("max zvol name length: %s", maxZvolNameLength);
       if (extentDiskName.length > maxZvolNameLength) {
         throw new GrpcError(
           grpc.status.FAILED_PRECONDITION,
@@ -2495,7 +2495,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
               volume_id;
           }
 
-          driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
+          callContext.logger.debug("full snapshot name: %s", fullSnapshotName);
 
           if (!zb.helpers.isZfsSnapshot(volume_content_source_snapshot_id)) {
             try {
@@ -2656,7 +2656,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
             VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX +
             volume_id;
 
-          driver.ctx.logger.debug("full snapshot name: %s", fullSnapshotName);
+            callContext.logger.debug("full snapshot name: %s", fullSnapshotName);
 
           // create snapshot
           try {
@@ -2841,7 +2841,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
           VOLUME_CONTENT_SOURCE_TYPE_PROPERTY_NAME,
           VOLUME_CONTENT_SOURCE_ID_PROPERTY_NAME,
         ]);
-        driver.ctx.logger.debug("zfs props data: %j", properties);
+        callContext.logger.debug("zfs props data: %j", properties);
 
         // set mode
         let perms = {
@@ -2957,7 +2957,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         break;
     }
 
-    volume_context = await this.createShare(call, datasetName);
+    volume_context = await this.createShare(callContext, call, datasetName);
     await httpApiClient.DatasetSet(datasetName, {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
     });
@@ -3000,7 +3000,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteVolume(call) {
+  async DeleteVolume(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
@@ -3045,7 +3045,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       }
     }
 
-    driver.ctx.logger.debug("dataset properties: %j", properties);
+    callContext.logger.debug("dataset properties: %j", properties);
 
     // deleteStrategy
     const delete_strategy = _.get(
@@ -3059,7 +3059,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     // remove share resources
-    await this.deleteShare(call, datasetName);
+    await this.deleteShare(callContext, call, datasetName);
 
     // remove parent snapshot if appropriate with defer
     if (
@@ -3070,7 +3070,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         .extractSnapshotName(properties.origin.value)
         .startsWith(VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX)
     ) {
-      driver.ctx.logger.debug(
+      callContext.logger.debug(
         "removing with defer source snapshot: %s",
         properties.origin.value
       );
@@ -3133,7 +3133,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerExpandVolume(call) {
+  async ControllerExpandVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -3237,7 +3237,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       await httpApiClient.DatasetSet(datasetName, properties);
     }
 
-    await this.expandVolume(call, datasetName);
+    await this.expandVolume(callContext, call, datasetName);
 
     return {
       capacity_bytes:
@@ -3254,7 +3254,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
@@ -3269,7 +3269,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     if (call.request.volume_capabilities) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
       if (result.valid !== true) {
         return { available_capacity: 0 };
@@ -3302,7 +3302,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ControllerGetVolume(call) {
+  async ControllerGetVolume(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpApiClient = await this.getTrueNASHttpApiClient();
@@ -3358,8 +3358,8 @@ class FreeNASApiDriver extends CsiBaseDriver {
       row[p] = response[p].rawvalue;
     }
 
-    driver.ctx.logger.debug("list volumes result: %j", row);
-    let volume = await driver.populateCsiVolumeFromData(row);
+    callContext.logger.debug("list volumes result: %j", row);
+    let volume = await driver.populateCsiVolumeFromData(callContext, row);
     let status = await driver.getVolumeStatus(datasetName);
 
     let res = { volume };
@@ -3376,7 +3376,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListVolumes(call) {
+  async ListVolumes(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpClient = await this.getHttpClient();
@@ -3475,7 +3475,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       }
     }
 
-    driver.ctx.logger.debug("list volumes result: %j", rows);
+    callContext.logger.debug("list volumes result: %j", rows);
 
     entries = [];
     for (let row of rows) {
@@ -3489,7 +3489,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         ""
       );
 
-      let volume = await driver.populateCsiVolumeFromData(row);
+      let volume = await driver.populateCsiVolumeFromData(callContext, row);
       if (volume) {
         let status = await driver.getVolumeStatus(volume_id);
         entries.push({
@@ -3518,7 +3518,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ListSnapshots(call) {
+  async ListSnapshots(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpClient = await this.getHttpClient();
@@ -3935,7 +3935,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async CreateSnapshot(call) {
+  async CreateSnapshot(callContext, call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
     const httpClient = await this.getHttpClient();
@@ -4005,7 +4005,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       source_volume_id;
     snapshotProperties[MANAGED_PROPERTY_NAME] = "true";
 
-    driver.ctx.logger.verbose("requested snapshot name: %s", name);
+    callContext.logger.verbose("requested snapshot name: %s", name);
 
     let invalid_chars;
     invalid_chars = name.match(/[^a-z0-9_\-:.+]+/gi);
@@ -4022,7 +4022,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     // https://stackoverflow.com/questions/32106243/regex-to-remove-all-non-alpha-numeric-and-replace-spaces-with/32106277
     name = name.replace(/[^a-z0-9_\-:.+]+/gi, "");
 
-    driver.ctx.logger.verbose("cleansed snapshot name: %s", name);
+    callContext.logger.verbose("cleansed snapshot name: %s", name);
 
     // check for other snapshopts with the same name on other volumes and fail as appropriate
     {
@@ -4107,7 +4107,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       fullSnapshotName = datasetName + "@" + name;
     }
 
-    driver.ctx.logger.verbose("full snapshot name: %s", fullSnapshotName);
+    callContext.logger.verbose("full snapshot name: %s", fullSnapshotName);
 
     if (detachedSnapshot) {
       tmpSnapshotName =
@@ -4266,7 +4266,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       );
     }
 
-    driver.ctx.logger.verbose("snapshot properties: %j", properties);
+    callContext.logger.verbose("snapshot properties: %j", properties);
 
     // TODO: properly handle use-case where datasetEnableQuotas is not turned on
     if (driverZfsResourceType == "filesystem") {
@@ -4333,7 +4333,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async DeleteSnapshot(call) {
+  async DeleteSnapshot(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
@@ -4365,7 +4365,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     const fullSnapshotName = datasetParentName + "/" + snapshot_id;
 
-    driver.ctx.logger.verbose("deleting snapshot: %s", fullSnapshotName);
+    callContext.logger.verbose("deleting snapshot: %s", fullSnapshotName);
 
     if (detachedSnapshot) {
       try {
@@ -4413,7 +4413,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
     const httpApiClient = await this.getTrueNASHttpApiClient();
 
@@ -4450,7 +4450,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
       }
     }
 
-    const result = this.assertCapabilities(capabilities);
+    const result = this.assertCapabilities(callContext, capabilities);
 
     if (result.valid !== true) {
       return { message: result.message };
