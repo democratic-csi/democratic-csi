@@ -3429,13 +3429,22 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     // get properties needed for remaining calls
     try {
-      properties = await httpApiClient.DatasetGet(datasetName, [
-        "mountpoint",
-        "origin",
-        "refquota",
-        "compression",
-        VOLUME_CSI_NAME_PROPERTY_NAME,
-      ]);
+      properties = await httpApiClient.DatasetGet(
+        datasetName,
+        [
+          "id",
+          "mountpoint",
+          "origin",
+          "refquota",
+          "compression",
+          VOLUME_CSI_NAME_PROPERTY_NAME,
+          "snapshots",
+        ],
+        {
+          "extra.snapshots": "true",
+          "extra.retrieve_children": "false",
+        }
+      );
     } catch (err) {
       let ignore = false;
       if (err.toString().includes("dataset does not exist")) {
@@ -3469,16 +3478,16 @@ class FreeNASApiDriver extends CsiBaseDriver {
       properties.origin &&
       properties.origin.value != "-" &&
       zb.helpers
-        .extractSnapshotName(properties.origin.value)
+        .extractSnapshotName(properties.origin.parsed)
         .startsWith(VOLUME_SOURCE_CLONE_SNAPSHOT_PREFIX)
     ) {
       driver.ctx.logger.debug(
         "removing with defer source snapshot: %s",
-        properties.origin.value
+        properties.origin.parsed
       );
 
       try {
-        await httpApiClient.SnapshotDelete(properties.origin.value, {
+        await httpApiClient.SnapshotDelete(properties.origin.parsed, {
           defer: true,
         });
       } catch (err) {
@@ -3490,6 +3499,43 @@ class FreeNASApiDriver extends CsiBaseDriver {
         }
         throw err;
       }
+    }
+
+    // Explicitly check if we have any managed snapshots
+    // If a clone has been created from a snapshot, it will fail anyway but if no clones
+    // have been created the destroy will succeed undesirably
+    let hasManagedSnapshot = false;
+    try {
+      for (const snapshot of _.get(properties, "snapshots", [])) {
+        let snapshotData = await httpApiClient.SnapshotGet(snapshot.name, [
+          MANAGED_PROPERTY_NAME,
+          // "democratic-csi:csi_snapshot_name",
+          // "democratic-csi:csi_snapshot_source_volume_id",
+        ]);
+
+        if (
+          snapshotData[MANAGED_PROPERTY_NAME] &&
+          snapshotData[MANAGED_PROPERTY_NAME].value.toLowerCase() == "true"
+        ) {
+          hasManagedSnapshot = true;
+          break;
+        }
+      }
+    } catch (err) {
+      // ignore errors when the dataset is already deleted
+      if (!err.toString().includes("dataset does not exist")) {
+        throw new GrpcError(
+          grpc.status.UNKNOWN,
+          `failed to test for snapshots: ${err.toString()}`
+        );
+      }
+    }
+
+    if (hasManagedSnapshot) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        "filesystem has dependent snapshots"
+      );
     }
 
     // NOTE: -f does NOT allow deletes if dependent filesets exist

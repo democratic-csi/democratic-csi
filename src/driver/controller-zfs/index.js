@@ -1423,6 +1423,42 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
     }
 
+    // Explicitly check if we have any managed snapshots
+    // If a clone has been created from a snapshot, it will fail anyway but if no clones
+    // have been created the destroy will succeed undesirably
+    let hasManagedSnapshot = false;
+    try {
+      let snapshots = await zb.zfs.list(
+        datasetName,
+        [
+          "name",
+          // "democratic-csi:csi_snapshot_name",
+          // "democratic-csi:csi_snapshot_source_volume_id",
+          MANAGED_PROPERTY_NAME,
+        ],
+        { types: ["snapshot"] }
+      );
+
+      hasManagedSnapshot = snapshots.indexed.some((snapshot) => {
+        return snapshot[MANAGED_PROPERTY_NAME].toLowerCase() == "true";
+      });
+    } catch (err) {
+      // ignore errors when the dataset is already deleted
+      if (!err.toString().includes("dataset does not exist")) {
+        throw new GrpcError(
+          grpc.status.UNKNOWN,
+          `failed to test for snapshots: ${err.toString()}`
+        );
+      }
+    }
+
+    if (hasManagedSnapshot) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        "filesystem has dependent snapshots"
+      );
+    }
+
     // NOTE: -f does NOT allow deletes if dependent filesets exist
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
