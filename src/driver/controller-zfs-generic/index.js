@@ -303,8 +303,66 @@ create /backstores/block/${assetName}
               }
             );
             break;
+          case "pcs":
+              basename = this.options.iscsi.shareStrategyPcs.basename;
+              let pcs_group = this.options.iscsi.shareStrategyPcs.pcs_group;
+
+              let extraTerms = ['group', `${pcs_group}`, '--wait']; // The wait is important to avoid race conditions
+              let createTargetTerms = [
+                'resource', 'create', '--future', '--force', `target-${assetName}`, 'ocf:heartbeat:iSCSITarget',
+                'implementation="lio-t"', 'portals=":::3260"', `iqn="${basename}:${assetName}"`
+              ];
+
+              if (this.options.iscsi.shareStrategyPcs.auth.enabled) {
+                createTargetTerms.push(`incoming_username="${this.options.iscsi.shareStrategyPcs.auth.incoming_username}"`);
+                createTargetTerms.push(`incoming_password="${this.options.iscsi.shareStrategyPcs.auth.incoming_password}"`);
+              }
+
+              await GeneralUtils.retry(
+                3,
+                2000,
+                async () => {
+                  await this.pcsCommand(createTargetTerms.concat(extraTerms));
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.stdout && err.stdout.includes("Timed Out")) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
+
+              let createLunTerms = [
+                'resource', 'create', '--future', `lun-${assetName}`, 'ocf:heartbeat:iSCSILogicalUnit',
+                'implementation="lio-t"', `target_iqn="${basename}:${assetName}"`, 'lun="0"',
+                `path="/dev/${extentDiskName}"`
+              ];
+
+              await GeneralUtils.retry(
+                3,
+                2000,
+                async () => {
+                  await this.pcsCommand(createLunTerms.concat(extraTerms));
+                },
+                {
+                  retryCondition: (err) => {
+                    if (err.stdout && err.stdout.includes("Timed Out")) {
+                      return true;
+                    }
+                    return false;
+                  },
+                }
+              );
+  
+              break;
+
           default:
-            break;
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `invalid configuration: unknown shareStrategy ${this.options.iscsi.shareStrategy}`
+            );
         }
 
         // iqn = target
@@ -695,8 +753,54 @@ delete ${assetName}
             );
 
             break;
-          default:
+          case "pcs":
+            let deleteLunText = [
+              'resource', 'delete', `lun-${assetName}`
+            ];
+
+            await GeneralUtils.retry(
+              3,
+              2000,
+              async () => {
+                await this.pcsCommand(deleteLunText);
+              },
+              {
+                retryCondition: (err) => {
+                  if (err.stdout && err.stdout.includes("Timed Out")) {
+                    return true;
+                  }
+                  return false;
+                },
+              }
+            );
+
+            let deleteTargetText = [
+              'resource', 'delete', `target-${assetName}`
+            ];
+
+            await GeneralUtils.retry(
+              3,
+              2000,
+              async () => {
+                await this.pcsCommand(deleteTargetText);
+              },
+              {
+                retryCondition: (err) => {
+                  if (err.stdout && err.stdout.includes("Timed Out")) {
+                    return true;
+                  }
+                  return false;
+                },
+              }
+            );
+
             break;
+
+          default:
+            throw new GrpcError(
+              grpc.status.FAILED_PRECONDITION,
+              `invalid configuration: unknown shareStrategy ${this.options.iscsi.shareStrategy}`
+            );
         }
         break;
       }
@@ -846,6 +950,9 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
           case "targetCli":
             // nothing required, just need to rescan on the node
             break;
+          case "pcs":
+            // nothing required, just need to rescan on the node
+            break;
           default:
             break;
         }
@@ -854,6 +961,63 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       default:
         break;
     }
+  }
+
+  async pcsCommand(commandTerms) {
+    const execClient = this.getExecClient();
+    const driver = this;
+
+    let command = "sh";
+    let args = ["-c"];
+
+    let cliArgs = ["pcs"];
+    if (
+      _.get(this.options, "iscsi.shareStrategyPcs.sudoEnabled", false)
+    ) {
+      cliArgs.unshift("sudo");
+    }
+
+    let cliCommand = [];
+    cliCommand.push(cliArgs.join(" "));
+    cliCommand.push(commandTerms.join(" "));
+    args.push("'" + cliCommand.join(" ") + "'");
+
+    let logCommandTmp = command + " " + args.join(" ");
+    let logCommand = "";
+
+    logCommandTmp.split(" ").forEach((term) => {
+      logCommand += " ";
+      
+      if (term.startsWith("incoming_password=")) {
+        logCommand += "incoming_password=<redacted>";
+      } else {
+        logCommand += term;
+      }
+    });
+
+    driver.ctx.logger.verbose("pcs command:" + logCommand);
+
+    let options = {
+      pty: true,
+    };
+    let response = await execClient.exec(
+      execClient.buildCommand(command, args),
+      options
+    );
+    driver.ctx.logger.verbose(
+      "pcs response: " + JSON.stringify(response)
+    );
+        
+    // Handle idempotence for create commands
+    if (response.code == 1 && response.stdout.includes("already exists")) {
+      driver.ctx.logger.verbose("pcs resource already exists, ignoring error (setting response.code=0)");
+      response.code = 0;
+    }
+
+    if (response.code != 0) {
+      throw response;
+    }
+    return response;
   }
 
   async targetCliCommand(data) {

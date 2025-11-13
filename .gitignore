@@ -2,3 +2,7 @@
 node_modules
 dev
 /ci/bin/*dev*
+.vagrant
+hack/*
+!hack/run.sh
+!hack/build_push.sh
