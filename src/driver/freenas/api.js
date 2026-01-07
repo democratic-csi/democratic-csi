@@ -2809,15 +2809,16 @@ class FreeNASApiDriver extends CsiBaseDriver {
     switch (driverZfsResourceType) {
       case "filesystem":
         // set quota
+        // Note: TrueNAS 25.x requires strict integer types for refquota/refreservation
         if (this.options.zfs.datasetEnableQuotas) {
           setProps = true;
-          properties.refquota = capacity_bytes;
+          properties.refquota = Number(capacity_bytes);
         }
 
         // set reserve
         if (this.options.zfs.datasetEnableReservation) {
           setProps = true;
-          properties.refreservation = capacity_bytes;
+          properties.refreservation = Number(capacity_bytes);
         }
 
         // quota for dataset and all children
@@ -3211,19 +3212,20 @@ class FreeNASApiDriver extends CsiBaseDriver {
     switch (driverZfsResourceType) {
       case "filesystem":
         // set quota
+        // Note: TrueNAS 25.x requires strict integer types for refquota/refreservation
         if (this.options.zfs.datasetEnableQuotas) {
           setProps = true;
-          properties.refquota = capacity_bytes;
+          properties.refquota = Number(capacity_bytes);
         }
 
         // set reserve
         if (this.options.zfs.datasetEnableReservation) {
           setProps = true;
-          properties.refreservation = capacity_bytes;
+          properties.refreservation = Number(capacity_bytes);
         }
         break;
       case "volume":
-        properties.volsize = capacity_bytes;
+        properties.volsize = Number(capacity_bytes);
         setProps = true;
 
         // managed automatically for zvols
