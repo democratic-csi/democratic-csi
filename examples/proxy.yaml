@@ -1,0 +1,20 @@
+
+driver: proxy
+
+proxy:
+  # path to folder where real driver config files are located
+  # this value is required for the proxy to work
+  configFolder: /mnt/connections/
+  # connections that are no longer used are eventually deleted
+  # when timeout is 0, caching will be completely disabled, each request will create a new driver
+  # when timeout is -1, cache timeout is disabled, drivers are cached forever
+  # default: 60
+  cacheTimeoutMinutes: 60
+  # Node topology defines isolated groups of nodes
+  # local drivers need node topology
+  # All other drivers do not depend on topology, and will work fine with simpler cluster topology
+  nodeTopology:
+    # 'cluster': the whole cluster has unified storage
+    # 'node': each node has its own storage. Required for 'local-' drivers
+    # default: cluster
+    type: cluster
