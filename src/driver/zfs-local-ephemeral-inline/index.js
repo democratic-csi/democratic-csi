@@ -180,7 +180,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     return datasetParentName;
   }
 
-  assertCapabilities(capabilities) {
+  assertCapabilities(callContext, capabilities) {
     // hard code this for now
     const driverZfsResourceType = "filesystem";
     this.ctx.logger.verbose("validating capabilities: %j", capabilities);
@@ -287,7 +287,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodePublishVolume(call) {
+  async NodePublishVolume(callContext, call) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -324,7 +324,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     }
 
     if (capability) {
-      const result = this.assertCapabilities([capability]);
+      const result = this.assertCapabilities(callContext, [capability]);
 
       if (result.valid !== true) {
         throw new GrpcError(grpc.status.INVALID_ARGUMENT, result.message);
@@ -401,7 +401,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async NodeUnpublishVolume(call) {
+  async NodeUnpublishVolume(callContext, call) {
     const zb = this.getZetabyte();
     const filesystem = new Filesystem();
     let result;
@@ -469,7 +469,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async GetCapacity(call) {
+  async GetCapacity(callContext, call) {
     const driver = this;
     const zb = this.getZetabyte();
 
@@ -483,7 +483,7 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
     }
 
     if (call.request.volume_capabilities) {
-      const result = this.assertCapabilities(call.request.volume_capabilities);
+      const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
       if (result.valid !== true) {
         return { available_capacity: 0 };
@@ -503,9 +503,9 @@ class ZfsLocalEphemeralInlineDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
-  async ValidateVolumeCapabilities(call) {
+  async ValidateVolumeCapabilities(callContext, call) {
     const driver = this;
-    const result = this.assertCapabilities(call.request.volume_capabilities);
+    const result = this.assertCapabilities(callContext, call.request.volume_capabilities);
 
     if (result.valid !== true) {
       return { message: result.message };
