@@ -3682,16 +3682,54 @@ class FreeNASApiDriver extends CsiBaseDriver {
     }
 
     if (setProps) {
-      await httpApiClient.DatasetSet(datasetName, properties);
+      try {
+        await httpApiClient.DatasetSet(datasetName, properties);
+      } catch (err) {
+        // Check if error is a 405 Not Allowed (common TrueNAS API issue)
+        const errorMessage = err.message || err.toString();
+        if (errorMessage.includes("405") || errorMessage.includes("Not Allowed")) {
+          throw new GrpcError(
+            grpc.status.INTERNAL,
+            `Failed to expand volume: TrueNAS API returned 405 Not Allowed. This may be a TrueNAS API issue. Error: ${errorMessage}`
+          );
+        }
+        // Re-throw other errors with proper context
+        throw new GrpcError(
+          grpc.status.INTERNAL,
+          `Failed to expand volume: ${errorMessage}`
+        );
+      }
     }
 
     await this.expandVolume(call, datasetName);
+
+    // Get actual capacity from dataset to return accurate value
+    let actualCapacityBytes = capacity_bytes;
+    try {
+      const currentProps = await httpApiClient.DatasetGet(datasetName, [
+        driverZfsResourceType == "volume" ? "volsize" : "refquota",
+      ]);
+      if (currentProps) {
+        const capacityProp = driverZfsResourceType == "volume" 
+          ? currentProps.volsize 
+          : currentProps.refquota;
+        if (capacityProp && capacityProp.rawvalue) {
+          actualCapacityBytes = Number(capacityProp.rawvalue);
+        }
+      }
+    } catch (err) {
+      // If we can't get actual capacity, use requested capacity
+      // This is not ideal but better than returning 0
+      driver.ctx.logger.warn(
+        `Could not retrieve actual capacity for ${datasetName}, using requested capacity: ${err.message}`
+      );
+    }
 
     return {
       capacity_bytes:
         this.options.zfs.datasetEnableQuotas ||
         driverZfsResourceType == "volume"
-          ? capacity_bytes
+          ? actualCapacityBytes
           : 0,
       node_expansion_required: driverZfsResourceType == "volume" ? true : false,
     };
