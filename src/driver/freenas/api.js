@@ -3705,24 +3705,27 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     // Get actual capacity from dataset to return accurate value
     let actualCapacityBytes = capacity_bytes;
-    try {
-      const currentProps = await httpApiClient.DatasetGet(datasetName, [
-        driverZfsResourceType == "volume" ? "volsize" : "refquota",
-      ]);
-      if (currentProps) {
-        const capacityProp = driverZfsResourceType == "volume" 
-          ? currentProps.volsize 
-          : currentProps.refquota;
-        if (capacityProp && capacityProp.rawvalue) {
-          actualCapacityBytes = Number(capacityProp.rawvalue);
+    // Only retrieve actual capacity when it can affect the returned value
+    if (this.options.zfs.datasetEnableQuotas || driverZfsResourceType == "volume") {
+      try {
+        const currentProps = await httpApiClient.DatasetGet(datasetName, [
+          driverZfsResourceType == "volume" ? "volsize" : "refquota",
+        ]);
+        if (currentProps) {
+          const capacityProp = driverZfsResourceType == "volume"
+            ? currentProps.volsize
+            : currentProps.refquota;
+          if (capacityProp && capacityProp.rawvalue) {
+            actualCapacityBytes = Number(capacityProp.rawvalue);
+          }
         }
+      } catch (err) {
+        // If we can't get actual capacity, use requested capacity
+        // This is not ideal but better than returning 0
+        driver.ctx.logger.warn(
+          `Could not retrieve actual capacity for ${datasetName}, using requested capacity: ${err.message}`
+        );
       }
-    } catch (err) {
-      // If we can't get actual capacity, use requested capacity
-      // This is not ideal but better than returning 0
-      driver.ctx.logger.warn(
-        `Could not retrieve actual capacity for ${datasetName}, using requested capacity: ${err.message}`
-      );
     }
 
     return {
