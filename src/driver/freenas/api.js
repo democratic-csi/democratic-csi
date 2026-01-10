@@ -3687,7 +3687,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
       } catch (err) {
         // Check if error is a 405 Not Allowed (common TrueNAS API issue)
         const errorMessage = err.message || err.toString();
-        if (errorMessage.includes("405") || errorMessage.includes("Not Allowed")) {
+        const statusCode = err && (err.statusCode || err.status || err.code);
+        const is405Status =
+          statusCode === 405 ||
+          (typeof statusCode === "string" && statusCode.trim() === "405");
+        const messageIndicates405 =
+          /\b405\b/.test(errorMessage) || /\bNot\s+Allowed\b/i.test(errorMessage);
+        if (is405Status || messageIndicates405) {
           throw new GrpcError(
             grpc.status.INTERNAL,
             `Failed to expand volume: TrueNAS API returned 405 Not Allowed. This may be a TrueNAS API issue. Error: ${errorMessage}`
