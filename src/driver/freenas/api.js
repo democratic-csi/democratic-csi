@@ -3687,11 +3687,37 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     await this.expandVolume(call, datasetName);
 
+    // Get actual capacity from dataset to return accurate value
+    // This ensures we return the actual quota/volsize that was set,
+    // regardless of the datasetEnableQuotas config flag
+    // API flow: PUT /pool/dataset/id/{id} sets quota -> GET /pool/dataset/id/{id} reads it back
+    let actualCapacityBytes = capacity_bytes;
+    try {
+      const capacityProperty = driverZfsResourceType == "volume" 
+        ? "volsize" 
+        : "refquota";
+      const currentProps = await httpApiClient.DatasetGet(datasetName, [
+        capacityProperty,
+      ]);
+      if (currentProps && currentProps[capacityProperty]) {
+        const capacityProp = currentProps[capacityProperty];
+        if (capacityProp && capacityProp.rawvalue) {
+          actualCapacityBytes = Number(capacityProp.rawvalue);
+        }
+      }
+    } catch (err) {
+      // If we can't get actual capacity, use requested capacity
+      // This is not ideal but better than returning 0
+      driver.ctx.logger.warn(
+        `Could not retrieve actual capacity for ${datasetName}, using requested capacity: ${err.message}`
+      );
+    }
+
     return {
       capacity_bytes:
         this.options.zfs.datasetEnableQuotas ||
         driverZfsResourceType == "volume"
-          ? capacity_bytes
+          ? actualCapacityBytes
           : 0,
       node_expansion_required: driverZfsResourceType == "volume" ? true : false,
     };
