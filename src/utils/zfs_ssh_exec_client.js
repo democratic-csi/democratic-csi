@@ -75,8 +75,14 @@ class SshClient {
     const start_error_event_count = this.error_event_count;
     try {
       await this.conn_mutex.runExclusive(async () => {
+        if (this.finalized) {
+          throw 'using finalized ssh client';
+        }
         this.conn.connect(this.options.connection);
         do {
+          if (this.finalized) {
+            throw 'ssh client finalized during connection';
+          }
           if (start_error_event_count != this.error_event_count) {
             throw this.conn_err;
           }
@@ -102,6 +108,12 @@ class SshClient {
     }
 
     return this._connect();
+  }
+
+  finalize() {
+    this.finalized = true;
+    const conn = this.conn;
+    conn.end();
   }
 
   async exec(command, options = {}, stream_proxy = null) {
