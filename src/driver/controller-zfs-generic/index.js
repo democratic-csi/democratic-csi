@@ -308,7 +308,12 @@ create /backstores/block/${assetName}
               basename = this.options.iscsi.shareStrategyPcs.basename;
               let pcs_group = this.options.iscsi.shareStrategyPcs.pcs_group;
 
-              let extraTerms = ['group', `${pcs_group}`, '--wait']; // The wait is important to avoid race conditions
+              // Create resources as standalone (not in the group) and use
+              // colocation/ordering constraints instead. Adding resources
+              // directly to a Pacemaker group causes cascading stop/restart
+              // of all sibling resources on every add/remove operation,
+              // which breaks active iSCSI sessions.
+              // See: https://github.com/democratic-csi/democratic-csi/issues/547
               let createTargetTerms = [
                 'resource', 'create', '--future', '--force', `target-${assetName}`, 'ocf:heartbeat:iSCSITarget',
                 'implementation="lio-t"', 'portals=":::3260"', `iqn="${basename}:${assetName}"`
@@ -323,7 +328,7 @@ create /backstores/block/${assetName}
                 3,
                 2000,
                 async () => {
-                  await this.pcsCommand(createTargetTerms.concat(extraTerms));
+                  await this.pcsCommand(createTargetTerms.concat(['--wait']));
                 },
                 {
                   retryCondition: (err) => {
@@ -334,6 +339,17 @@ create /backstores/block/${assetName}
                   },
                 }
               );
+
+              // Pin target to the same node as the resource group (pool + VIP)
+              await this.pcsCommand([
+                'constraint', 'colocation', 'add',
+                `target-${assetName}`, 'with', pcs_group, 'INFINITY'
+              ]);
+
+              // Ensure the group (pool + VIP) is running before the target starts
+              await this.pcsCommand([
+                'constraint', 'order', pcs_group, 'then', `target-${assetName}`
+              ]);
 
               let createLunTerms = [
                 'resource', 'create', '--future', `lun-${assetName}`, 'ocf:heartbeat:iSCSILogicalUnit',
@@ -345,7 +361,7 @@ create /backstores/block/${assetName}
                 3,
                 2000,
                 async () => {
-                  await this.pcsCommand(createLunTerms.concat(extraTerms));
+                  await this.pcsCommand(createLunTerms.concat(['--wait']));
                 },
                 {
                   retryCondition: (err) => {
@@ -356,7 +372,17 @@ create /backstores/block/${assetName}
                   },
                 }
               );
-  
+
+              // LUN must be on the same node and start after its target
+              await this.pcsCommand([
+                'constraint', 'colocation', 'add',
+                `lun-${assetName}`, 'with', `target-${assetName}`, 'INFINITY'
+              ]);
+
+              await this.pcsCommand([
+                'constraint', 'order', `target-${assetName}`, 'then', `lun-${assetName}`
+              ]);
+
               break;
 
           default:
@@ -755,6 +781,32 @@ delete ${assetName}
 
             break;
           case "pcs":
+            // Brownfield safety: if the resource is in a Pacemaker group
+            // (legacy behavior), remove it from the group first. This
+            // prevents cascading stop/restart of other group members.
+            // Removing from a group is non-disruptive — the resource
+            // becomes standalone and keeps running. If the resource is
+            // already standalone (new behavior) or doesn't exist, the
+            // group remove will fail harmlessly.
+            let pcs_group_delete = this.options.iscsi.shareStrategyPcs.pcs_group;
+
+            for (let resName of [`lun-${assetName}`, `target-${assetName}`]) {
+              try {
+                await this.pcsCommand([
+                  'resource', 'group', 'remove', pcs_group_delete, resName
+                ]);
+                this.ctx.logger.info(
+                  `removed ${resName} from group ${pcs_group_delete} before deletion`
+                );
+              } catch (err) {
+                // Resource not in group or doesn't exist — expected for
+                // new deployments or already-cleaned-up resources
+                this.ctx.logger.verbose(
+                  `${resName} not in group ${pcs_group_delete} (may be standalone or absent), continuing`
+                );
+              }
+            }
+
             let deleteLunText = [
               'resource', 'delete', `lun-${assetName}`
             ];
@@ -1011,9 +1063,14 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
         "pcs response: " + JSON.stringify(response)
       );
           
-      // Handle idempotence for create commands
+      // Handle idempotence for create and constraint commands
       if (response.code == 1 && response.stdout.includes("already exists")) {
         driver.ctx.logger.verbose("pcs resource already exists, ignoring error (setting response.code=0)");
+        response.code = 0;
+      }
+
+      if (response.code == 1 && response.stdout.includes("duplicate")) {
+        driver.ctx.logger.verbose("pcs constraint duplicate, ignoring error (setting response.code=0)");
         response.code = 0;
       }
 
