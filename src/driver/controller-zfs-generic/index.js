@@ -992,6 +992,12 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
         response.code = 0;
       }
 
+      // Handle idempotence for delete commands
+      if (response.code == 1 && response.stdout.includes("does not exist")) {
+        driver.ctx.logger.verbose("pcs resource does not exist, ignoring error (setting response.code=0)");
+        response.code = 0;
+      }
+
       if (response.code != 0) {
         throw response;
       }
