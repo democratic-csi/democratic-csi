@@ -127,9 +127,9 @@ for (( i=${#TARGETS[@]}-1; i>=0; i-- )); do
   shadow_name="migrate-${pvc_id:0:20}-$$"
 
   if [[ -n "$has_lun" ]]; then
-    log "Migrating pair ($((i+1))/${#TARGETS[@]}): $target + $lun"
+    log "Migrating pair ($((${#TARGETS[@]}-i))/${#TARGETS[@]}): $target + $lun"
   else
-    log "Migrating orphan target ($((i+1))/${#TARGETS[@]}): $target"
+    log "Migrating orphan target ($((${#TARGETS[@]}-i))/${#TARGETS[@]}): $target"
   fi
 
   if $DRY_RUN; then
