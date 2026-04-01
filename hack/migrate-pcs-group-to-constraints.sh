@@ -139,9 +139,11 @@ for (( i=${#TARGETS[@]}-1; i>=0; i-- )); do
       echo "[dry-run] pcs resource group remove $GROUP $lun"
     fi
     echo "[dry-run] pcs resource group remove $GROUP $target"
+    echo "[dry-run] pcs resource update $target op start timeout=30s op stop timeout=30s"
     echo "[dry-run] pcs constraint colocation add $target with $GROUP INFINITY"
     echo "[dry-run] pcs constraint order $GROUP then $target"
     if [[ -n "$has_lun" ]]; then
+      echo "[dry-run] pcs resource update $lun op start timeout=30s op stop timeout=30s"
       echo "[dry-run] pcs constraint colocation add $lun with $target INFINITY"
       echo "[dry-run] pcs constraint order $target then $lun"
     fi
@@ -161,10 +163,12 @@ for (( i=${#TARGETS[@]}-1; i>=0; i-- )); do
 
     pcs resource group remove "$GROUP" "$target" 2>/dev/null || true
 
+    pcs resource update "$target" op start timeout=30s op stop timeout=30s 2>/dev/null || true
     pcs constraint colocation add "$target" with "$GROUP" INFINITY 2>/dev/null || true
     pcs constraint order "$GROUP" then "$target" 2>/dev/null || true
 
     if [[ -n "$has_lun" ]]; then
+      pcs resource update "$lun" op start timeout=30s op stop timeout=30s 2>/dev/null || true
       pcs constraint colocation add "$lun" with "$target" INFINITY 2>/dev/null || true
       pcs constraint order "$target" then "$lun" 2>/dev/null || true
     fi
