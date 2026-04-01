@@ -308,12 +308,6 @@ create /backstores/block/${assetName}
               basename = this.options.iscsi.shareStrategyPcs.basename;
               let pcs_group = this.options.iscsi.shareStrategyPcs.pcs_group;
 
-              // Create resources as standalone (not in the group) and use
-              // colocation/ordering constraints instead. Adding resources
-              // directly to a Pacemaker group causes cascading stop/restart
-              // of all sibling resources on every add/remove operation,
-              // which breaks active iSCSI sessions.
-              // See: https://github.com/democratic-csi/democratic-csi/issues/547
               let createTargetTerms = [
                 'resource', 'create', '--future', '--force', `target-${assetName}`, 'ocf:heartbeat:iSCSITarget',
                 'implementation="lio-t"', 'portals=":::3260"', `iqn="${basename}:${assetName}"`
@@ -324,63 +318,44 @@ create /backstores/block/${assetName}
                 createTargetTerms.push(`incoming_password="${this.options.iscsi.shareStrategyPcs.auth.incoming_password}"`);
               }
 
-              await GeneralUtils.retry(
-                3,
-                2000,
-                async () => {
-                  await this.pcsCommand(createTargetTerms.concat(['--wait']));
-                },
-                {
-                  retryCondition: (err) => {
-                    if (err.stdout && err.stdout.includes("Timed Out")) {
-                      return true;
-                    }
-                    return false;
-                  },
-                }
-              );
+              // create stopped so constraints are in place before pacemaker starts it
+              createTargetTerms.push('meta', 'target-role=Stopped');
 
-              // Pin target to the same node as the resource group (pool + VIP)
-              await this.pcsCommand([
+              await this.pcsCommandWithTimeoutRetry(createTargetTerms);
+
+              await this.pcsCommandWithTimeoutRetry([
                 'constraint', 'colocation', 'add',
                 `target-${assetName}`, 'with', pcs_group, 'INFINITY'
               ]);
 
-              // Ensure the group (pool + VIP) is running before the target starts
-              await this.pcsCommand([
+              await this.pcsCommandWithTimeoutRetry([
                 'constraint', 'order', pcs_group, 'then', `target-${assetName}`
+              ]);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'resource', 'enable', `target-${assetName}`
               ]);
 
               let createLunTerms = [
                 'resource', 'create', '--future', `lun-${assetName}`, 'ocf:heartbeat:iSCSILogicalUnit',
                 'implementation="lio-t"', `target_iqn="${basename}:${assetName}"`, 'lun="0"',
-                `path="/dev/${extentDiskName}"`
+                `path="/dev/${extentDiskName}"`,
+                'meta', 'target-role=Stopped'
               ];
 
-              await GeneralUtils.retry(
-                3,
-                2000,
-                async () => {
-                  await this.pcsCommand(createLunTerms.concat(['--wait']));
-                },
-                {
-                  retryCondition: (err) => {
-                    if (err.stdout && err.stdout.includes("Timed Out")) {
-                      return true;
-                    }
-                    return false;
-                  },
-                }
-              );
+              await this.pcsCommandWithTimeoutRetry(createLunTerms);
 
-              // LUN must be on the same node and start after its target
-              await this.pcsCommand([
+              await this.pcsCommandWithTimeoutRetry([
                 'constraint', 'colocation', 'add',
                 `lun-${assetName}`, 'with', `target-${assetName}`, 'INFINITY'
               ]);
 
-              await this.pcsCommand([
+              await this.pcsCommandWithTimeoutRetry([
                 'constraint', 'order', `target-${assetName}`, 'then', `lun-${assetName}`
+              ]);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'resource', 'enable', `lun-${assetName}`
               ]);
 
               break;
@@ -781,71 +756,13 @@ delete ${assetName}
 
             break;
           case "pcs":
-            // Brownfield safety: if the resource is in a Pacemaker group
-            // (legacy behavior), remove it from the group first. This
-            // prevents cascading stop/restart of other group members.
-            // Removing from a group is non-disruptive — the resource
-            // becomes standalone and keeps running. If the resource is
-            // already standalone (new behavior) or doesn't exist, the
-            // group remove will fail harmlessly.
-            let pcs_group_delete = this.options.iscsi.shareStrategyPcs.pcs_group;
-
-            for (let resName of [`lun-${assetName}`, `target-${assetName}`]) {
-              try {
-                await this.pcsCommand([
-                  'resource', 'group', 'remove', pcs_group_delete, resName
-                ]);
-                this.ctx.logger.info(
-                  `removed ${resName} from group ${pcs_group_delete} before deletion`
-                );
-              } catch (err) {
-                // Resource not in group or doesn't exist — expected for
-                // new deployments or already-cleaned-up resources
-                this.ctx.logger.verbose(
-                  `${resName} not in group ${pcs_group_delete} (may be standalone or absent), continuing`
-                );
-              }
-            }
-
-            let deleteLunText = [
+            await this.pcsCommandWithTimeoutRetry([
               'resource', 'delete', `lun-${assetName}`
-            ];
+            ]);
 
-            await GeneralUtils.retry(
-              3,
-              2000,
-              async () => {
-                await this.pcsCommand(deleteLunText);
-              },
-              {
-                retryCondition: (err) => {
-                  if (err.stdout && err.stdout.includes("Timed Out")) {
-                    return true;
-                  }
-                  return false;
-                },
-              }
-            );
-
-            let deleteTargetText = [
+            await this.pcsCommandWithTimeoutRetry([
               'resource', 'delete', `target-${assetName}`
-            ];
-
-            await GeneralUtils.retry(
-              3,
-              2000,
-              async () => {
-                await this.pcsCommand(deleteTargetText);
-              },
-              {
-                retryCondition: (err) => {
-                  if (err.stdout && err.stdout.includes("Timed Out")) {
-                    return true;
-                  }
-                  return false;
-                },
-              }
-            );
+            ]);
 
             break;
 
@@ -1063,12 +980,13 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
         "pcs response: " + JSON.stringify(response)
       );
           
-      // Handle idempotence for create and constraint commands
+      // Handle idempotence for create commands
       if (response.code == 1 && response.stdout.includes("already exists")) {
         driver.ctx.logger.verbose("pcs resource already exists, ignoring error (setting response.code=0)");
         response.code = 0;
       }
 
+      // Handle idempotence for constraint commands
       if (response.code == 1 && response.stdout.includes("duplicate")) {
         driver.ctx.logger.verbose("pcs constraint duplicate, ignoring error (setting response.code=0)");
         response.code = 0;
@@ -1079,6 +997,24 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
       }
       return response;
     });
+  }
+
+  async pcsCommandWithTimeoutRetry(commandTerms) {
+    return GeneralUtils.retry(
+      3,
+      2000,
+      async () => {
+        await this.pcsCommand(commandTerms);
+      },
+      {
+        retryCondition: (err) => {
+          if (err.stdout && err.stdout.includes("Timed Out")) {
+            return true;
+          }
+          return false;
+        },
+      }
+    );
   }
 
   async targetCliCommand(data) {

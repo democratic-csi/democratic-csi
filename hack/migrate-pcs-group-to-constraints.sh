@@ -5,8 +5,8 @@
 # Migrates iSCSI target/LUN Pacemaker resources from group membership to
 # standalone resources with colocation and ordering constraints.
 #
-# This eliminates cascading stop/restart of all iSCSI resources when any
-# single resource is added or removed, and enables parallel failover.
+# Each target+LUN pair is migrated as an atomic CIB update via crm_shadow.
+# If interrupted, re-run safely — already-migrated pairs are skipped.
 #
 # See: https://github.com/democratic-csi/democratic-csi/issues/547
 #
@@ -15,17 +15,14 @@
 #
 # Options:
 #   --group NAME     Pacemaker group name (default: group-nas)
-#   --sudo           Use sudo for pcs commands
 #   --dry-run        Show what would be done without making changes
 #   --help           Show this help message
 #
-# The script is idempotent — safe to run multiple times.
-# Run on the NAS host where Pacemaker is running, or via SSH.
+# Must be run as root.
 
 set -euo pipefail
 
 GROUP="group-nas"
-SUDO=""
 DRY_RUN=false
 
 usage() {
@@ -36,20 +33,16 @@ usage() {
 while [[ $# -gt 0 ]]; do
   case $1 in
     --group)   GROUP="$2"; shift 2 ;;
-    --sudo)    SUDO="sudo"; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     --help)    usage ;;
     *)         echo "Unknown option: $1"; usage ;;
   esac
 done
 
-pcs_cmd() {
-  if $DRY_RUN; then
-    echo "[dry-run] $SUDO pcs $*"
-    return 0
-  fi
-  $SUDO pcs "$@"
-}
+if [[ $EUID -ne 0 ]]; then
+  echo "Error: this script must be run as root." >&2
+  exit 1
+fi
 
 log() { echo "==> $*"; }
 warn() { echo "WARNING: $*" >&2; }
@@ -57,7 +50,7 @@ warn() { echo "WARNING: $*" >&2; }
 # --- Discover current group members ---
 
 log "Reading group '$GROUP' membership..."
-GROUP_MEMBERS=$($SUDO pcs resource group list 2>/dev/null \
+GROUP_MEMBERS=$(pcs resource group list 2>/dev/null \
   | grep "^${GROUP}:" \
   | sed "s/^${GROUP}: //" \
   | tr ' ' '\n')
@@ -67,7 +60,6 @@ if [[ -z "$GROUP_MEMBERS" ]]; then
   exit 0
 fi
 
-# Separate anchor resources (stay in group) from iSCSI resources (migrate out)
 ANCHORS=()
 TARGETS=()
 LUNS=()
@@ -75,9 +67,9 @@ ORPHAN_TARGETS=()
 
 while IFS= read -r res; do
   case "$res" in
-    target-pvc-*) TARGETS+=("$res") ;;
-    lun-pvc-*)    LUNS+=("$res") ;;
-    *)            ANCHORS+=("$res") ;;
+    target-*) TARGETS+=("$res") ;;
+    lun-*)    LUNS+=("$res") ;;
+    *)        ANCHORS+=("$res") ;;
   esac
 done <<< "$GROUP_MEMBERS"
 
@@ -87,7 +79,6 @@ echo "  Anchors (stay in group): ${ANCHORS[*]:-none}"
 echo "  iSCSI targets to migrate: ${#TARGETS[@]}"
 echo "  iSCSI LUNs to migrate: ${#LUNS[@]}"
 
-# Build a set of PVC IDs that have LUNs for orphan detection
 declare -A LUN_PVCS
 for lun in "${LUNS[@]}"; do
   pvc_id="${lun#lun-}"
@@ -121,94 +112,110 @@ if $DRY_RUN; then
 fi
 echo ""
 
-# --- Phase 1: Add constraints (while resources are still in the group) ---
-# This is non-disruptive: resources satisfy both group and constraint rules.
+# --- Migrate each target+LUN pair atomically ---
+# Iterate in reverse group order so each removal is at the tail of the
+# group, avoiding cascading stop/restart of resources that follow it.
 
-log "Phase 1: Adding colocation and ordering constraints..."
+MIGRATED=0
+FAILED=0
 
-for target in "${TARGETS[@]}"; do
+for (( i=${#TARGETS[@]}-1; i>=0; i-- )); do
+  target="${TARGETS[$i]}"
   pvc_id="${target#target-}"
+  lun="lun-${pvc_id}"
+  has_lun="${LUN_PVCS[$pvc_id]+yes}"
+  shadow_name="migrate-${pvc_id:0:20}-$$"
 
-  # Colocate target with the group anchor (same node)
-  log "  colocation: $target with $GROUP"
-  pcs_cmd constraint colocation add "$target" with "$GROUP" INFINITY 2>/dev/null || true
+  if [[ -n "$has_lun" ]]; then
+    log "Migrating pair ($((i+1))/${#TARGETS[@]}): $target + $lun"
+  else
+    log "Migrating orphan target ($((i+1))/${#TARGETS[@]}): $target"
+  fi
 
-  # Order: group must be running before target starts
-  log "  ordering:   $GROUP then $target"
-  pcs_cmd constraint order "$GROUP" then "$target" 2>/dev/null || true
+  if $DRY_RUN; then
+    echo "[dry-run] crm_shadow --create $shadow_name --batch --force"
+    echo "[dry-run] export CIB_shadow=$shadow_name"
+    if [[ -n "$has_lun" ]]; then
+      echo "[dry-run] pcs resource group remove $GROUP $lun"
+    fi
+    echo "[dry-run] pcs resource group remove $GROUP $target"
+    echo "[dry-run] pcs constraint colocation add $target with $GROUP INFINITY"
+    echo "[dry-run] pcs constraint order $GROUP then $target"
+    if [[ -n "$has_lun" ]]; then
+      echo "[dry-run] pcs constraint colocation add $lun with $target INFINITY"
+      echo "[dry-run] pcs constraint order $target then $lun"
+    fi
+    echo "[dry-run] crm_shadow --commit $shadow_name --force"
+    echo ""
+    MIGRATED=$((MIGRATED + 1))
+    continue
+  fi
+
+  crm_shadow --create "$shadow_name" --batch --force 2>/dev/null
+  export CIB_shadow="$shadow_name"
+
+  if (
+    if [[ -n "$has_lun" ]]; then
+      pcs resource group remove "$GROUP" "$lun" 2>/dev/null || true
+    fi
+
+    pcs resource group remove "$GROUP" "$target" 2>/dev/null || true
+
+    pcs constraint colocation add "$target" with "$GROUP" INFINITY 2>/dev/null || true
+    pcs constraint order "$GROUP" then "$target" 2>/dev/null || true
+
+    if [[ -n "$has_lun" ]]; then
+      pcs constraint colocation add "$lun" with "$target" INFINITY 2>/dev/null || true
+      pcs constraint order "$target" then "$lun" 2>/dev/null || true
+    fi
+  ); then
+    crm_shadow --commit "$shadow_name" --force 2>/dev/null
+    log "  committed"
+    MIGRATED=$((MIGRATED + 1))
+  else
+    warn "  failed to prepare shadow for $target, skipping"
+    FAILED=$((FAILED + 1))
+  fi
+
+  unset CIB_shadow
+  crm_shadow --delete "$shadow_name" --force 2>/dev/null || true
+  echo ""
+
+  # let pacemaker settle before the next pair
+  sleep 2
 done
 
-for lun in "${LUNS[@]}"; do
-  pvc_id="${lun#lun-}"
-  target="target-${pvc_id}"
-
-  # Colocate LUN with its target
-  log "  colocation: $lun with $target"
-  pcs_cmd constraint colocation add "$lun" with "$target" INFINITY 2>/dev/null || true
-
-  # Order: target must be running before LUN starts
-  log "  ordering:   $target then $lun"
-  pcs_cmd constraint order "$target" then "$lun" 2>/dev/null || true
-done
+# --- Report results ---
 
 echo ""
-
-# --- Phase 2: Remove iSCSI resources from the group ---
-# Resources become standalone but keep running (non-disruptive).
-# Constraints from Phase 1 ensure they stay on the correct node.
-# We remove in reverse group order (last first) to minimize recalculations.
-
-log "Phase 2: Removing iSCSI resources from group '$GROUP'..."
-
-# Build reverse-ordered list of resources to remove
-REMOVE_LIST=()
-for res in "${TARGETS[@]}" "${LUNS[@]}"; do
-  REMOVE_LIST+=("$res")
-done
-
-# Remove in reverse order
-for (( i=${#REMOVE_LIST[@]}-1; i>=0; i-- )); do
-  res="${REMOVE_LIST[$i]}"
-  log "  removing: $res"
-  pcs_cmd resource group remove "$GROUP" "$res" 2>/dev/null || true
-done
-
-echo ""
-
-# --- Phase 3: Report results ---
-
-log "Phase 3: Verifying..."
+log "Migration complete: $MIGRATED migrated, $FAILED failed"
 
 if ! $DRY_RUN; then
-  REMAINING=$($SUDO pcs resource group list 2>/dev/null \
+  echo ""
+  REMAINING=$(pcs resource group list 2>/dev/null \
     | grep "^${GROUP}:" \
     | sed "s/^${GROUP}: //")
-  echo ""
   echo "Group '$GROUP' now contains: $REMAINING"
-  echo ""
 
-  CONSTRAINT_COUNT=$($SUDO pcs constraint colocation 2>/dev/null \
-    | grep -c "target-pvc-\|lun-pvc-" || true)
+  CONSTRAINT_COUNT=$(pcs constraint colocation 2>/dev/null \
+    | grep -c "target-\|lun-" || true)
   echo "Colocation constraints for iSCSI resources: $CONSTRAINT_COUNT"
 
-  ORDER_COUNT=$($SUDO pcs constraint order 2>/dev/null \
-    | grep -c "target-pvc-\|lun-pvc-" || true)
+  ORDER_COUNT=$(pcs constraint order 2>/dev/null \
+    | grep -c "target-\|lun-" || true)
   echo "Ordering constraints for iSCSI resources: $ORDER_COUNT"
 fi
-
-echo ""
-log "Migration complete."
 
 if [[ ${#ORPHAN_TARGETS[@]} -gt 0 ]]; then
   echo ""
   warn "Orphaned targets (no matching LUN) were migrated but may need manual cleanup:"
   for t in "${ORPHAN_TARGETS[@]}"; do
-    echo "  $SUDO pcs resource delete $t"
+    echo "  pcs resource delete $t"
   done
 fi
 
 echo ""
 echo "Next steps:"
 echo "  1. Verify all iSCSI sessions are healthy: iscsiadm -m session"
-echo "  2. Check resource status: $SUDO pcs status resources"
+echo "  2. Check resource status: pcs status resources"
 echo "  3. Test failover in a maintenance window"
