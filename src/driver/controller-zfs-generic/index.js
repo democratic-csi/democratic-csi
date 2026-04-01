@@ -318,6 +318,12 @@ create /backstores/block/${assetName}
                 createTargetTerms.push(`incoming_password="${this.options.iscsi.shareStrategyPcs.auth.incoming_password}"`);
               }
 
+              createTargetTerms.push(
+                'op', 'start', 'timeout=30s',
+                'op', 'stop', 'timeout=30s',
+                'op', 'monitor', 'interval=10s', 'timeout=10s'
+              );
+
               // create stopped so constraints are in place before pacemaker starts it
               createTargetTerms.push('meta', 'target-role=Stopped');
 
@@ -340,6 +346,9 @@ create /backstores/block/${assetName}
                 'resource', 'create', '--future', `lun-${assetName}`, 'ocf:heartbeat:iSCSILogicalUnit',
                 'implementation="lio-t"', `target_iqn="${basename}:${assetName}"`, 'lun="0"',
                 `path="/dev/${extentDiskName}"`,
+                'op', 'start', 'timeout=30s',
+                'op', 'stop', 'timeout=30s',
+                'op', 'monitor', 'interval=10s', 'timeout=10s',
                 'meta', 'target-role=Stopped'
               ];
 
