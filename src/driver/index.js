@@ -1630,6 +1630,17 @@ class CsiBaseDriver {
               }
             }
 
+            // For network mounts, attach _netdev
+            // to make systemd handle dependencies correctly at shutdown
+            switch (node_attach_driver) {
+              case "iscsi":
+              case "nvmeof":
+                mount_flags.push("_netdev")
+                break;
+              default:
+                break;
+            }
+
             // mount `device`
             result = await mount.deviceIsMountedAtPath(
               device,
