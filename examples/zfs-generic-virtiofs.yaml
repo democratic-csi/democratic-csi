@@ -1,0 +1,60 @@
+driver: zfs-generic-virtiofs
+sshConnection:
+  host: server address
+  port: 22
+  username: root
+  # use either password or key
+  password: ""
+  privateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+
+zfs:
+  # can be used to override defaults if necessary
+  # the example below is useful for TrueNAS 12
+  #cli:
+  #  sudoEnabled: true
+  #  paths:
+  #    zfs: /usr/local/sbin/zfs
+  #    zpool: /usr/local/sbin/zpool
+  #    sudo: /usr/local/bin/sudo
+  #    chroot: /usr/sbin/chroot
+
+  # can be used to set arbitrary values on the dataset/zvol
+  # can use handlebars templates with the parameters from the storage class/CO
+  #datasetProperties:
+  #  "org.freenas:description": "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}/{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+  #  "org.freenas:test": "{{ parameters.foo }}"
+  #  "org.freenas:test2": "some value"
+  # snapshotProperties:
+  #  "org.freenas:key": "value"
+
+  datasetParentName: tank/k8s/test
+  # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
+  # they may be siblings, but neither should be nested in the other
+  # do NOT comment this option out even if you don't plan to use snapshots, just leave it with dummy value
+  detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
+
+  datasetEnableQuotas: true
+  datasetEnableReservation: false
+  datasetPermissionsMode: "0777"
+  datasetPermissionsUser: 0
+  datasetPermissionsGroup: 0
+  #datasetPermissionsAcls:
+  #- "-m everyone@:full_set:allow"
+  #- "-m u:kube:full_set:allow"
+
+virtiofs:
+  # The base path on the remote ZFS host where datasets are mounted
+  # This should match the parent of your datasetParentName
+  # For example, if datasetParentName is "tank/k8s/test",
+  # and tank is mounted at /tank, then remoteBasePath would be "/tank/k8s/test"
+  remoteBasePath: "/tank/k8s/test"
+
+  # The local path where the virtiofs share is mounted on the Kubernetes nodes
+  # The virtiofs share should expose the remoteBasePath directory
+  # For example, if you configure virtiofs to share /tank/k8s/test from the host,
+  # and mount it at /mnt/virtiofs-storage on the guest, use "/mnt/virtiofs-storage"
+  localMountPath: "/mnt/virtiofs-storage"
+
