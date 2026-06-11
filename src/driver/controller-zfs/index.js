@@ -172,14 +172,31 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     return zb.options.paths.sudo || "/usr/bin/sudo";
   }
 
-  getDatasetParentName() {
-    let datasetParentName = this.options.zfs.datasetParentName;
+  getDatasetParentName(call = null) {
+    let datasetParentName;
+    
+    // First check if datasetParentName is provided in storage class parameters
+    if (call && call.request && call.request.parameters) {
+      const paramDatasetParentName = this.getNormalizedParameterValue(
+        call.request.parameters,
+        "datasetParentName"
+      );
+      if (paramDatasetParentName) {
+        datasetParentName = paramDatasetParentName;
+      }
+    }
+    
+    // Fallback to configuration option
+    if (!datasetParentName) {
+      datasetParentName = this.options.zfs.datasetParentName;
+    }
+    
     datasetParentName = datasetParentName.replace(/\/$/, "");
     return datasetParentName;
   }
 
-  getVolumeParentDatasetName() {
-    let datasetParentName = this.getDatasetParentName();
+  getVolumeParentDatasetName(call = null) {
+    let datasetParentName = this.getDatasetParentName(call);
     //datasetParentName += "/v";
     datasetParentName = datasetParentName.replace(/\/$/, "");
     return datasetParentName;
@@ -700,7 +717,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       pvcOptions,
     ]);
 
-    let datasetParentName = this.getVolumeParentDatasetName();
+    let datasetParentName = this.getVolumeParentDatasetName(call);
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
     let zvolBlocksize = driverOptions.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
@@ -1344,7 +1361,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const zb = await this.getZetabyte();
     const driverOptions = driver.getMergedDriverOptions([]);
 
-    let datasetParentName = this.getVolumeParentDatasetName();
+    let datasetParentName = this.getVolumeParentDatasetName(call);
     let name = call.request.volume_id;
 
     if (!datasetParentName) {
@@ -1514,7 +1531,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const zb = await this.getZetabyte();
     const driverOptions = driver.getMergedDriverOptions([]);
 
-    let datasetParentName = this.getVolumeParentDatasetName();
+    let datasetParentName = this.getVolumeParentDatasetName(call);
     let name = call.request.volume_id;
 
     if (!datasetParentName) {
@@ -1684,7 +1701,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const zb = await this.getZetabyte();
     const driverOptions = driver.getMergedDriverOptions([]);
 
-    let datasetParentName = this.getVolumeParentDatasetName();
+    let datasetParentName = this.getVolumeParentDatasetName(call);
     let response;
     let name = call.request.volume_id;
 
@@ -1766,7 +1783,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const zb = await this.getZetabyte();
     const driverOptions = driver.getMergedDriverOptions([]);
 
-    let datasetParentName = this.getVolumeParentDatasetName();
+    let datasetParentName = this.getVolumeParentDatasetName(call);
     let entries = [];
     let entries_length = 0;
     let next_token;
@@ -2190,7 +2207,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
         types.push("volume");
       }
     } else {
-      datasetParentName = this.getVolumeParentDatasetName();
+      datasetParentName = this.getVolumeParentDatasetName(call);
       types.push("snapshot");
     }
 
