@@ -1321,15 +1321,26 @@ class FreeNASApiDriver extends CsiBaseDriver {
         }
 
         // set acls
-        // TODO: this is unsfafe approach, make it better
-        // probably could see if ^-.*\s and split and then shell escape
+        //
+        // NOT IMPLEMENTED for the API driver (no-op). The `datasetPermissionsAcls`
+        // config option is a list of raw `setfacl`-style CLI argument strings
+        // (e.g. "-m u:kube:full_set:allow"), which is what the SSH-based driver
+        // shells out with. The TrueNAS middleware exposes `filesystem.setacl`, but
+        // it expects a *structured* `dacl` array of ACE objects (tag/id/type/perms/
+        // flags), not setfacl strings, and the ACE schema further differs between
+        // NFSv4 (Core, and SCALE with acltype=nfsv4) and POSIX1e (SCALE). There is
+        // no safe, lossless way to translate the CLI-string format into the API
+        // payload here, so this is intentionally left unimplemented rather than
+        // applying potentially-wrong permissions. Implementing it would require a
+        // new structured config option dedicated to the API drivers.
+        // See docs/storage-class-parameters.md for the user-facing note.
         if (driverOptions.zfs.datasetPermissionsAcls) {
           for (const acl of driverOptions.zfs.datasetPermissionsAcls) {
             perms = {
               path: properties.mountpoint.value,
               dacl: acl,
             };
-            // TODO: FilesystemSetacl?
+            // TODO: FilesystemSetacl? (see note above)
           }
         }
 

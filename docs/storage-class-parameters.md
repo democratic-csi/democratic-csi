@@ -176,6 +176,14 @@ Only the following options may be overridden. Any other value present in an over
 The `zvol*` options only have an effect on the block drivers (`iscsi` / `nvmeof`), which create a ZFS `volume`. For the
 `nfs` / `smb` drivers (which create a ZFS `filesystem`) only `zfs.datasetProperties` is meaningful.
 
+> **Note on `datasetPermissionsAcls` (dataset ACLs):** This option is applied by the **SSH-based** drivers
+> (`freenas-*` / `truenas-*`, `zfs-generic-*`), which shell out to `setfacl` (see `datasetPermissionsAclsBinary`).
+> It is **not** applied by the **API-based** drivers (`freenas-api-*` / `truenas-api-*`) and is silently ignored there.
+> The config value is a list of raw `setfacl`-style argument strings, whereas the TrueNAS `filesystem.setacl` API expects
+> a structured ACE (`dacl`) payload that differs between NFSv4 and POSIX1e ACLs, so there is no safe automatic
+> translation. Note that `datasetPermissionsAcls` is **not** an overridable option in either driver — it can only be set
+> in the driver configuration.
+
 ### Per-`StorageClass` override
 
 Add a `config` parameter to the `StorageClass` containing a YAML/JSON document with the options to override. The document
