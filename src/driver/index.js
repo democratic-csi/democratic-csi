@@ -108,7 +108,13 @@ class CsiBaseDriver {
     const driver = this;
     let driverOptions = Object.assign({}, driver.options);
 
-    const allowedOptionsOverrides = ["zfs.zvolBlocksize"];
+    const allowedOptionsOverrides = [
+      "zfs.zvolBlocksize",
+      "zfs.zvolDedup",
+      "zfs.zvolCompression",
+      "zfs.zvolEnableReservation",
+      "zfs.datasetProperties",
+    ];
 
     optionOverlays.forEach((optionOverlay) => {
       allowedOptionsOverrides.forEach((prop) => {
