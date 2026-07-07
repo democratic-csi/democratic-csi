@@ -2636,9 +2636,11 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const httpApiClient = await this.getTrueNASHttpApiClient();
     const zb = await this.getZetabyte();
 
+    const driverOptions = await driver.getDriverOptionsFromCall(call);
+
     let datasetParentName = this.getVolumeParentDatasetName();
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
-    let zvolBlocksize = this.options.zfs.zvolBlocksize || "16K";
+    let zvolBlocksize = driverOptions.zfs.zvolBlocksize || "16K";
     let name = call.request.name;
     let volume_id = await driver.getVolumeIdFromCall(call);
     let volume_content_source = call.request.volume_content_source;
@@ -2768,7 +2770,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
       if (
         driverZfsResourceType == "filesystem" &&
-        this.options.zfs.datasetEnableQuotas
+        driverOptions.zfs.datasetEnableQuotas
       ) {
         check = true;
       }
@@ -2822,9 +2824,9 @@ class FreeNASApiDriver extends CsiBaseDriver {
 
     // user-supplied properties
     // put early to prevent stupid (user-supplied values overwriting system values)
-    if (driver.options.zfs.datasetProperties) {
-      for (let property in driver.options.zfs.datasetProperties) {
-        let value = driver.options.zfs.datasetProperties[property];
+    if (driverOptions.zfs.datasetProperties) {
+      for (let property in driverOptions.zfs.datasetProperties) {
+        let value = driverOptions.zfs.datasetProperties[property];
         const template = Handlebars.compile(value);
 
         volumeProperties[property] = template({
@@ -2836,10 +2838,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
     volumeProperties[VOLUME_CSI_NAME_PROPERTY_NAME] = name;
     volumeProperties[MANAGED_PROPERTY_NAME] = "true";
     volumeProperties[VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME] =
-      driver.options.driver;
-    if (driver.options.instance_id) {
+      driverOptions.driver;
+    if (driverOptions.instance_id) {
       volumeProperties[VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME] =
-        driver.options.instance_id;
+        driverOptions.instance_id;
     }
 
     // TODO: also set access_mode as property?
@@ -2850,10 +2852,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
     let sparse;
     if (driverZfsResourceType == "volume") {
       // this is managed by the `sparse` option in the api
-      if (!this.options.zfs.zvolEnableReservation) {
+      if (!driverOptions.zfs.zvolEnableReservation) {
         volumeProperties.refreservation = 0;
       }
-      sparse = Boolean(!this.options.zfs.zvolEnableReservation);
+      sparse = Boolean(!driverOptions.zfs.zvolEnableReservation);
     }
 
     let detachedClone = false;
@@ -3211,13 +3213,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
     switch (driverZfsResourceType) {
       case "filesystem":
         // set quota
-        if (this.options.zfs.datasetEnableQuotas) {
+        if (driverOptions.zfs.datasetEnableQuotas) {
           setProps = true;
           properties.refquota = Number(capacity_bytes);
         }
 
         // set reserve
-        if (this.options.zfs.datasetEnableReservation) {
+        if (driverOptions.zfs.datasetEnableReservation) {
           setProps = true;
           properties.refreservation = Number(capacity_bytes);
         }
@@ -3249,46 +3251,46 @@ class FreeNASApiDriver extends CsiBaseDriver {
         let perms = {
           path: properties.mountpoint.value,
         };
-        if (this.options.zfs.datasetPermissionsMode) {
+        if (driverOptions.zfs.datasetPermissionsMode) {
           setPerms = true;
-          perms.mode = this.options.zfs.datasetPermissionsMode;
+          perms.mode = driverOptions.zfs.datasetPermissionsMode;
         }
 
         // set ownership
         if (
-          this.options.zfs.hasOwnProperty("datasetPermissionsUser") ||
-          this.options.zfs.hasOwnProperty("datasetPermissionsGroup")
+          driverOptions.zfs.hasOwnProperty("datasetPermissionsUser") ||
+          driverOptions.zfs.hasOwnProperty("datasetPermissionsGroup")
         ) {
           setPerms = true;
         }
 
         // user
-        if (this.options.zfs.hasOwnProperty("datasetPermissionsUser")) {
+        if (driverOptions.zfs.hasOwnProperty("datasetPermissionsUser")) {
           if (
-            String(this.options.zfs.datasetPermissionsUser).match(/^[0-9]+$/) ==
+            String(driverOptions.zfs.datasetPermissionsUser).match(/^[0-9]+$/) ==
             null
           ) {
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `datasetPermissionsUser must be numeric: ${this.options.zfs.datasetPermissionsUser}`
+              `datasetPermissionsUser must be numeric: ${driverOptions.zfs.datasetPermissionsUser}`
             );
           }
-          perms.uid = Number(this.options.zfs.datasetPermissionsUser);
+          perms.uid = Number(driverOptions.zfs.datasetPermissionsUser);
         }
 
         // group
-        if (this.options.zfs.hasOwnProperty("datasetPermissionsGroup")) {
+        if (driverOptions.zfs.hasOwnProperty("datasetPermissionsGroup")) {
           if (
-            String(this.options.zfs.datasetPermissionsGroup).match(
+            String(driverOptions.zfs.datasetPermissionsGroup).match(
               /^[0-9]+$/
             ) == null
           ) {
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `datasetPermissionsGroup must be numeric: ${this.options.zfs.datasetPermissionsGroup}`
+              `datasetPermissionsGroup must be numeric: ${driverOptions.zfs.datasetPermissionsGroup}`
             );
           }
-          perms.gid = Number(this.options.zfs.datasetPermissionsGroup);
+          perms.gid = Number(driverOptions.zfs.datasetPermissionsGroup);
         }
 
         if (setPerms) {
@@ -3307,15 +3309,26 @@ class FreeNASApiDriver extends CsiBaseDriver {
         }
 
         // set acls
-        // TODO: this is unsfafe approach, make it better
-        // probably could see if ^-.*\s and split and then shell escape
-        if (this.options.zfs.datasetPermissionsAcls) {
-          for (const acl of this.options.zfs.datasetPermissionsAcls) {
+        //
+        // NOT IMPLEMENTED for the API driver (no-op). The `datasetPermissionsAcls`
+        // config option is a list of raw `setfacl`-style CLI argument strings
+        // (e.g. "-m u:kube:full_set:allow"), which is what the SSH-based driver
+        // shells out with. The TrueNAS middleware exposes `filesystem.setacl`, but
+        // it expects a *structured* `dacl` array of ACE objects (tag/id/type/perms/
+        // flags), not setfacl strings, and the ACE schema further differs between
+        // NFSv4 (Core, and SCALE with acltype=nfsv4) and POSIX1e (SCALE). There is
+        // no safe, lossless way to translate the CLI-string format into the API
+        // payload here, so this is intentionally left unimplemented rather than
+        // applying potentially-wrong permissions. Implementing it would require a
+        // new structured config option dedicated to the API drivers.
+        // See docs/storage-class-parameters.md for the user-facing note.
+        if (driverOptions.zfs.datasetPermissionsAcls) {
+          for (const acl of driverOptions.zfs.datasetPermissionsAcls) {
             perms = {
               path: properties.mountpoint.value,
               dacl: acl,
             };
-            // TODO: FilesystemSetacl?
+            // TODO: FilesystemSetacl? (see note above)
           }
         }
 
@@ -3335,21 +3348,21 @@ class FreeNASApiDriver extends CsiBaseDriver {
         // restore default must use the below
         // zfs inherit [-rS] property filesystem|volume|snapshot…
         if (
-          (typeof this.options.zfs.zvolDedup === "string" ||
-            this.options.zfs.zvolDedup instanceof String) &&
-          this.options.zfs.zvolDedup.length > 0
+          (typeof driverOptions.zfs.zvolDedup === "string" ||
+            driverOptions.zfs.zvolDedup instanceof String) &&
+          driverOptions.zfs.zvolDedup.length > 0
         ) {
-          properties.dedup = this.options.zfs.zvolDedup;
+          properties.dedup = driverOptions.zfs.zvolDedup;
         }
 
         // compression
         // lz4, gzip-9, etc
         if (
-          (typeof this.options.zfs.zvolCompression === "string" ||
-            this.options.zfs.zvolCompression instanceof String) &&
-          this.options.zfs.zvolCompression > 0
+          (typeof driverOptions.zfs.zvolCompression === "string" ||
+            driverOptions.zfs.zvolCompression instanceof String) &&
+          driverOptions.zfs.zvolCompression > 0
         ) {
-          properties.compression = this.options.zfs.zvolCompression;
+          properties.compression = driverOptions.zfs.zvolCompression;
         }
 
         if (setProps) {
@@ -3364,10 +3377,10 @@ class FreeNASApiDriver extends CsiBaseDriver {
       [SHARE_VOLUME_CONTEXT_PROPERTY_NAME]: JSON.stringify(volume_context),
     });
 
-    volume_context["provisioner_driver"] = driver.options.driver;
-    if (driver.options.instance_id) {
+    volume_context["provisioner_driver"] = driverOptions.driver;
+    if (driverOptions.instance_id) {
       volume_context["provisioner_driver_instance_id"] =
-        driver.options.instance_id;
+        driverOptions.instance_id;
     }
 
     // set this just before sending out response so we know if volume completed
@@ -3381,7 +3394,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
         volume_id,
         //capacity_bytes: capacity_bytes, // kubernetes currently pukes if capacity is returned as 0
         capacity_bytes:
-          this.options.zfs.datasetEnableQuotas ||
+          driverOptions.zfs.datasetEnableQuotas ||
           driverZfsResourceType == "volume"
             ? capacity_bytes
             : 0,
