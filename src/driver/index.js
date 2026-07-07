@@ -15,6 +15,7 @@ const { NVMEoF } = require("../utils/nvmeof");
 const semver = require("semver");
 const GeneralUtils = require("../utils/general");
 const { Zetabyte } = require("../utils/zfs");
+const yaml = require("js-yaml");
 
 const __REGISTRY_NS__ = "CsiBaseDriver";
 
@@ -134,6 +135,76 @@ class CsiBaseDriver {
     });
 
     return driverOptions;
+  }
+
+  /**
+   * Resolve the effective driver options for a CreateVolume call by merging the
+   * base driver configuration with any overrides supplied on a per-`StorageClass`
+   * basis (the `config` parameter) and/or per-`PersistentVolumeClaim` basis (the
+   * `democratic-csi.org/config` annotation, gated by the `load-config-from-pvc`
+   * parameter). Only the properties in `getMergedDriverOptions`'s allow-list are
+   * actually overridable; everything else falls back to the driver configuration.
+   *
+   * @param {*} call the grpc CreateVolume call
+   * @returns merged driver options
+   */
+  async getDriverOptionsFromCall(call) {
+    const driver = this;
+
+    const normalizedParameters = driver.getNormalizedParameters(
+      call.request.parameters,
+      driver.options.driver,
+      driver.options.instance_id
+    );
+
+    let parametersOptions = {};
+    if (normalizedParameters["config"]) {
+      try {
+        parametersOptions = yaml.load(normalizedParameters["config"]);
+      } catch (err) {
+        if (err instanceof yaml.YAMLException) {
+          throw new GrpcError(
+            grpc.status.INVALID_ARGUMENT,
+            `parameter 'config' not a valid YAML/JSON document.`.trim()
+          );
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    let pvcOptions = {};
+    if (
+      normalizedParameters["load-config-from-pvc"] == "true" &&
+      call.request.parameters["csi.storage.k8s.io/pvc/name"] &&
+      call.request.parameters["csi.storage.k8s.io/pvc/namespace"]
+    ) {
+      let pvc = await driver.getPersistentVolumeClaim(
+        call.request.parameters["csi.storage.k8s.io/pvc/name"],
+        call.request.parameters["csi.storage.k8s.io/pvc/namespace"]
+      );
+
+      if (
+        _.has(pvc, ["metadata", "annotations", "democratic-csi.org/config"])
+      ) {
+        try {
+          pvcOptions = yaml.load(
+            _.get(pvc, ["metadata", "annotations", "democratic-csi.org/config"])
+          );
+        } catch (err) {
+          if (err instanceof yaml.YAMLException) {
+            throw new GrpcError(
+              grpc.status.INVALID_ARGUMENT,
+              `pvc 'democratic-csi.org/config' annotation not a valid YAML/JSON document.`.trim()
+            );
+          } else {
+            throw err;
+          }
+        }
+      }
+    }
+
+    return driver.getMergedDriverOptions([parametersOptions, pvcOptions]);
   }
 
   /**

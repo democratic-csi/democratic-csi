@@ -2,7 +2,6 @@ const _ = require("lodash");
 const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
 const semver = require("semver");
-const yaml = require("js-yaml");
 
 const { GrpcError, grpc } = require("../../utils/grpc");
 const { CsiBaseDriver } = require("../index");
@@ -599,63 +598,7 @@ class FreeNASApiDriver extends CsiBaseDriver {
     const webSocketApiClient = await this.getTrueNASWebSocketApiClient();
     const zb = await this.getZetabyte();
 
-    const normalizedParameters = driver.getNormalizedParameters(
-      call.request.parameters,
-      driver.options.driver,
-      driver.options.instance_id
-    );
-
-    let parametersOptions = {};
-    if (normalizedParameters["config"]) {
-      try {
-        parametersOptions = yaml.load(normalizedParameters["config"]);
-      } catch (err) {
-        if (err instanceof yaml.YAMLException) {
-          throw new GrpcError(
-            grpc.status.INVALID_ARGUMENT,
-            `parameter 'config' not a valid YAML/JSON document.`.trim()
-          );
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    let pvcOptions = {};
-    if (
-      normalizedParameters["load-config-from-pvc"] == "true" &&
-      call.request.parameters["csi.storage.k8s.io/pvc/name"] &&
-      call.request.parameters["csi.storage.k8s.io/pvc/namespace"]
-    ) {
-      let pvc = await driver.getPersistentVolumeClaim(
-        call.request.parameters["csi.storage.k8s.io/pvc/name"],
-        call.request.parameters["csi.storage.k8s.io/pvc/namespace"]
-      );
-
-      if (
-        _.has(pvc, ["metadata", "annotations", "democratic-csi.org/config"])
-      ) {
-        try {
-          pvcOptions = yaml.load(
-            _.get(pvc, ["metadata", "annotations", "democratic-csi.org/config"])
-          );
-        } catch (err) {
-          if (err instanceof yaml.YAMLException) {
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `pvc 'democratic-csi.org/config' annotation not a valid YAML/JSON document.`.trim()
-            );
-          } else {
-            throw err;
-          }
-        }
-      }
-    }
-
-    const driverOptions = driver.getMergedDriverOptions([
-      parametersOptions,
-      pvcOptions,
-    ]);
+    const driverOptions = await driver.getDriverOptionsFromCall(call);
 
     let datasetParentName = this.getVolumeParentDatasetName();
     let snapshotParentDatasetName = this.getDetachedSnapshotParentDatasetName();
