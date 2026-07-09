@@ -177,6 +177,40 @@ try {
   process.exit(1);
 }
 
+// Startup XFS assertion for local-xfs-hostpath driver: verify that the
+// shareBasePath/controllerBasePath is on an XFS filesystem before the gRPC
+// server starts. Failing fast here prevents the pod from running in a
+// fundamentally broken configuration.
+if (options.driver === "local-xfs-hostpath") {
+  const controllerBasePath = driver.getControllerBasePath();
+  logger.info(
+    "local-xfs-hostpath: verifying controllerBasePath is on XFS: %s",
+    controllerBasePath
+  );
+  try {
+    const findmntResult = cp.execSync(
+      `findmnt -n -o FSTYPE --target "${controllerBasePath}"`,
+      { encoding: "utf8" }
+    ).trim();
+    if (findmntResult !== "xfs") {
+      logger.error(
+        "local-xfs-hostpath: controllerBasePath %s is on filesystem '%s', expected 'xfs'. Exiting.",
+        controllerBasePath,
+        findmntResult
+      );
+      process.exit(1);
+    }
+    logger.info(
+      "local-xfs-hostpath: verified controllerBasePath is on XFS"
+    );
+  } catch (err) {
+    logger.error(
+      `local-xfs-hostpath: failed to verify XFS for ${controllerBasePath}: ${err.message}`
+    );
+    process.exit(1);
+  }
+}
+
 // TODO: consider alternatives that work 100% with replicas > 1
 // doing this in memory is crude and currently only works reliably with 1
 // replica per controller (due to potentional cross external-foo leaders,

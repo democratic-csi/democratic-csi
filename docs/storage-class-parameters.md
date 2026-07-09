@@ -146,3 +146,58 @@ missing CHAP authentication will not be enabled (but the volume will still be cr
 enable/disable CHAP or change the password after the volume has been created.
 
 If the secret itself is referenced but not present, the volume will not be created.
+
+## `local-xfs-hostpath`
+
+The `local-xfs-hostpath` driver creates directories on a local XFS filesystem
+and provides true CoW snapshots via XFS reflinks, as well as per-PVC project
+quota enforcement. It is intended for single-node clusters (e.g. Talos Linux)
+where the host filesystem is XFS and users want instant, space-efficient
+snapshots without standing up ZFS/Btrfs/Ceph.
+
+### Prerequisites
+
+- The backing path (`shareBasePath` / `controllerBasePath`) **must** be on an
+  XFS filesystem.
+- XFS must be mounted with the `prjquota` mount option to enable project
+  quotas. Talos Linux enables this on `/var` by default; other distributions
+  may need a `fstab`/mount-option change.
+- The `xfs_quota` and `cp` (coreutils >= 8.24 for reflink support) commands
+  must be available in the democratic-csi container image.
+- The driver pod requires elevated privileges (`CAP_SYS_ADMIN` or a privileged
+  securityContext) on the controller side because `xfs_quota` needs them.
+
+### Configuration
+
+```yaml
+driver: local-xfs-hostpath
+instance_id:
+local-xfs-hostpath:
+  shareBasePath: "/var/lib/csi-local-xfs-hostpath"
+  controllerBasePath: "/var/lib/csi-local-xfs-hostpath"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: 0
+  dirPermissionsGroup: 0
+  snapshots:
+    default_driver: xfs-reflink
+```
+
+### Capabilities
+
+- `EXPAND_VOLUME` — online volume expansion by adjusting the XFS project quota.
+- `CREATE_DELETE_SNAPSHOT` — instant CoW snapshots via `cp --reflink=always`.
+- `CLONE_VOLUME` — instant volume cloning via reflink copy.
+- `GET_CAPACITY` — reports available capacity on the backing filesystem.
+
+### Snapshot driver: `xfs-reflink`
+
+The `local-xfs-hostpath` driver only supports the `xfs-reflink` snapshot class.
+It uses `cp --archive --reflink=always` to create atomic, CoW clones of file
+data blocks. Snapshots are near-instant and initially consume ~0 extra space
+( extents are shared until written).
+
+- Snapshots are local to one host; no off-host or cross-host dedup. Users who
+  need off-host backup should use `local-hostpath` with restic/kopia instead.
+- Reflink `cp` is atomic per-file. For a quiescent PVC this produces a coherent
+  snapshot; for an actively-written PVC the snapshot reflects per-file mtime
+  ordering (same caveat as `filecopy`).

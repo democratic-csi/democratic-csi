@@ -1,0 +1,22 @@
+driver: local-xfs-hostpath
+instance_id:
+local-xfs-hostpath:
+  # generally shareBasePath and controllerBasePath should be the same for this
+  # driver, this path must be on an XFS filesystem (mounted with prjquota).
+  # Talos Linux enables prjquota on /var by default. Other distros may need a
+  # fstab/mount-option change.
+  shareBasePath: "/var/lib/csi-local-xfs-hostpath"
+  controllerBasePath: "/var/lib/csi-local-xfs-hostpath"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: 0
+  dirPermissionsGroup: 0
+
+  # XFS project quota ID range. Volumes get a deterministic project ID derived
+  # from their volume_id hashed into this range. Default is [1000000, 1999999].
+  # xfs.project_id_range: [1000000, 1999999]
+
+  snapshots:
+    # local-xfs-hostpath only supports the xfs-reflink snapshot driver.
+    # The filecopy/restic/kopia snapshot drivers are not compatible because
+    # they do not provide atomic CoW semantics on XFS.
+    default_driver: xfs-reflink

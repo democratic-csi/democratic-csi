@@ -1331,6 +1331,39 @@ class CsiBaseDriver {
             break;
 
           case "hostpath":
+            // XFS assertion for local-xfs-hostpath driver: verify the volume
+            // path is on an XFS filesystem before bind-mounting. Catches cases
+            // where the node-side container sees a different mount table than
+            // the controller.
+            if (
+              volume_context.provisioner_driver === "local-xfs-hostpath" &&
+              !driver.getNodeIsWindows()
+            ) {
+              try {
+                const findmntResult = await new Promise((resolve, reject) => {
+                  cp.exec(
+                    `findmnt -n -o FSTYPE --target "${volume_context.path}"`,
+                    (err, stdout) => {
+                      if (err) reject(err);
+                      else resolve(stdout.trim());
+                    }
+                  );
+                });
+                if (findmntResult !== "xfs") {
+                  throw new GrpcError(
+                    grpc.status.FAILED_PRECONDITION,
+                    `volume path ${volume_context.path} is on filesystem '${findmntResult}', expected 'xfs' for local-xfs-hostpath driver`
+                  );
+                }
+              } catch (e) {
+                if (e instanceof GrpcError) throw e;
+                throw new GrpcError(
+                  grpc.status.FAILED_PRECONDITION,
+                  `XFS check failed for volume path ${volume_context.path}: ${e.message}`
+                );
+              }
+            }
+
             result = await mount.pathIsMounted(staging_target_path);
             // if not mounted, mount
             if (!result) {
