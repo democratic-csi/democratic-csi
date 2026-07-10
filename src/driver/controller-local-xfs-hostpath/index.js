@@ -211,11 +211,8 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
   }
 
   /**
-   * Reflink-copy all contents of a directory tree into a destination.
-   * Copies every item (including hidden files / dotfiles) from the source
-   * directory directly into the destination — never the parent folder itself.
-   * Uses `cp --archive --reflink=always` per-item which fails if reflink is
-   * unsupported on any file.
+   * Reflink-copy a directory tree. Atomic per-file, CoW across the whole tree.
+   * Uses `cp --archive --reflink=always` which fails if reflink is unsupported.
    *
    * @param {string} src
    * @param {string} dst
@@ -225,25 +222,13 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     await driver.createDir(dst);
 
     /**
-     * Use a shell script so that bash glob expansion (with dotglob enabled)
-     * reliably lists every entry — including hidden files — in the source
-     * directory.  Each item is then reflink-copied individually into the
-     * destination, guaranteeing that only contents are merged (never the
-     * parent folder itself).
+     * trailing / is important — cp copies contents, not the directory itself
      */
-    const srcTrimmed = driver.stripTrailingSlash(src);
-    const dstTrimmed = driver.stripTrailingSlash(dst);
-
-    /**
-     * Pass src and dst as positional parameters ($1, $2) so that paths with
-     * special characters are safely handled by the shell.
-     */
-    await driver.exec("bash", [
-      "-c",
-      "set -e; shopt -s dotglob nullglob; for item in \"$1\"/*; do name=\"${item##*/}\"; cp --archive --reflink=always \"$item\" \"$2/$name\"; done",
-      "_",
-      srcTrimmed,
-      dstTrimmed,
+    await driver.exec("cp", [
+      "--archive",
+      "--reflink=always",
+      driver.stripTrailingSlash(src) + "/.", // copy everything inside src folder, but don't nest src folder in dst folder
+      driver.stripTrailingSlash(dst) + "/",
     ]);
   }
 
