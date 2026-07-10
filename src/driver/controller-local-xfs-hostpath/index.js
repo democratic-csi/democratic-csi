@@ -603,6 +603,8 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
 
     const snapshot_dir_exists = await driver.directoryExists(snapshot_path);
     if (!snapshot_dir_exists) {
+      await driver.createDir(snapshot_path);
+
       // verify same filesystem
       try {
         await driver.assertSameXfsFilesystem(volume_path, snapshot_path);
