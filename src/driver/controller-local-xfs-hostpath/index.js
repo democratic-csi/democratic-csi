@@ -605,6 +605,15 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     if (!snapshot_dir_exists) {
       await driver.createDir(snapshot_path);
 
+      // verify destination is on XFS
+      try {
+        await driver.assertXfs(snapshot_path);
+      } catch (err) {
+        throw new Error(
+          `CreateSnapshot failed XFS check for ${snapshot_path}: ${err.message}`
+        );
+      }
+
       // verify same filesystem
       try {
         await driver.assertSameXfsFilesystem(volume_path, snapshot_path);
