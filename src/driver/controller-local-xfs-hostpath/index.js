@@ -45,12 +45,6 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       ) {
         options.service.controller.capabilities.rpc.push("GET_CAPACITY");
       }
-
-      if (
-        !options.service.controller.capabilities.rpc.includes("EXPAND_VOLUME")
-      ) {
-        options.service.controller.capabilities.rpc.push("EXPAND_VOLUME");
-      }
     }
 
     if (!("rpc" in options.service.node.capabilities)) {
@@ -581,43 +575,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
   }
 
   /**
-   * ControllerExpandVolume: adjust the XFS project quota for the volume.
-   * XFS project limits are live-adjustable (no offline resize needed), so
-   * expansion is online. Persists the new quota bytes to the sidecar file so
-   * node-side re-apply on subsequent mounts uses the expanded value.
-   */
-  async ControllerExpandVolume(call) {
-    const driver = this;
-
-    const volume_id = call.request.volume_id;
-    if (!volume_id) {
-      throw new Error(`volume_id is required`);
-    }
-
-    const capacity_range = call.request.capacity_range || {};
-    let required_bytes =
-      capacity_range.required_bytes || capacity_range.limit_bytes;
-
-    if (!required_bytes || required_bytes <= 0) {
-      throw new Error(
-        `required_bytes or limit_bytes must be positive in capacity_range`
-      );
-    }
-
-    const volume_path = driver.getControllerVolumePath(volume_id);
-
-    // verify the volume still exists
-    if (!(await driver.directoryExists(volume_path))) {
-      throw new Error(`volume path not found: ${volume_path}`);
-    }
-
-    // adjust the XFS project quota (also persists new bytes to sidecar)
-    await driver.setXfsProjectQuota(volume_path, required_bytes);
-
-    return {
-      capacity_bytes: required_bytes,
-    };
-  }
+    * NodeExpandVolume: re-apply the XFS project quota on the node side after a
 
   /**
    * NodeExpandVolume: re-apply the XFS project quota on the node side after a
