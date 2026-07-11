@@ -405,6 +405,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
             }
             await driver.assertSameXfsFilesystem(source_path, volume_path);
             await driver.reflinkCopy(source_path, volume_path);
+            await driver.setXfsProjectQuota(volume_path, capacity_bytes);
           } else {
             // fall through to base class logic for other snapshot drivers
             return super.CreateVolume(call);
@@ -421,6 +422,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
           }
           await driver.assertSameXfsFilesystem(source_path, volume_path);
           await driver.reflinkCopy(source_path, volume_path);
+          await driver.setXfsProjectQuota(volume_path, capacity_bytes);
           break;
         default:
           throw new Error(
@@ -463,8 +465,8 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       }
     }
 
-    // apply XFS project quota (only for new volumes, not from snapshot)
-    if (!volume_content_source || volume_content_source.type !== "snapshot") {
+    // apply XFS project quota for new volumes (clones get it after reflinkCopy)
+    if (!volume_content_source) {
       await driver.setXfsProjectQuota(volume_path, capacity_bytes);
     }
 
