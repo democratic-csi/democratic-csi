@@ -157,12 +157,13 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     const configKey = driver.getConfigKey();
     const mountpoint = driver.getControllerBasePath();
 
-    let projId = driver._readXfsProjectIdFile(volumePath);
+    const xfsProjInfo = driver._readXfsProjectIdFile(volumePath);
+    let projId = xfsProjInfo.projId;
     if (!projId) {
       // derive deterministically from volume_id (stored as basename of volumePath)
       const volumeId = driver._extractVolumeIdFromPath(volumePath);
       projId = driver._deriveProjectId(volumeId);
-      driver._writeXfsProjectIdFile(volumePath, projId);
+      driver._writeXfsProjectIdFile(volumePath, projId, bytes);
     }
 
     // project -s binds the project to the directory
@@ -204,7 +205,8 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     const configKey = driver.getConfigKey();
     const mountpoint = driver.getControllerBasePath();
 
-    let projId = driver._readXfsProjectIdFile(volumePath);
+    const xfsProjInfo = driver._readXfsProjectIdFile(volumePath);
+    let projId = xfsProjInfo.projId;
     if (projId) {
       try {
         await driver.exec("xfs_quota", [
