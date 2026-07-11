@@ -1366,22 +1366,35 @@ class CsiBaseDriver {
 
             // re-apply XFS project quota on every mount so that PVCs cloned
             // from reflink VolumeSnapshots (which don't carry the quota) get
-            // their quota enforced at attach time
+            // their quota enforced at attach time. The quota bytes are read
+            // from the sidecar file first (which is updated by both
+            // CreateVolume and ControllerExpandVolume), falling back to
+            // volume_context.xfs_quota_bytes for backward compatibility with
+            // volumes created before quota persistence was added.
             if (
               volume_context.provisioner_driver === "local-xfs-hostpath" &&
-              volume_context.xfs_quota_bytes &&
               !driver.getNodeIsWindows()
             ) {
               try {
                 const fs = require("fs");
                 const xfsProjectIdFile = ".csi-xfs-project-id";
                 let projId = null;
+                let quotaBytes = null;
                 const idFilePath = volume_context.path + "/" + xfsProjectIdFile;
                 if (fs.existsSync(idFilePath)) {
-                  projId = parseInt(
-                    fs.readFileSync(idFilePath, "utf8").trim(),
-                    10
-                  );
+                  const content = fs
+                    .readFileSync(idFilePath, "utf8")
+                    .trim();
+                  const lines = content
+                    .split("\n")
+                    .map((l) => l.trim())
+                    .filter(Boolean);
+                  if (lines[0]) {
+                    projId = parseInt(lines[0], 10);
+                  }
+                  if (lines.length > 1 && lines[1]) {
+                    quotaBytes = parseInt(lines[1], 10);
+                  }
                 }
 
                 if (!projId) {
@@ -1392,9 +1405,23 @@ class CsiBaseDriver {
                   }
                   const rangeSize = range[1] - range[0] + 1;
                   projId = range[0] + (hash % rangeSize);
-                  fs.writeFileSync(idFilePath, String(projId), {
-                    mode: "0644",
-                  });
+                  // preserve any quota bytes we may have read from the sidecar
+                  fs.writeFileSync(
+                    idFilePath,
+                    [String(projId), quotaBytes !== null ? String(quotaBytes) : ""].filter(Boolean).join("\n") + "\n",
+                    { mode: "0644" }
+                  );
+                }
+
+                // prefer sidecar quota bytes (updated by expansion); fall back
+                // to volume_context for volumes predating quota persistence
+                const finalQuotaBytes =
+                  quotaBytes !== null ? quotaBytes : volume_context.xfs_quota_bytes;
+                if (!finalQuotaBytes || finalQuotaBytes <= 0) {
+                  driver.ctx.logger.debug(
+                    `no XFS quota bytes available for ${volume_context.path}, skipping quota re-apply`
+                  );
+                  throw new Error("no quota bytes available");
                 }
 
                 const findmntTargetResult = await new Promise(
@@ -1419,8 +1446,8 @@ class CsiBaseDriver {
                   );
                 });
 
-                const bsoft = volume_context.xfs_quota_bytes;
-                const bhard = volume_context.xfs_quota_bytes;
+                const bsoft = finalQuotaBytes;
+                const bhard = finalQuotaBytes;
                 await new Promise((resolve, reject) => {
                   cp.exec(
                     `xfs_quota -x -c "limit -p bsoft=${bsoft} bhard=${bhard} ${projId}" ${findmntTargetResult}`,
@@ -1432,12 +1459,16 @@ class CsiBaseDriver {
                 });
 
                 driver.ctx.logger.info(
-                  `re-applied XFS project quota projid=${projId} bytes=${volume_context.xfs_quota_bytes} on path=${volume_context.path}`
+                  `re-applied XFS project quota projid=${projId} bytes=${finalQuotaBytes} on path=${volume_context.path}`
                 );
               } catch (err) {
-                driver.ctx.logger.warn(
-                  `failed to re-apply XFS project quota for ${volume_context.path}: ${err.message}`
-                );
+                if (err.message === "no quota bytes available") {
+                  // not a warning — expected when quota persistence is absent
+                } else {
+                  driver.ctx.logger.warn(
+                    `failed to re-apply XFS project quota for ${volume_context.path}: ${err.message}`
+                  );
+                }
               }
             }
 

@@ -166,6 +166,11 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       mountpoint,
     ]);
 
+    // persist the quota bytes alongside the project ID so node-side re-apply
+    // and ControllerExpandVolume both have a source of truth even after the
+    // volume_context is no longer in play
+    driver._writeXfsProjectIdFile(volumePath, projId, bytes);
+
     driver.ctx.logger.info(
       `set XFS project quota projid=${projId} bytes=${bytes} on path=${volumePath}`
     );
@@ -264,26 +269,39 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
   }
 
   /**
-   * Read the persisted project ID file (if present).
+   * Read the persisted sidecar file. Returns { projId, quotaBytes }.
+   * Format is two lines: project_id on line 1, quota_bytes on line 2 (optional
+   * for backward compatibility with volumes created before quota persistence).
    */
   _readXfsProjectIdFile(volumePath) {
     try {
       const idFilePath = volumePath + "/" + XFS_PROJECT_ID_FILE;
       if (fs.existsSync(idFilePath)) {
-        return parseInt(fs.readFileSync(idFilePath, "utf8").trim(), 10);
+        const content = fs.readFileSync(idFilePath, "utf8").trim();
+        const lines = content.split("\n").map((l) => l.trim()).filter(Boolean);
+        const projId = lines[0] ? parseInt(lines[0], 10) : null;
+        const quotaBytes =
+          lines.length > 1 && lines[1]
+            ? parseInt(lines[1], 10)
+            : null;
+        return { projId: isNaN(projId) ? null : projId, quotaBytes };
       }
     } catch (e) {
       // ignore
     }
-    return null;
+    return { projId: null, quotaBytes: null };
   }
 
   /**
-   * Write the project ID to the sidecar file.
+   * Write the project ID and quota bytes to the sidecar file.
    */
-  _writeXfsProjectIdFile(volumePath, projId) {
+  _writeXfsProjectIdFile(volumePath, projId, quotaBytes) {
     const idFilePath = volumePath + "/" + XFS_PROJECT_ID_FILE;
-    fs.writeFileSync(idFilePath, String(projId), { mode: "0644" });
+    const lines = [String(projId)];
+    if (quotaBytes !== undefined && quotaBytes !== null) {
+      lines.push(String(quotaBytes));
+    }
+    fs.writeFileSync(idFilePath, lines.join("\n") + "\n", { mode: "0644" });
   }
 
   /**
@@ -491,7 +509,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     const res = {
       volume: {
         volume_id,
-        capacity_bytes: 0,
+        capacity_bytes: capacity_bytes,
         content_source: volume_content_source,
         volume_context,
         accessible_topology,
@@ -541,6 +559,9 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
 
   /**
    * ControllerExpandVolume: adjust the XFS project quota for the volume.
+   * XFS project limits are live-adjustable (no offline resize needed), so
+   * expansion is online. Persists the new quota bytes to the sidecar file so
+   * node-side re-apply on subsequent mounts uses the expanded value.
    */
   async ControllerExpandVolume(call) {
     const driver = this;
@@ -551,10 +572,13 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     }
 
     const capacity_range = call.request.capacity_range || {};
-    const required_bytes = capacity_range.required_bytes;
+    let required_bytes =
+      capacity_range.required_bytes || capacity_range.limit_bytes;
 
     if (!required_bytes || required_bytes <= 0) {
-      throw new Error(`required_bytes must be positive`);
+      throw new Error(
+        `required_bytes or limit_bytes must be positive in capacity_range`
+      );
     }
 
     const volume_path = driver.getControllerVolumePath(volume_id);
@@ -564,7 +588,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       throw new Error(`volume path not found: ${volume_path}`);
     }
 
-    // adjust the XFS project quota
+    // adjust the XFS project quota (also persists new bytes to sidecar)
     await driver.setXfsProjectQuota(volume_path, required_bytes);
 
     return {
