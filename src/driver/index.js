@@ -1364,6 +1364,83 @@ class CsiBaseDriver {
               }
             }
 
+            // re-apply XFS project quota on every mount so that PVCs cloned
+            // from reflink VolumeSnapshots (which don't carry the quota) get
+            // their quota enforced at attach time
+            if (
+              volume_context.provisioner_driver === "local-xfs-hostpath" &&
+              volume_context.xfs_quota_bytes &&
+              !driver.getNodeIsWindows()
+            ) {
+              try {
+                const fs = require("fs");
+                const xfsProjectIdFile = ".csi-xfs-project-id";
+                let projId = null;
+                const idFilePath = volume_context.path + "/" + xfsProjectIdFile;
+                if (fs.existsSync(idFilePath)) {
+                  projId = parseInt(
+                    fs.readFileSync(idFilePath, "utf8").trim(),
+                    10
+                  );
+                }
+
+                if (!projId) {
+                  const range = [1000000, 1999999];
+                  let hash = 0;
+                  for (let i = 0; i < volume_id.length; i++) {
+                    hash = (hash * 31 + volume_id.charCodeAt(i)) >>> 0;
+                  }
+                  const rangeSize = range[1] - range[0] + 1;
+                  projId = range[0] + (hash % rangeSize);
+                  fs.writeFileSync(idFilePath, String(projId), {
+                    mode: "0644",
+                  });
+                }
+
+                const findmntTargetResult = await new Promise(
+                  (resolve, reject) => {
+                    cp.exec(
+                      `findmnt -n -o TARGET --target "${volume_context.path}"`,
+                      (err, stdout) => {
+                        if (err) reject(err);
+                        else resolve(stdout.trim());
+                      }
+                    );
+                  }
+                );
+
+                await new Promise((resolve, reject) => {
+                  cp.exec(
+                    `xfs_quota -x -c "project -s -p ${volume_context.path} ${projId}" ${findmntTargetResult}`,
+                    (err) => {
+                      if (err) reject(err);
+                      else resolve();
+                    }
+                  );
+                });
+
+                const bsoft = volume_context.xfs_quota_bytes;
+                const bhard = volume_context.xfs_quota_bytes;
+                await new Promise((resolve, reject) => {
+                  cp.exec(
+                    `xfs_quota -x -c "limit -p bsoft=${bsoft} bhard=${bhard} ${projId}" ${findmntTargetResult}`,
+                    (err) => {
+                      if (err) reject(err);
+                      else resolve();
+                    }
+                  );
+                });
+
+                driver.ctx.logger.info(
+                  `re-applied XFS project quota projid=${projId} bytes=${volume_context.xfs_quota_bytes} on path=${volume_context.path}`
+                );
+              } catch (err) {
+                driver.ctx.logger.warn(
+                  `failed to re-apply XFS project quota for ${volume_context.path}: ${err.message}`
+                );
+              }
+            }
+
             result = await mount.pathIsMounted(staging_target_path);
             // if not mounted, mount
             if (!result) {

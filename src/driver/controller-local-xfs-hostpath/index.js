@@ -476,6 +476,11 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
         driver.options.instance_id;
     }
 
+    // pass quota bytes through volume_context so the node side can re-apply
+    // the XFS project quota on every mount (needed for clones from reflink
+    // snapshots, which do not carry the quota)
+    volume_context["xfs_quota_bytes"] = capacity_bytes;
+
     let accessible_topology;
     if (typeof this.getAccessibleTopology === "function") {
       accessible_topology = await this.getAccessibleTopology();
