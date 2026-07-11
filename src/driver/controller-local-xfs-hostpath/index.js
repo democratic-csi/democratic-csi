@@ -52,6 +52,29 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
         options.service.controller.capabilities.rpc.push("EXPAND_VOLUME");
       }
     }
+
+    if (!("rpc" in options.service.node.capabilities)) {
+      this.ctx.logger.debug("setting local-xfs-hostpath node service caps");
+
+      options.service.node.capabilities.rpc = [
+        "STAGE_UNSTAGE_VOLUME",
+        "GET_VOLUME_STATS",
+      ];
+
+      if (
+        !options.service.node.capabilities.rpc.includes("EXPAND_VOLUME")
+      ) {
+        options.service.node.capabilities.rpc.push("EXPAND_VOLUME");
+      }
+    }
+
+    if (!("volume_expansion" in options.service.identity.capabilities)) {
+      this.ctx.logger.debug(
+        "setting local-xfs-hostpath identity volume_expansion caps"
+      );
+
+      options.service.identity.capabilities.volume_expansion = ["ONLINE"];
+    }
   }
 
   getConfigKey() {
@@ -593,6 +616,112 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
 
     return {
       capacity_bytes: required_bytes,
+    };
+  }
+
+  /**
+   * NodeExpandVolume: re-apply the XFS project quota on the node side after a
+   * ControllerExpandVolume has adjusted it. This ensures that volumes cloned
+   * from reflink snapshots (which do not carry quota bytes in their
+   * volume_context) still get the correct quota applied at mount time. The
+   * authoritative quota bytes are read from the persisted sidecar file so the
+   * node does not need to rely on stale volume_context values.
+   */
+  async NodeExpandVolume(call) {
+    const driver = this;
+
+    const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new Error(`volume_id is required`);
+    }
+
+    const volume_path = call.request.volume_path;
+    if (!volume_path) {
+      throw new Error(`volume_path is required`);
+    }
+
+    const capacity_range = call.request.capacity_range || {};
+    let required_bytes =
+      capacity_range.required_bytes || capacity_range.limit_bytes;
+
+    // read the persisted quota bytes from the sidecar file so we always use
+    // the authoritative value (especially important for clones from reflink
+    // snapshots where volume_context.xfs_quota_bytes may be absent or stale)
+    const sidecarPath = volume_path + "/" + XFS_PROJECT_ID_FILE;
+    let projId;
+    let quotaBytes;
+
+    try {
+      if (fs.existsSync(sidecarPath)) {
+        const content = fs.readFileSync(sidecarPath, "utf8").trim();
+        const lines = content.split("\n").map((l) => l.trim()).filter(Boolean);
+        projId = lines[0] ? parseInt(lines[0], 10) : null;
+        quotaBytes =
+          lines.length > 1 && lines[1]
+            ? parseInt(lines[1], 10)
+            : null;
+      }
+    } catch (err) {
+      driver.ctx.logger.warn(
+        `failed to read sidecar file ${sidecarPath}: ${err.message}`
+      );
+    }
+
+    // fall back to the requested bytes if no persisted value exists
+    if (!quotaBytes || quotaBytes <= 0) {
+      quotaBytes = required_bytes;
+    }
+
+    // determine the XFS mountpoint containing the volume directory so that
+    // xfs_quota targets the correct filesystem
+    let mountpoint;
+    try {
+      const result = await driver.exec("findmnt", [
+        "-n",
+        "-o",
+        "TARGET",
+        "--target",
+        volume_path,
+      ]);
+      mountpoint = result.stdout.trim();
+    } catch (err) {
+      throw new Error(
+        `failed to determine XFS mountpoint for ${volume_path}: ${err.message}`
+      );
+    }
+
+    if (!mountpoint) {
+      throw new Error(
+        `could not find mountpoint for volume_path ${volume_path}`
+      );
+    }
+
+    // bind the project to the directory (idempotent - safe to re-run)
+    if (projId) {
+      await driver.exec("xfs_quota", [
+        "-x",
+        "-c",
+        `project -s -p ${volume_path} ${projId}`,
+        mountpoint,
+      ]);
+    }
+
+    // update the quota limit to match the expanded size
+    const bsoft = quotaBytes;
+    const bhard = quotaBytes;
+    await driver.exec("xfs_quota", [
+      "-x",
+      "-c",
+      `limit -p bsoft=${bsoft} bhard=${bhard} ${projId || "none"}`,
+      mountpoint,
+    ]);
+
+    driver.ctx.logger.info(
+      `node expanded XFS project quota projid=${projId} bytes=${quotaBytes} on path=${volume_path}`
+    );
+
+    return {
+      capacity_bytes: quotaBytes,
     };
   }
 
