@@ -1437,19 +1437,13 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // have been created the destroy will succeed undesirably
     let hasManagedSnapshot = false;
     try {
-      let snapshots = await zb.zfs.list(
-        datasetName,
-        [
-          "name",
-          // "democratic-csi:csi_snapshot_name",
-          // "democratic-csi:csi_snapshot_source_volume_id",
-          MANAGED_PROPERTY_NAME,
-        ],
-        { types: ["snapshot"] }
-      );
-
-      hasManagedSnapshot = snapshots.indexed.some((snapshot) => {
-        return snapshot[MANAGED_PROPERTY_NAME].toLowerCase() == "true";
+      hasManagedSnapshot = await datasetHasManagedSnapshots(zb, datasetName, {
+        ignoreForeignSnapshots:
+          _.get(
+            driverOptions,
+            "zfs.deleteVolumeIgnoreForeignSnapshots",
+            false
+          ) === true,
       });
     } catch (err) {
       // ignore errors when the dataset is already deleted
@@ -2605,4 +2599,61 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   }
 }
 
+/**
+ * Determine whether a dataset has snapshots which should block volume
+ * deletion.
+ *
+ * By default any snapshot carrying a truthy MANAGED_PROPERTY_NAME value
+ * blocks deletion. However zfs snapshots *inherit* user properties from
+ * their dataset, so snapshots created outside of democratic-csi (sanoid,
+ * zfs-auto-snapshot, etc) appear to be managed as well. democratic-csi sets
+ * the property directly (source `local`) on every snapshot it creates, so
+ * when ignoreForeignSnapshots is true only snapshots with a local/received
+ * property source are considered blocking and foreign snapshots are simply
+ * destroyed along with the dataset (destroy is invoked with recurse).
+ *
+ * @param {*} zb zetabyte instance
+ * @param {string} datasetName
+ * @param {object} options
+ * @returns {Promise<boolean>}
+ */
+async function datasetHasManagedSnapshots(
+  zb,
+  datasetName,
+  { ignoreForeignSnapshots = false } = {}
+) {
+  if (ignoreForeignSnapshots) {
+    const properties = await zb.zfs.get(datasetName, [MANAGED_PROPERTY_NAME], {
+      types: ["snapshot"],
+      recurse: true,
+      sources: ["local", "received"],
+    });
+
+    return Object.entries(properties).some(([name, props]) => {
+      return (
+        name.startsWith(`${datasetName}@`) &&
+        String(
+          _.get(props, [MANAGED_PROPERTY_NAME, "value"], "")
+        ).toLowerCase() == "true"
+      );
+    });
+  }
+
+  const snapshots = await zb.zfs.list(
+    datasetName,
+    [
+      "name",
+      // "democratic-csi:csi_snapshot_name",
+      // "democratic-csi:csi_snapshot_source_volume_id",
+      MANAGED_PROPERTY_NAME,
+    ],
+    { types: ["snapshot"] }
+  );
+
+  return snapshots.indexed.some((snapshot) => {
+    return snapshot[MANAGED_PROPERTY_NAME].toLowerCase() == "true";
+  });
+}
+
 module.exports.ControllerZfsBaseDriver = ControllerZfsBaseDriver;
+module.exports.datasetHasManagedSnapshots = datasetHasManagedSnapshots;
