@@ -12,8 +12,13 @@ const XFS_PROJECT_ID_FILE = ".csi-xfs-project-id";
  * local-xfs-hostpath driver: same structure as local-hostpath but with
  * XFS-specific behaviours layered on top:
  *  - filesystem verification (XFS only) at startup and on every volume op
- *  - per-PVC XFS project-quota enforcement
+ *  - per-PVC XFS project-quota enforcement via xfs_quota(8)
  *  - CoW reflink snapshots instead of rsync/restic/kopia
+ *
+ * Volume expansion is node-only: the authoritative resize happens in
+ * NodeExpandVolume which runs `xfs_quota` to update project quotas.  There
+ * is no ControllerExpandVolume because this driver is node-local by nature —
+ * a controller-side RPC cannot change storage on an arbitrary node.
  */
 class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
   constructor(ctx, options) {
@@ -40,6 +45,11 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
         "setting local-xfs-hostpath controller service caps"
       );
 
+      // GET_CAPACITY is useful for reporting available space on the host path.
+      // EXPAND_VOLUME is intentionally NOT advertised here — expansion is
+      // handled exclusively by NodeExpandVolume (see below).  Kubernetes
+      // kubelet will call NodeExpandVolume after a PVC resize + pod restart;
+      // no external-resizer sidecar is needed or expected for this driver.
       if (
         !options.service.controller.capabilities.rpc.includes("GET_CAPACITY")
       ) {
@@ -64,6 +74,8 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       options.service.node.capabilities.rpc.push("EXPAND_VOLUME");
     }
 
+    // Advertise ONLINE expansion so kubelet's resize handler knows this
+    // driver can expand volumes while they are published to a node.
     if (
       !options.service.identity.capabilities.volume_expansion ||
       options.service.identity.capabilities.volume_expansion.length === 0
@@ -151,7 +163,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
 
   /**
    * Allocate or read a project ID for the volume, persist it alongside the
-   * volume directory so ControllerExpandVolume and re-apply are idempotent.
+   * volume directory so NodeExpandVolume and re-apply are idempotent.
    *
    * @param {string} volumePath - absolute path to the volume directory
    * @param {number|string} bytes - quota size in bytes
@@ -159,11 +171,9 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
    */
   async setXfsProjectQuota(volumePath, bytes) {
     const driver = this;
-    const configKey = driver.getConfigKey();
     const mountpoint = driver.getControllerBasePath();
 
-    const xfsProjInfo = driver._readXfsProjectIdFile(volumePath);
-    let projId = xfsProjInfo.projId;
+    let projId = driver._readXfsProjectIdFile(volumePath).projId;
     if (!projId) {
       // derive deterministically from volume_id (stored as basename of volumePath)
       const volumeId = driver._extractVolumeIdFromPath(volumePath);
@@ -171,7 +181,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       driver._writeXfsProjectIdFile(volumePath, projId, bytes);
     }
 
-    // project -s binds the project to the directory
+    // project -s binds the project to the directory (idempotent)
     await driver.exec("xfs_quota", [
       "-x",
       "-c",
@@ -189,8 +199,8 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       mountpoint,
     ]);
 
-    // persist the quota bytes alongside the project ID so node-side re-apply
-    // and ControllerExpandVolume both have a source of truth even after the
+    // persist the quota bytes alongside the project ID so NodeExpandVolume
+    // and node-side re-apply both have a source of truth even after the
     // volume_context is no longer in play
     driver._writeXfsProjectIdFile(volumePath, projId, bytes);
 
@@ -207,7 +217,6 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
    */
   async clearXfsProjectQuota(volumePath) {
     const driver = this;
-    const configKey = driver.getConfigKey();
     const mountpoint = driver.getControllerBasePath();
 
     const xfsProjInfo = driver._readXfsProjectIdFile(volumePath);
@@ -522,7 +531,7 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
 
     // pass quota bytes through volume_context so the node side can re-apply
     // the XFS project quota on every mount (needed for clones from reflink
-    // snapshots, which do not carry the quota)
+    // snapshots, which do not carry quota)
     volume_context["xfs_quota_bytes"] = capacity_bytes;
 
     let accessible_topology;
@@ -582,15 +591,18 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
   }
 
   /**
-    * NodeExpandVolume: re-apply the XFS project quota on the node side after a
-
-  /**
-   * NodeExpandVolume: re-apply the XFS project quota on the node side after a
-   * ControllerExpandVolume has adjusted it. This ensures that volumes cloned
-   * from reflink snapshots (which do not carry quota bytes in their
-   * volume_context) still get the correct quota applied at mount time. The
-   * authoritative quota bytes are read from the persisted sidecar file so the
-   * node does not need to rely on stale volume_context values.
+   * NodeExpandVolume: set the XFS project quota on this node's volume dir.
+   *
+   * This is the only expansion RPC for local-xfs-hostpath.  Because volumes
+   * are stored locally on each node, a controller-side expand would be
+   * meaningless — it could not reach the backing directory on an arbitrary
+   * other node.  Instead kubelet calls NodeExpandVolume after a PVC resize +
+   * pod restart (or when the external-resizer triggers it).
+   *
+   * The new quota is read from the sidecar file (which was updated by
+   * CreateVolume or a prior expansion); if absent we fall back to the
+   * requested capacity_bytes.  Either way `xfs_quota` writes the updated
+   * limit so the next mount picks it up automatically.
    */
   async NodeExpandVolume(call) {
     const driver = this;
@@ -606,39 +618,16 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     }
 
     const capacity_range = call.request.capacity_range || {};
-    let required_bytes =
+    let requestedBytes =
       capacity_range.required_bytes || capacity_range.limit_bytes;
-
-    // read the persisted quota bytes from the sidecar file so we always use
-    // the authoritative value (especially important for clones from reflink
-    // snapshots where volume_context.xfs_quota_bytes may be absent or stale)
-    const sidecarPath = volume_path + "/" + XFS_PROJECT_ID_FILE;
-    let projId;
-    let quotaBytes;
-
-    try {
-      if (fs.existsSync(sidecarPath)) {
-        const content = fs.readFileSync(sidecarPath, "utf8").trim();
-        const lines = content.split("\n").map((l) => l.trim()).filter(Boolean);
-        projId = lines[0] ? parseInt(lines[0], 10) : null;
-        quotaBytes =
-          lines.length > 1 && lines[1]
-            ? parseInt(lines[1], 10)
-            : null;
-      }
-    } catch (err) {
-      driver.ctx.logger.warn(
-        `failed to read sidecar file ${sidecarPath}: ${err.message}`
+    if (!requestedBytes || requestedBytes <= 0) {
+      throw new Error(
+        `capacity_range.required_bytes or limit_bytes must be provided`
       );
     }
 
-    // fall back to the requested bytes if no persisted value exists
-    if (!quotaBytes || quotaBytes <= 0) {
-      quotaBytes = required_bytes;
-    }
-
-    // determine the XFS mountpoint containing the volume directory so that
-    // xfs_quota targets the correct filesystem
+    // Determine the XFS mountpoint containing the volume directory so that
+    // xfs_quota targets the correct filesystem.
     let mountpoint;
     try {
       const result = await driver.exec("findmnt", [
@@ -661,66 +650,52 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       );
     }
 
-    // bind the project to the directory (idempotent - safe to re-run)
-    if (projId) {
-      await driver.exec("xfs_quota", [
-        "-x",
-        "-c",
-        `project -s -p ${volume_path} ${projId}`,
-        mountpoint,
-      ]);
+    // Read the persisted sidecar file to get (or derive) the project ID.
+    let projId;
+    try {
+      const info = driver._readXfsProjectIdFile(volume_path);
+      if (info.projId) {
+        projId = info.projId;
+      } else {
+        // No sidecar yet — derive one deterministically from volume_id.
+        // This can happen for freshly-expanded volumes before the next
+        // CreateVolume/NodeExpandVolume cycle rewrites it.
+        const volId = driver._extractVolumeIdFromPath(volume_path);
+        projId = driver._deriveProjectId(volId);
+
+        // Persist so subsequent mounts / expansions don't need to derive again.
+        driver._writeXfsProjectIdFile(volume_path, projId, requestedBytes);
+      }
+    } catch (err) {
+      throw new Error(
+        `failed to read project ID for ${volume_path}: ${err.message}`
+      );
     }
 
-    // update the quota limit to match the expanded size
-    const bsoft = quotaBytes;
-    const bhard = quotaBytes;
+    // Apply the updated quota limit.  xfs_quota handles growing/shrinking
+    // freely; bsoft === bhard means no grace period — writes are blocked
+    // once the hard limit is reached.
     await driver.exec("xfs_quota", [
       "-x",
       "-c",
-      `limit -p bsoft=${bsoft} bhard=${bhard} ${projId || "none"}`,
+      `limit -p bsoft=${requestedBytes} bhard=${requestedBytes} ${projId}`,
+      mountpoint,
+    ]);
+
+    // Also re-bind the project to the directory (idempotent; required when
+    // the volume was created before xfs_quota "project" tracking started).
+    await driver.exec("xfs_quota", [
+      "-x",
+      "-c",
+      `project -s -p ${volume_path} ${projId}`,
       mountpoint,
     ]);
 
     driver.ctx.logger.info(
-      `node expanded XFS project quota projid=${projId} bytes=${quotaBytes} on path=${volume_path}`
+      `node expanded XFS project quota projid=${projId} bytes=${requestedBytes} on path=${volume_path}`
     );
 
-    return {
-      capacity_bytes: quotaBytes,
-    };
-  }
-
-  /**
-   * ControllerExpandVolume no-op for local-xfs-hostpath.
-   *
-   * XFS directories do not require controller-side expansion — the directory
-   * already exists and will grow naturally when files are written into it.
-   * The authoritative resize happens on the node side via NodeExpandVolume
-   * which runs xfs_quota to update project quotas.
-   *
-   * external-resizer requires ControllerExpandVolume to succeed (returning the
-   * new capacity) before proceeding; this no-op satisfies that contract while
-   * deferring the real work to NodeExpandVolume.
-   */
-  async ControllerExpandVolume(call) {
-    const driver = this;
-
-    const volume_id = call.request.volume_id;
-    if (!volume_id) {
-      throw new Error(`volume_id is required`);
-    }
-
-    let capacity_bytes =
-      call.request.capacity_range.required_bytes ||
-      call.request.capacity_range.limit_bytes;
-
-    driver.ctx.logger.info(
-      `controller expand volume (no-op) requested=${capacity_bytes} for volume ${volume_id}`
-    );
-
-    return {
-      capacity_bytes: capacity_bytes,
-    };
+    return { capacity_bytes: requestedBytes };
   }
 
   /**
