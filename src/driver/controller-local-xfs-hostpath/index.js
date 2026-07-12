@@ -47,22 +47,27 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       }
     }
 
-    if (!("rpc" in options.service.node.capabilities)) {
+    if (
+      !options.service.node.capabilities.rpc ||
+      options.service.node.capabilities.rpc.length === 0
+    ) {
       this.ctx.logger.debug("setting local-xfs-hostpath node service caps");
 
       options.service.node.capabilities.rpc = [
         "STAGE_UNSTAGE_VOLUME",
         "GET_VOLUME_STATS",
+        "EXPAND_VOLUME",
       ];
-
-      if (
-        !options.service.node.capabilities.rpc.includes("EXPAND_VOLUME")
-      ) {
-        options.service.node.capabilities.rpc.push("EXPAND_VOLUME");
-      }
+    } else if (
+      !options.service.node.capabilities.rpc.includes("EXPAND_VOLUME")
+    ) {
+      options.service.node.capabilities.rpc.push("EXPAND_VOLUME");
     }
 
-    if (!("volume_expansion" in options.service.identity.capabilities)) {
+    if (
+      !options.service.identity.capabilities.volume_expansion ||
+      options.service.identity.capabilities.volume_expansion.length === 0
+    ) {
       this.ctx.logger.debug(
         "setting local-xfs-hostpath identity volume_expansion caps"
       );
@@ -682,6 +687,39 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
 
     return {
       capacity_bytes: quotaBytes,
+    };
+  }
+
+  /**
+   * ControllerExpandVolume no-op for local-xfs-hostpath.
+   *
+   * XFS directories do not require controller-side expansion — the directory
+   * already exists and will grow naturally when files are written into it.
+   * The authoritative resize happens on the node side via NodeExpandVolume
+   * which runs xfs_quota to update project quotas.
+   *
+   * external-resizer requires ControllerExpandVolume to succeed (returning the
+   * new capacity) before proceeding; this no-op satisfies that contract while
+   * deferring the real work to NodeExpandVolume.
+   */
+  async ControllerExpandVolume(call) {
+    const driver = this;
+
+    const volume_id = call.request.volume_id;
+    if (!volume_id) {
+      throw new Error(`volume_id is required`);
+    }
+
+    let capacity_bytes =
+      call.request.capacity_range.required_bytes ||
+      call.request.capacity_range.limit_bytes;
+
+    driver.ctx.logger.info(
+      `controller expand volume (no-op) requested=${capacity_bytes} for volume ${volume_id}`
+    );
+
+    return {
+      capacity_bytes: capacity_bytes,
     };
   }
 
