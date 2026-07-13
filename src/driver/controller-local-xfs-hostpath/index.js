@@ -268,6 +268,21 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
       driver.stripTrailingSlash(src) + "/.", // copy everything inside src folder, but don't nest src folder in dst folder
       driver.stripTrailingSlash(dst) + "/",
     ]);
+
+    /**
+     * Remove any inherited .csi-xfs-project-id sidecar file from the source.
+     * Without this, a clone of an existing volume would inherit the same XFS
+     * project quota ID as its parent — causing both volumes to share one
+     * `xfs_quota` limit entry so that resizing either one affects the other.
+     * The cloned PVC will derive a fresh independent project ID on the next
+     * setXfsProjectQuota / NodeExpandVolume call.
+     */
+    try {
+      const sidecarPath = dst + "/" + XFS_PROJECT_ID_FILE;
+      fs.unlinkSync(sidecarPath);
+    } catch (e) {
+      // ignore — source may not have a sidecar file (snapshots, old volumes)
+    }
   }
 
   /**
