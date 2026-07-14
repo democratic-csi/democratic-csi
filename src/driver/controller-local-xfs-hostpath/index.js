@@ -271,11 +271,6 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
 
     /**
      * Remove any inherited .csi-xfs-project-id sidecar file from the source.
-     * Without this, a clone of an existing volume would inherit the same XFS
-     * project quota ID as its parent — causing both volumes to share one
-     * `xfs_quota` limit entry so that resizing either one affects the other.
-     * The cloned PVC will derive a fresh independent project ID on the next
-     * setXfsProjectQuota / NodeExpandVolume call.
      */
     try {
       const sidecarPath = dst + "/" + XFS_PROJECT_ID_FILE;
@@ -283,6 +278,70 @@ class ControllerLocalXfsHostpathDriver extends ControllerClientCommonDriver {
     } catch (e) {
       // ignore — source may not have a sidecar file (snapshots, old volumes)
     }
+
+    /**
+     * Clear all inherited XFS quotas for the new PVC directory.
+     * `cp --archive` preserves the inode's project ID (projid) from the source,
+     * so both directories would share the same quota entry unless we reset it.
+     * This must happen before old quota project IDs are removed to ensure the
+     * cloned volume gets a fresh independent quota on the next setXfsProjectQuota call.
+     */
+    try {
+      await driver.clearInheritedXfsQuota(dst);
+    } catch (err) {
+      driver.ctx.logger.warn(
+        `failed to clear inherited XFS quotas for ${dst}: ${err.message}`
+      );
+    }
+  }
+
+  /**
+   * Clear all XFS project quota mappings and the inode's projid for a directory.
+   * Removes any entries in /etc/xfs/projectid2path pointing at this path, then
+   * resets the inode's project ID to 0 (unrestricted).
+   *
+   * @param {string} volumePath - absolute path to the volume directory
+   */
+  async clearInheritedXfsQuota(volumePath) {
+    const driver = this;
+    const mountpoint = driver.getControllerBasePath();
+
+    // Remove all project-to-path mappings that reference this directory.
+    // xfs_quota "project -d" deletes a path from the projectid2path mapping.
+    try {
+      await driver.exec("xfs_quota", [
+        "-x",
+        "-c",
+        `project -d -p ${volumePath}`,
+        mountpoint,
+      ]);
+    } catch (err) {
+      // Path may not be registered in any project mapping — ignore.
+      driver.ctx.logger.debug(
+        `no project mapping to remove for ${volumePath}: ${err.message}`
+      );
+    }
+
+    // Reset the inode's XFS project ID back to 0 so it no longer inherits
+    // quota from the source directory after cp --archive preserved projid.
+    try {
+      await driver.exec("xfs_quota", [
+        "-x",
+        "-c",
+        `chprojid ${volumePath} 0`,
+        mountpoint,
+      ]);
+    } catch (err) {
+      // chprojid may fail if the filesystem was not mounted with prjquota or
+      // if xfs_quota does not support it — best effort.
+      driver.ctx.logger.debug(
+        `could not reset projid to 0 for ${volumePath}: ${err.message}`
+      );
+    }
+
+    driver.ctx.logger.info(
+      `cleared inherited XFS quotas for path=${volumePath}`
+    );
   }
 
   /**
