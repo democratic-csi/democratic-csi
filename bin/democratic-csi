@@ -177,14 +177,14 @@ try {
   process.exit(1);
 }
 
-// Startup XFS assertion for local-xfs-hostpath driver: verify that the
+// Startup XFS assertion for xfs-local-hostpath driver: verify that the
 // shareBasePath/controllerBasePath is on an XFS filesystem before the gRPC
 // server starts. Failing fast here prevents the pod from running in a
 // fundamentally broken configuration.
-if (options.driver === "local-xfs-hostpath") {
+if (options.driver === "xfs-local-hostpath") {
   const controllerBasePath = driver.getControllerBasePath();
   logger.info(
-    "local-xfs-hostpath: verifying controllerBasePath is on XFS: %s",
+    "xfs-local-hostpath: verifying controllerBasePath is on XFS: %s",
     controllerBasePath
   );
   try {
@@ -194,18 +194,18 @@ if (options.driver === "local-xfs-hostpath") {
     ).trim();
     if (findmntResult !== "xfs") {
       logger.error(
-        "local-xfs-hostpath: controllerBasePath %s is on filesystem '%s', expected 'xfs'. Exiting.",
+        "xfs-local-hostpath: controllerBasePath %s is on filesystem '%s', expected 'xfs'. Exiting.",
         controllerBasePath,
         findmntResult
       );
       process.exit(1);
     }
     logger.info(
-      "local-xfs-hostpath: verified controllerBasePath is on XFS"
+      "xfs-local-hostpath: verified controllerBasePath is on XFS"
     );
   } catch (err) {
     logger.error(
-      `local-xfs-hostpath: failed to verify XFS for ${controllerBasePath}: ${err.message}`
+      `xfs-local-hostpath: failed to verify XFS for ${controllerBasePath}: ${err.message}`
     );
     process.exit(1);
   }

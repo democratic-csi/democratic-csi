@@ -1,8 +1,8 @@
-driver: local-xfs-hostpath
+driver: xfs-local-hostpath
 instance_id:
-local-xfs-hostpath:
-  shareBasePath:      "/tmp/local-xfs-hostpath/${CI_BUILD_KEY}/controller"
-  controllerBasePath: "/tmp/local-xfs-hostpath/${CI_BUILD_KEY}/controller"
+xfs-local-hostpath:
+  shareBasePath:      "/tmp/xfs-local-hostpath/${CI_BUILD_KEY}/controller"
+  controllerBasePath: "/tmp/xfs-local-hostpath/${CI_BUILD_KEY}/controller"
   dirPermissionsMode: "0777"
   dirPermissionsUser: root
   dirPermissionsGroup: root

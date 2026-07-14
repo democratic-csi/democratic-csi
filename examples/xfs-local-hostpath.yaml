@@ -1,0 +1,56 @@
+driver: xfs-local-hostpath
+instance_id:
+xfs-local-hostpath:
+  # generally shareBasePath and controllerBasePath should be the same for this
+  # driver, this path must be on an XFS filesystem (mounted with prjquota).
+  # Talos Linux enables prjquota on /var by default. Other distros may need a
+  # fstab/mount-option change.
+  shareBasePath: "/var/lib/csi-xfs-local-hostpath"
+  controllerBasePath: "/var/lib/csi-xfs-local-hostpath"
+  dirPermissionsMode: "0777"
+  dirPermissionsUser: 0
+  dirPermissionsGroup: 0
+
+  # XFS project quota ID range. Volumes get a deterministic project ID derived
+  # from their volume_id hashed into this range. Default is [1000000, 1999999].
+  # xfs.project_id_range: [1000000, 1999999]
+
+  snapshots:
+    # xfs-local-hostpath only supports the xfs-reflink snapshot driver.
+    # The filecopy/restic/kopia snapshot drivers are not compatible because
+    # they do not provide atomic CoW semantics on XFS.
+    default_driver: xfs-reflink
+
+# ============================================================================
+# Volume expansion (resize) — node-only, no ControllerExpandVolume
+# ============================================================================
+#
+# This driver enforces per-PVC storage limits via XFS project quotas
+# (xfs_quota(8)).  Expansion works by updating the quota on each node where a
+# pod mounts the volume.
+#
+# Prerequisites:
+#   • The host filesystem must be mounted with "prjquota" in its mount options
+#     (e.g. /etc/fstab line:  /dev/sdX  /var  xfs  defaults,prjquota  0 2).
+#       Verify with: findmnt -o OPTIONS --target <base-path> | grep prjquota
+#   • The StorageClass MUST have allowVolumeExpansion: true.
+#
+# User workflow (no external-resizer needed):
+#   1. Patch or edit the PVC to request a larger storage size.
+#      kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"50Gi"}}}}'
+#   2. Restart (or recreate) any pods that use this PVC so kubelet calls
+#      NodeExpandVolume on the node side, which updates the XFS project quota.
+#      kubectl delete pod <pod>        # or: kubectl rollout restart deployment/...
+#   3. The PVC now reports the new capacity and the container sees the larger
+#      filesystem-backed limit (writes beyond the old quota are no longer blocked).
+#
+# Notes:
+#   • XFS project quotas can be changed while the directory is in use — no need
+#     to unmount or stop workloads.  A pod restart ensures kubelet invokes
+#     NodeExpandVolume and that the driver's sidecar file reflects the new size
+#     for subsequent mounts (e.g. after a node reboot).
+#   • Because this driver is node-local by nature, ControllerExpandVolume is
+#     deliberately not implemented: a controller-side RPC cannot reach the
+#     backing directory on an arbitrary other node.  kubelet's in-tree resize
+#     handler calls NodeExpandVolume directly after the pod restarts with the
+#     resized PVC — no external-resizer sidecar is required or expected.

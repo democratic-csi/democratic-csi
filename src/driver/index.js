@@ -1331,12 +1331,12 @@ class CsiBaseDriver {
             break;
 
           case "hostpath":
-            // XFS assertion for local-xfs-hostpath driver: verify the volume
+            // XFS assertion for xfs-local-hostpath driver: verify the volume
             // path is on an XFS filesystem before bind-mounting. Catches cases
             // where the node-side container sees a different mount table than
             // the controller.
             if (
-              volume_context.provisioner_driver === "local-xfs-hostpath" &&
+              volume_context.provisioner_driver === "xfs-local-hostpath" &&
               !driver.getNodeIsWindows()
             ) {
               try {
@@ -1352,7 +1352,7 @@ class CsiBaseDriver {
                 if (findmntResult !== "xfs") {
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    `volume path ${volume_context.path} is on filesystem '${findmntResult}', expected 'xfs' for local-xfs-hostpath driver`
+                    `volume path ${volume_context.path} is on filesystem '${findmntResult}', expected 'xfs' for xfs-local-hostpath driver`
                   );
                 }
               } catch (e) {
@@ -1372,7 +1372,7 @@ class CsiBaseDriver {
             // volume_context.xfs_quota_bytes for backward compatibility with
             // volumes created before quota persistence was added.
             if (
-              volume_context.provisioner_driver === "local-xfs-hostpath" &&
+              volume_context.provisioner_driver === "xfs-local-hostpath" &&
               !driver.getNodeIsWindows()
             ) {
               try {

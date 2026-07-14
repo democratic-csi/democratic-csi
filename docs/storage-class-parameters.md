@@ -147,9 +147,9 @@ enable/disable CHAP or change the password after the volume has been created.
 
 If the secret itself is referenced but not present, the volume will not be created.
 
-## `local-xfs-hostpath`
+## `xfs-local-hostpath`
 
-The `local-xfs-hostpath` driver creates directories on a local XFS filesystem
+The `xfs-local-hostpath` driver creates directories on a local XFS filesystem
 and provides true CoW snapshots via XFS reflinks, as well as per-PVC project
 quota enforcement. It is intended for single-node clusters (e.g. Talos Linux)
 where the host filesystem is XFS and users want instant, space-efficient
@@ -170,11 +170,11 @@ snapshots without standing up ZFS/Btrfs/Ceph.
 ### Configuration
 
 ```yaml
-driver: local-xfs-hostpath
+driver: xfs-local-hostpath
 instance_id:
-local-xfs-hostpath:
-  shareBasePath: "/var/lib/csi-local-xfs-hostpath"
-  controllerBasePath: "/var/lib/csi-local-xfs-hostpath"
+xfs-local-hostpath:
+  shareBasePath: "/var/lib/csi-xfs-local-hostpath"
+  controllerBasePath: "/var/lib/csi-xfs-local-hostpath"
   dirPermissionsMode: "0777"
   dirPermissionsUser: 0
   dirPermissionsGroup: 0
@@ -191,7 +191,7 @@ local-xfs-hostpath:
 
 ### Snapshot driver: `xfs-reflink`
 
-The `local-xfs-hostpath` driver only supports the `xfs-reflink` snapshot class.
+The `xfs-local-hostpath` driver only supports the `xfs-reflink` snapshot class.
 It uses `cp --archive --reflink=always` to create atomic, CoW clones of file
 data blocks. Snapshots are near-instant and initially consume ~0 extra space
 ( extents are shared until written).
