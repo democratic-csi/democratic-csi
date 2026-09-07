@@ -1471,6 +1471,20 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // NOTE: -f does NOT allow deletes if dependent filesets exist
     // NOTE: -R will recursively delete items + dependent filesets
     // delete dataset
+    // Unmount explicitly before destroying. `zfs destroy -f` forces the
+    // unmount via umount2(MNT_FORCE), which LXC's default seccomp profile
+    // rejects (`reject_force_umount`), so on a containerised ZFS host every
+    // delete of a mounted dataset fails with "cannot unmount ... unmount
+    // failed" and never recovers. A plain unmount is permitted there.
+    //
+    // Best-effort: a dataset that is a zvol, already unmounted, or absent has
+    // nothing to unmount, and any real problem still surfaces from destroy.
+    try {
+      await zb.zfs.unmount(datasetName, { idempotent: true });
+    } catch (err) {
+      // fall through to destroy, which reports the actionable error
+    }
+
     try {
       await GeneralUtils.retry(
         12,
