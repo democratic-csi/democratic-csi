@@ -808,7 +808,7 @@ class Filesystem {
          * -d, --clear-dirty       Clear the volume dirty flag
          */
         command = "ntfsfix";
-        args.puuh("-d");
+        args.push("-d");
         args.push(device);
         break;
       case "xfs":
