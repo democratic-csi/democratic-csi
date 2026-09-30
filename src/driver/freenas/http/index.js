@@ -102,7 +102,7 @@ class Client {
     return options;
   }
 
-  log_repsonse(error, response, body, options) {
+  log_response(error, response, body, options) {
     let prop;
     let val;
 
@@ -130,18 +130,18 @@ class Client {
     let duration = parseFloat(
       Math.round((_.get(response, "duration", 0) + Number.EPSILON) * 100) /
         100 /
-        1000
+        1000,
     ).toFixed(2);
 
     this.logger.debug("FREENAS HTTP REQUEST DETAILS: " + stringify(options));
     this.logger.debug("FREENAS HTTP REQUEST DURATION: " + duration + "s");
     this.logger.debug("FREENAS HTTP ERROR: " + error);
     this.logger.debug(
-      "FREENAS HTTP RESPONSE STATUS CODE: " + _.get(response, "statusCode", "")
+      "FREENAS HTTP RESPONSE STATUS CODE: " + _.get(response, "statusCode", ""),
     );
     this.logger.debug(
       "FREENAS HTTP RESPONSE HEADERS: " +
-        stringify(_.get(response, "headers", ""))
+        stringify(_.get(response, "headers", "")),
     );
     this.logger.debug("FREENAS HTTP RESPONSE BODY: " + stringify(body));
   }
@@ -159,7 +159,7 @@ class Client {
       options.params = data;
 
       axios_request(options, function (err, res, body) {
-        client.log_repsonse(...arguments, options);
+        client.log_response(...arguments, options);
         if (err) {
           reject(err);
         }
@@ -181,7 +181,7 @@ class Client {
       options.data = data;
 
       axios_request(options, function (err, res, body) {
-        client.log_repsonse(...arguments, options);
+        client.log_response(...arguments, options);
         if (err) {
           reject(err);
         }
@@ -204,7 +204,7 @@ class Client {
       options.data = data;
 
       axios_request(options, function (err, res, body) {
-        client.log_repsonse(...arguments, options);
+        client.log_response(...arguments, options);
         if (err) {
           reject(err);
         }
@@ -227,7 +227,7 @@ class Client {
       options.data = data;
 
       axios_request(options, function (err, res, body) {
-        client.log_repsonse(...arguments, options);
+        client.log_response(...arguments, options);
         if (err) {
           reject(err);
         }

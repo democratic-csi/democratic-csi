@@ -11,7 +11,7 @@ axios.interceptors.request.use(
   },
   function (error) {
     return Promise.reject(error);
-  }
+  },
 );
 
 axios.interceptors.response.use(
@@ -26,7 +26,7 @@ axios.interceptors.response.use(
     error.duration =
       error.config.metadata.endTime - error.config.metadata.startTime;
     return Promise.reject(error);
-  }
+  },
 );
 
 function sleep(ms) {
@@ -285,6 +285,19 @@ function expandenv(string, env) {
   });
 }
 
+function IsJsonString(str) {
+  try {
+    JSON.parse(str);
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+
+function is_object(v) {
+  return typeof v === "object" && !Array.isArray(v) && v !== null;
+}
+
 module.exports.sleep = sleep;
 module.exports.md5 = md5;
 module.exports.crc32 = crc32;
@@ -306,3 +319,5 @@ module.exports.retry = retry;
 module.exports.trimchar = trimchar;
 module.exports.hostname_lookup = hostname_lookup;
 module.exports.expandenv = expandenv;
+module.exports.IsJsonString = IsJsonString;
+module.exports.is_object = is_object;

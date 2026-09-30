@@ -2,6 +2,7 @@ const cp = require("child_process");
 const { hostname_lookup, trimchar } = require("./general");
 const URI = require("uri-js");
 const querystring = require("querystring");
+const semver = require("semver");
 
 const DEFAULT_TIMEOUT = process.env.NVMEOF_DEFAULT_TIMEOUT || 30000;
 
@@ -33,6 +34,16 @@ class NVMEoF {
         console.log(...arguments);
       };
     }
+  }
+
+  async version() {
+    const nvmeof = this;
+    let args = [];
+    args.unshift("version");
+    let result = await nvmeof.exec(nvmeof.options.paths.nvme, args);
+    const match = result.stdout.match(/^nvme version\s+([0-9]+(?:\.[0-9]+)*)/m);
+    const version = match?.[1];
+    return version;
   }
 
   /**
@@ -118,6 +129,12 @@ class NVMEoF {
     }
 
     args.unshift("connect", "--nqn", nqn, ...transport_args);
+
+    // version 3.0 added a new flag and changed the stderr output
+    let version = await nvmeof.version();
+    if (semver.satisfies(semver.coerce(version), ">=3.0")) {
+      args.push("--idempotent");
+    }
 
     try {
       await nvmeof.exec(nvmeof.options.paths.nvme, args);
@@ -233,7 +250,7 @@ class NVMEoF {
          */
         controllerAddress = controllerAddress.replace(
           new RegExp(/ ([a-z_]*=)/, "g"),
-          ",$1"
+          ",$1",
         );
         let parts = controllerAddress.split(",");
 
@@ -483,9 +500,8 @@ class NVMEoF {
           continue;
         }
 
-        let controller_transport = await nvmeof.parseTransportFromPath(
-          controller
-        );
+        let controller_transport =
+          await nvmeof.parseTransportFromPath(controller);
 
         if (controller_transport.address != transport.address) {
           continue;
@@ -504,8 +520,8 @@ class NVMEoF {
 
     nvmeof.logger.warn(
       `failed to find controller for transport: ${JSON.stringify(
-        transport
-      )}, nqn: ${nqn}`
+        transport,
+      )}, nqn: ${nqn}`,
     );
   }
 
@@ -601,7 +617,7 @@ class NVMEoF {
     nvmeof.logger.verbose(
       "executing nvmeof command: %s %s",
       command,
-      args.join(" ")
+      args.join(" "),
     );
 
     return new Promise((resolve, reject) => {

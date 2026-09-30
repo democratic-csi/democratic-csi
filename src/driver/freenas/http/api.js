@@ -30,7 +30,7 @@ class Api {
         executor: {
           spawn: function () {
             throw new Error(
-              "cannot use the zb implementation to execute zfs commands, must use the http api"
+              "cannot use the zb implementation to execute zfs commands, must use the http api",
             );
           },
         },
@@ -103,7 +103,7 @@ class Api {
           "FreeNAS http error - code: " +
             response.statusCode +
             " body: " +
-            JSON.stringify(response.body)
+            JSON.stringify(response.body),
         );
       }
       page++;
@@ -242,7 +242,7 @@ class Api {
       `FreeNAS error getting system version info: ${stringify({
         errors: versionErrors,
         responses: versionResponses,
-      })}`
+      })}`,
     );
   }
 
@@ -393,7 +393,7 @@ class Api {
     response = await httpClient.put(endpoint, {
       ...this.getSystemProperties(properties),
       user_properties_update: this.getPropertiesKeyValueArray(
-        this.getUserProperties(properties)
+        this.getUserProperties(properties),
       ),
     });
 
@@ -479,7 +479,7 @@ class Api {
           {
             "extra.snapshots": "true",
             "extra.retrieve_children": "false",
-          }
+          },
         );
 
         for (const snapshot of _.get(response, "snapshots", [])) {
@@ -530,7 +530,7 @@ class Api {
     response = await httpClient.put(endpoint, {
       //...this.getSystemProperties(properties),
       user_properties_update: this.getPropertiesKeyValueArray(
-        this.getUserProperties(properties)
+        this.getUserProperties(properties),
       ),
     });
 
@@ -903,13 +903,6 @@ class Api {
 
     if (response.statusCode == 200) {
       return response.body;
-    }
-
-    if (
-      response.statusCode == 422 &&
-      JSON.stringify(response.body).includes("already exists")
-    ) {
-      return this.NvmetSubsysGetByName(subsysName);
     }
 
     if (

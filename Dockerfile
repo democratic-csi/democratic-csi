@@ -147,7 +147,7 @@ RUN chmod +x /usr/local/sbin/ctr-installer.sh && ctr-installer.sh
 #        rm -rf /var/lib/apt/lists/*
 
 # install objectivefs
-ARG OBJECTIVEFS_VERSION=7.3
+ARG OBJECTIVEFS_VERSION=7.5
 ADD docker/objectivefs-installer.sh /usr/local/sbin
 RUN chmod +x /usr/local/sbin/objectivefs-installer.sh && objectivefs-installer.sh
 

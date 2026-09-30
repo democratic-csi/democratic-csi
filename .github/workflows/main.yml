@@ -115,7 +115,7 @@ jobs:
           SYNOLOGY_PASSWORD: ${{ secrets.SANITY_SYNOLOGY_PASSWORD }}
           SYNOLOGY_VOLUME: ${{ secrets.SANITY_SYNOLOGY_VOLUME }}
 
-  csi-sanity-truenas-scale-25_10:
+  csi-sanity-truenas-api-26:
     needs:
       - build-npm-linux-amd64
     strategy:
@@ -123,11 +123,11 @@ jobs:
       max-parallel: 1
       matrix:
         config:
-          - truenas/scale/25.10/scale-iscsi.yaml
-          - truenas/scale/25.10/scale-nfs.yaml
-          - truenas/scale/25.10/scale-nvmeof.yaml
+          - truenas/api/26/iscsi.yaml
+          - truenas/api/26/nfs.yaml
+          - truenas/api/26/nvmeof.yaml
           # 80 char limit
-          - truenas/scale/25.10/scale-smb.yaml
+          - truenas/api/26/smb.yaml
     runs-on:
       - self-hosted
       - Linux
@@ -150,7 +150,7 @@ jobs:
           TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
 
   # ssh-based drivers
-  csi-sanity-truenas-core-13_0:
+  csi-sanity-truenas-ssh-26:
     needs:
       - build-npm-linux-amd64
     strategy:
@@ -158,10 +158,11 @@ jobs:
       max-parallel: 1
       matrix:
         config:
-          - truenas/core/13.0/core-iscsi.yaml
-          - truenas/core/13.0/core-nfs.yaml
+          - truenas/ssh/26/iscsi.yaml
+          - truenas/ssh/26/nfs.yaml
+          - truenas/ssh/26/nvmeof.yaml
           # 80 char limit
-          - truenas/core/13.0/core-smb.yaml
+          - truenas/ssh/26/smb.yaml
     runs-on:
       - self-hosted
       - Linux
@@ -179,7 +180,8 @@ jobs:
           ci/bin/run.sh
         env:
           TEMPLATE_CONFIG_FILE: "./ci/configs/${{ matrix.config }}"
-          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_13_0_HOST }}
+          # TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_CORE_13_0_HOST }}
+          TRUENAS_HOST: ${{ secrets.SANITY_TRUENAS_SCALE_HOST }}
           TRUENAS_USERNAME: ${{ secrets.SANITY_TRUENAS_USERNAME }}
           TRUENAS_PASSWORD: ${{ secrets.SANITY_TRUENAS_PASSWORD }}
 
@@ -465,8 +467,8 @@ jobs:
       - determine-image-tag
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-25_10
-      - csi-sanity-truenas-core-13_0
+      - csi-sanity-truenas-api-26
+      - csi-sanity-truenas-ssh-26
       - csi-sanity-zfs-generic-targetcli
       - csi-sanity-zfs-generic-pcs
       - csi-sanity-objectivefs
@@ -507,8 +509,8 @@ jobs:
     needs:
       - csi-sanity-synology-dsm6
       - csi-sanity-synology-dsm7
-      - csi-sanity-truenas-scale-25_10
-      - csi-sanity-truenas-core-13_0
+      - csi-sanity-truenas-api-26
+      - csi-sanity-truenas-ssh-26
       - csi-sanity-zfs-generic-targetcli
       - csi-sanity-zfs-generic-pcs
       - csi-sanity-objectivefs
