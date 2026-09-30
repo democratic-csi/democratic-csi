@@ -8,6 +8,12 @@ httpConnection:
   username: ${TRUENAS_USERNAME}
   password: ${TRUENAS_PASSWORD}
 
+sshConnection:
+  host: ${TRUENAS_HOST}
+  port: 22
+  username: ${TRUENAS_USERNAME}
+  password: ${TRUENAS_PASSWORD}
+
 zfs:
   datasetParentName: tank/ci/${CI_BUILD_KEY}/v
   detachedSnapshotsDatasetParentName: tank/ci/${CI_BUILD_KEY}/s
