@@ -4,7 +4,7 @@ httpConnection:
   protocol: http
   host: ${TRUENAS_HOST}
   port: 80
-  #apiKey: 
+  #apiKey:
   username: ${TRUENAS_USERNAME}
   password: ${TRUENAS_PASSWORD}
 
@@ -30,7 +30,7 @@ iscsi:
   nameSuffix: ""
   targetGroups:
     - targetGroupPortalGroup: 1
-      targetGroupInitiatorGroup: 1
+      targetGroupInitiatorGroup: 3
       targetGroupAuthType: None
       targetGroupAuthGroup:
   # 0-100 (0 == ignore)

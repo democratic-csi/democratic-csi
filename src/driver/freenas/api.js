@@ -12,8 +12,6 @@ const FreeNASApiShareHelper =
 const { Zetabyte } = require("../../utils/zfs");
 const GeneralUtils = require("../../utils/general");
 
-
-
 // zfs common properties
 const MANAGED_PROPERTY_NAME = "democratic-csi:managed_resource";
 const SUCCESS_PROPERTY_NAME = "democratic-csi:provision_success";
@@ -614,6 +612,13 @@ class FreeNASApiDriver extends CsiBaseDriver {
         grpc.status.FAILED_PRECONDITION,
         `invalid configuration: missing datasetParentName`,
       );
+    }
+
+    // TODO: remove this after TN fixes the create_ancestors logic of zvol creation path
+    if (driver.getDriverZfsResourceType() == "volume") {
+      await webSocketApiClient.DatasetCreate(datasetParentName, {
+        create_ancestors: true,
+      });
     }
 
     if (

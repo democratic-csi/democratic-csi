@@ -4,7 +4,7 @@ httpConnection:
   protocol: http
   host: ${TRUENAS_HOST}
   port: 80
-  #apiKey: 
+  #apiKey:
   username: ${TRUENAS_USERNAME}
   password: ${TRUENAS_PASSWORD}
 
@@ -30,11 +30,11 @@ zfs:
   datasetPermissionsMode: "0770"
   datasetPermissionsUser: 1001
   datasetPermissionsGroup: 1001
-  
-  datasetPermissionsAcls:
-  - "-m g:builtin_users:full_set:fd:allow"
-  - "-m group@:modify_set:fd:allow"
-  - "-m owner@:full_set:fd:allow"
+
+  # datasetPermissionsAcls:
+  # - "-m g:builtin_users:full_set:fd:allow"
+  # - "-m group@:modify_set:fd:allow"
+  # - "-m owner@:full_set:fd:allow"
 
 smb:
   shareHost: ${TRUENAS_HOST}

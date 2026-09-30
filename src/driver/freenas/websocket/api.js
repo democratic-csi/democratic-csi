@@ -213,7 +213,12 @@ class Api {
   }
 
   getPropertiesFromKeyValueArray(kvarr) {
+    if (!Array.isArray(kvarr)) {
+      return {};
+    }
+
     let properties = {};
+
     for (const v of kvarr) {
       properties[v.key] = v.value;
     }
