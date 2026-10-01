@@ -3651,63 +3651,22 @@ class CsiBaseDriver {
           );
         }
 
-        let node_attach_driver;
-
-        let target = (await wutils.GetRealTarget(win_volume_path)) || "";
-        if (target.startsWith("\\\\")) {
-          node_attach_driver = "smb";
-        }
-        if (target.startsWith("\\\\?\\Volume")) {
-          if (await wutils.VolumeIsIscsi(target)) {
-            node_attach_driver = "iscsi";
-          }
-          if (await wutils.VolumeIsVHD(target)) {
-            node_attach_driver = "vhd";
-          }
-        }
-
-        if (!node_attach_driver) {
-          // nothing we care about
-          node_attach_driver = "bypass";
+        try {
+          const s = await fs.promises.statfs(win_volume_path, {
+            bigint: true,
+          });
+          res.usage = [
+            {
+              total: s.blocks * s.bsize,
+              available: s.bavail * s.bsize,
+              used: (s.blocks - s.bfree) * s.bsize,
+              unit: "BYTES",
+            },
+          ];
+        } catch (err) {
+          res.usage = [{ total: 0, unit: "BYTES" }];
         }
 
-        switch (node_attach_driver) {
-          case "smb":
-            res.usage = [{ total: 0, unit: "BYTES" }];
-            break;
-          case "iscsi":
-          case "vhd":
-            let node_volume = await wutils.GetVolumeByVolumeId(target);
-            res.usage = [
-              {
-                available: node_volume.SizeRemaining,
-                total: node_volume.Size,
-                used: node_volume.Size - node_volume.SizeRemaining,
-                unit: "BYTES",
-              },
-            ];
-            break;
-          case "bypass":
-            try {
-              const s = fs.statfsSync(win_volume_path);
-              res.usage = [
-                {
-                  total: s.blocks * s.bsize,
-                  available: s.bavail * s.bsize,
-                  used: (s.blocks - s.bfree) * s.bsize,
-                  unit: "BYTES",
-                },
-              ];
-            } catch (err) {
-              res.usage = [{ total: 0, unit: "BYTES" }];
-            }
-            break;
-          default:
-            throw new GrpcError(
-              grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
-            );
-        }
         break;
       }
       case NODE_OS_DRIVER_CSI_PROXY:

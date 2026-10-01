@@ -89,6 +89,16 @@ class Windows {
     } catch (err) {}
   }
 
+  async PathIsJunction(localPath) {
+    let item;
+    item = await this.GetItem(localPath);
+    if (item) {
+      return item?.LinkType == "Junction";
+    }
+
+    return false;
+  }
+
   async DeleteItem(localPath) {
     let command;
     let result;
