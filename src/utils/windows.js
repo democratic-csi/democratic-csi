@@ -213,7 +213,7 @@ class Windows {
 
   async RemoveIscsiTargetPortalByTargetPortalAddressTargetPortalPort(
     targetPortalAddress,
-    targetPortalPort
+    targetPortalPort,
   ) {
     let command;
     command = `Get-IscsiTargetPortal -TargetPortalAddress ${targetPortalAddress} -TargetPortalPortNumber ${targetPortalPort} | Remove-IscsiTargetPortal -Confirm:$false`;
@@ -224,7 +224,7 @@ class Windows {
     let sessions = await this.GetIscsiSessionsByTargetNodeAddress(iqn);
     for (let session of sessions) {
       let connections = await this.GetIscsiConnectionsByIscsiSessionIdentifier(
-        session.SessionIdentifier
+        session.SessionIdentifier,
       );
       for (let connection of connections) {
         if (
@@ -258,13 +258,13 @@ class Windows {
     authType,
     chapUser,
     chapSecret,
-    multipath = false
+    multipath = false,
   ) {
     let is_connected =
       await this.IscsiTargetIsConnectedByPortalAddressPortalPort(
         address,
         port,
-        iqn
+        iqn,
       );
     if (is_connected) {
       return;
@@ -305,7 +305,7 @@ class Windows {
       let details = _.get(err, "stderr", "");
       if (
         !details.includes(
-          "The target has already been logged in via an iSCSI session"
+          "The target has already been logged in via an iSCSI session",
         )
       ) {
         throw err;
@@ -859,7 +859,7 @@ class Windows {
       let details = _.get(err, "stderr", "");
       if (
         !details.includes(
-          "The size of the extent is less than the minimum of 1MB"
+          "The size of the extent is less than the minimum of 1MB",
         )
       ) {
         throw err;
@@ -1037,7 +1037,7 @@ class Windows {
     storagePoolFriendlyName,
     friendlyName,
     size,
-    extraArgs = []
+    extraArgs = [],
   ) {
     /**
      * -ProvisioningType Thin|Fixed
@@ -1051,7 +1051,7 @@ class Windows {
     extraArgs.push("-ProvisioningType", '"Thin"');
 
     command = `New-VirtualDisk -StoragePoolFriendlyName "$Env:storagepoolfriendlyname" -FriendlyName "$Env:friendlyname" -Size ${size} ${extraArgs.join(
-      " "
+      " ",
     )} | ConvertTo-Json`;
     try {
       result = await this.ps.exec(command, {
@@ -1070,7 +1070,7 @@ class Windows {
   async NewVirtualDiskCloneByFriendlyName(
     storagePoolFriendlyName,
     virutalDiskFriendlyName,
-    friendlyName
+    friendlyName,
   ) {
     let command;
     let result;
@@ -1093,7 +1093,7 @@ class Windows {
   async NewVirtualDiskCloneByUniqueId(
     storagePoolFriendlyName,
     uniqueId,
-    friendlyName
+    friendlyName,
   ) {
     let command;
     let result;
@@ -1116,7 +1116,7 @@ class Windows {
   async NewVirtualDiskSnapshotByFriendlyName(
     storagePoolFriendlyName,
     virutalDiskFriendlyName,
-    friendlyName
+    friendlyName,
   ) {
     let command;
     let result;
@@ -1136,10 +1136,10 @@ class Windows {
     }
   }
 
-  async NewVirtualDiskCloneByUniqueId(
+  async NewVirtualDiskSnapshotByUniqueId(
     storagePoolFriendlyName,
     uniqueId,
-    friendlyName
+    friendlyName,
   ) {
     let command;
     let result;
@@ -1168,7 +1168,7 @@ class Windows {
   async VssCreateShadowByVolumeId(
     storagePoolFriendlyName,
     uniqueId,
-    friendlyName
+    friendlyName,
   ) {
     let command;
     let result;

@@ -56,6 +56,13 @@ class CTR {
     return result.parsed;
   }
 
+  async version() {
+    const ctr = this;
+    let args = ["--timeout 5s", "version"];
+    let result = await ctr.exec(ctr.options.paths.ctr, args);
+    return result;
+  }
+
   // ctr images pull "${IMAGE}"
   async imagePull(image, args = []) {
     const ctr = this;

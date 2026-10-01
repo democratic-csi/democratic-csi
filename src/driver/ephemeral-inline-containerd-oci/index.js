@@ -116,8 +116,29 @@ class EphemeralInlineContainerDOciDriver extends CsiBaseDriver {
   }
 
   /**
-   * TODO: add Probe here with ctr check to ensure socket is alive
+   * ensure containerd is readily available
+   *
+   * true = ready
+   * false = not ready, but progressiong towards ready
+   * throw error = faulty setup
+   *
+   * @param {*} call
    */
+  async Probe(call) {
+    const driver = this;
+    const ctr = driver.getCTR();
+
+    try {
+      await ctr.info();
+    } catch (err) {
+      throw new GrpcError(
+        grpc.status.FAILED_PRECONDITION,
+        `containerd is not available: ${String(err)}`,
+      );
+    }
+
+    return super.Probe(...arguments);
+  }
 
   /**
    *
@@ -249,21 +270,21 @@ class EphemeralInlineContainerDOciDriver extends CsiBaseDriver {
     if (!imageReference) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `image.reference is required`
+        `image.reference is required`,
       );
     }
 
     if (!volume_id) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `volume_id is required`
+        `volume_id is required`,
       );
     }
 
     if (!target_path) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `target_path is required`
+        `target_path is required`,
       );
     }
 
@@ -316,7 +337,7 @@ class EphemeralInlineContainerDOciDriver extends CsiBaseDriver {
     }
 
     driver.ctx.logger.debug(
-      `imageReference: ${JSON.stringify(parsedImageReference)}`
+      `imageReference: ${JSON.stringify(parsedImageReference)}`,
     );
 
     imageReference = parsedImageReference.toString();
@@ -405,14 +426,14 @@ class EphemeralInlineContainerDOciDriver extends CsiBaseDriver {
     if (!volume_id) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `volume_id is required`
+        `volume_id is required`,
       );
     }
 
     if (!target_path) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `target_path is required`
+        `target_path is required`,
       );
     }
 
@@ -450,7 +471,7 @@ class EphemeralInlineContainerDOciDriver extends CsiBaseDriver {
     if (!datasetParentName) {
       throw new GrpcError(
         grpc.status.FAILED_PRECONDITION,
-        `invalid configuration: missing datasetParentName`
+        `invalid configuration: missing datasetParentName`,
       );
     }
 

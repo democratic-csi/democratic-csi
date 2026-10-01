@@ -65,7 +65,7 @@ class CsiBaseDriver {
     const normalized = this.getNormalizedParameters(
       parameters,
       driver,
-      instance_id
+      instance_id,
     );
     return normalized[key];
   }
@@ -119,7 +119,7 @@ class CsiBaseDriver {
               driverOptions = _.set(
                 driverOptions,
                 prop,
-                _.get(optionOverlay, prop)
+                _.get(optionOverlay, prop),
               );
               break;
           }
@@ -140,7 +140,7 @@ class CsiBaseDriver {
       `${__REGISTRY_NS__}:default_filesystem_instance`,
       () => {
         return new Filesystem();
-      }
+      },
     );
   }
 
@@ -155,7 +155,7 @@ class CsiBaseDriver {
       () => {
         const filesystem = this.getDefaultFilesystemInstance();
         return new Mount({ filesystem });
-      }
+      },
     );
   }
 
@@ -169,7 +169,7 @@ class CsiBaseDriver {
       `${__REGISTRY_NS__}:default_iscsi_instance`,
       () => {
         return new ISCSI();
-      }
+      },
     );
   }
 
@@ -184,7 +184,7 @@ class CsiBaseDriver {
       `${__REGISTRY_NS__}:default_nvmeof_instance`,
       () => {
         return new NVMEoF({ logger: driver.ctx.logger });
-      }
+      },
     );
   }
 
@@ -209,7 +209,7 @@ class CsiBaseDriver {
           },
           log_commands: true,
         });
-      }
+      },
     );
   }
 
@@ -218,7 +218,7 @@ class CsiBaseDriver {
       `${__REGISTRY_NS__}:default_oneclient_instance`,
       () => {
         return new OneClient();
-      }
+      },
     );
   }
 
@@ -230,7 +230,7 @@ class CsiBaseDriver {
         return new ObjectiveFS({
           pool: _.get(driver.options, "objectivefs.pool"),
         });
-      }
+      },
     );
   }
 
@@ -245,7 +245,7 @@ class CsiBaseDriver {
         const options = {};
         options.services = _.get(this.options, "node.csiProxy.services", {});
         return new CsiProxyClient(options);
-      }
+      },
     );
   }
 
@@ -256,7 +256,7 @@ class CsiBaseDriver {
         const kc = new k8s.KubeConfig();
         kc.loadFromDefault();
         return kc;
-      }
+      },
     );
   }
 
@@ -358,7 +358,7 @@ class CsiBaseDriver {
               kcontinue,
               undefined,
               undefined,
-              undefined // limit
+              undefined, // limit
             );
             pv = pvs.body.items.find((item) => {
               return (
@@ -374,7 +374,7 @@ class CsiBaseDriver {
 
         const pv = await findPVByDriverHandle(
           driver.ctx.args.csiName,
-          volume_id
+          volume_id,
         );
         if (pv) {
           volume_context = pv.spec.csi.volumeAttributes;
@@ -391,13 +391,13 @@ class CsiBaseDriver {
     if (!volume_context) {
       volume_context = _.get(
         driver.options,
-        `_private.volume_context.${volume_id}`
+        `_private.volume_context.${volume_id}`,
       );
     }
 
     driver.ctx.logger.debug(
       "retrived derived volume_context %j",
-      volume_context
+      volume_context,
     );
     return volume_context;
   }
@@ -419,7 +419,7 @@ class CsiBaseDriver {
         driver.ctx.logger.debug(
           "setting volume_context_cache %s %j",
           volume_id,
-          volume_context
+          volume_context,
         );
         driver.volume_context_cache[volume_id] = volume_context;
       }
@@ -452,14 +452,14 @@ class CsiBaseDriver {
     if (!volume_id) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `volume name is required`
+        `volume name is required`,
       );
     }
 
     const idTemplate = _.get(
       driver.options,
       "_private.csi.volume.idTemplate",
-      ""
+      "",
     );
     if (idTemplate) {
       volume_id = Handlebars.compile(idTemplate)({
@@ -470,7 +470,7 @@ class CsiBaseDriver {
       if (!volume_id) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,
-          `generated volume_id is empty, idTemplate may be invalid`
+          `generated volume_id is empty, idTemplate may be invalid`,
         );
       }
     }
@@ -478,7 +478,7 @@ class CsiBaseDriver {
     const hash_strategy = _.get(
       driver.options,
       "_private.csi.volume.idHash.strategy",
-      ""
+      "",
     );
 
     if (hash_strategy) {
@@ -498,7 +498,7 @@ class CsiBaseDriver {
         default:
           throw new GrpcError(
             grpc.status.INVALID_ARGUMENT,
-            `unkown hash strategy: ${hash_strategy}`
+            `unkown hash strategy: ${hash_strategy}`,
           );
       }
     }
@@ -508,14 +508,14 @@ class CsiBaseDriver {
     if (volume_id.length > 128) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `generated volume_id '${volume_id}' is too large`
+        `generated volume_id '${volume_id}' is too large`,
       );
     }
 
     if (volume_id.length < 1) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `generated volume_id '${volume_id}' is too small`
+        `generated volume_id '${volume_id}' is too small`,
       );
     }
 
@@ -529,11 +529,11 @@ class CsiBaseDriver {
     invalid_chars = volume_id.match(/[^a-z0-9_\-]/gi);
     if (invalid_chars) {
       invalid_chars = String.prototype.concat(
-        ...new Set(invalid_chars.join(""))
+        ...new Set(invalid_chars.join("")),
       );
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `generated volume_id '${volume_id}' contains invalid characters: '${invalid_chars}'`
+        `generated volume_id '${volume_id}' contains invalid characters: '${invalid_chars}'`,
       );
     }
 
@@ -543,7 +543,7 @@ class CsiBaseDriver {
     if (!/^[a-z0-9]/gi.test(volume_id)) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `generated volume_id '${volume_id}' must begin with alphanumeric character`
+        `generated volume_id '${volume_id}' must begin with alphanumeric character`,
       );
     }
 
@@ -749,7 +749,7 @@ class CsiBaseDriver {
     if (!staging_target_path) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `missing staging_target_path`
+        `missing staging_target_path`,
       );
     }
     const capability = call.request.volume_capability;
@@ -769,7 +769,7 @@ class CsiBaseDriver {
     const normalizedSecrets = this.getNormalizedParameters(
       call.request.secrets,
       call.request.volume_context.provisioner_driver,
-      call.request.volume_context.provisioner_driver_instance_id
+      call.request.volume_context.provisioner_driver_instance_id,
     );
 
     /*
@@ -786,7 +786,7 @@ class CsiBaseDriver {
       // yaml mount_flags
       if (_.get(driver.options, "node.mount.mount_flags")) {
         mount_flags.push(
-          ..._.get(driver.options, "node.mount.mount_flags").split(",")
+          ..._.get(driver.options, "node.mount.mount_flags").split(","),
         );
       }
 
@@ -812,7 +812,7 @@ class CsiBaseDriver {
       if (
         semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
         driver.options.service.node.capabilities.rpc.includes(
-          "VOLUME_MOUNT_GROUP"
+          "VOLUME_MOUNT_GROUP",
         )
       ) {
         volume_mount_group = capability.mount.volume_mount_group; // in k8s this is derrived from the fsgroup in the pod security context
@@ -824,7 +824,7 @@ class CsiBaseDriver {
       if (!result.valid) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,
-          `invalid capability: ${result.message}`
+          `invalid capability: ${result.message}`,
         );
       }
     } else {
@@ -832,7 +832,7 @@ class CsiBaseDriver {
       if (!result.valid) {
         throw new GrpcError(
           grpc.status.INVALID_ARGUMENT,
-          `invalid capability: ${result.message}`
+          `invalid capability: ${result.message}`,
         );
       }
     }
@@ -942,7 +942,7 @@ class CsiBaseDriver {
                 await iscsi.iscsiadm.createNodeDBEntry(
                   iscsiConnection.iqn,
                   iscsiConnection.portal,
-                  nodeDB
+                  nodeDB,
                 );
               });
 
@@ -950,20 +950,20 @@ class CsiBaseDriver {
               await GeneralUtils.retry(15, 2000, async () => {
                 await iscsi.iscsiadm.login(
                   iscsiConnection.iqn,
-                  iscsiConnection.portal
+                  iscsiConnection.portal,
                 );
               });
 
               // get associated session
               let session = await iscsi.iscsiadm.getSession(
                 iscsiConnection.iqn,
-                iscsiConnection.portal
+                iscsiConnection.portal,
               );
 
               if (!session) {
                 throw new GrpcError(
                   grpc.status.UNKNOWN,
-                  `unable to find iscsi session for iqn: ${iscsiConnection.iqn}, portal: ${iscsiConnection.portal}`
+                  `unable to find iscsi session for iqn: ${iscsiConnection.iqn}, portal: ${iscsiConnection.portal}`,
                 );
               }
 
@@ -977,7 +977,7 @@ class CsiBaseDriver {
                 //iscsiConnection.portal,
                 `${sessionParsedPortal.host}:${sessionParsedPortal.port}`,
                 iscsiConnection.iqn,
-                iscsiConnection.lun
+                iscsiConnection.lun,
               );
               let deviceByPath = device;
 
@@ -998,7 +998,7 @@ class CsiBaseDriver {
                 let current_time = Math.round(new Date().getTime() / 1000);
                 if (!result && current_time - timer_start > timer_max) {
                   driver.ctx.logger.warn(
-                    `hit timeout waiting for device node to appear: ${device}`
+                    `hit timeout waiting for device node to appear: ${device}`,
                   );
                   break;
                 }
@@ -1009,7 +1009,7 @@ class CsiBaseDriver {
                 iscsiDevices.push(device);
 
                 driver.ctx.logger.info(
-                  `successfully logged into portal ${iscsiConnection.portal} and created device ${deviceByPath} with realpath ${device}`
+                  `successfully logged into portal ${iscsiConnection.portal} and created device ${deviceByPath} with realpath ${device}`,
                 );
               }
             }
@@ -1027,20 +1027,20 @@ class CsiBaseDriver {
             if (iscsiDevices.length < 1) {
               throw new GrpcError(
                 grpc.status.UNKNOWN,
-                `unable to attach any iscsi devices`
+                `unable to attach any iscsi devices`,
               );
             }
 
             if (iscsiDevices.length != iscsiConnections.length) {
               driver.ctx.logger.warn(
-                `failed to attach all iscsi devices/targets/portals`
+                `failed to attach all iscsi devices/targets/portals`,
               );
 
               // TODO: allow a parameter to control this behavior in some form
               if (false) {
                 throw new GrpcError(
                   grpc.status.UNKNOWN,
-                  `unable to attach all iscsi devices`
+                  `unable to attach all iscsi devices`,
                 );
               }
             }
@@ -1051,7 +1051,7 @@ class CsiBaseDriver {
             let allDeviceMapperSlaves =
               await filesystem.getAllDeviceMapperSlaveDevices();
             let commonDevices = allDeviceMapperSlaves.filter((value) =>
-              iscsiDevices.includes(value)
+              iscsiDevices.includes(value),
             );
 
             const useMultipath =
@@ -1061,13 +1061,13 @@ class CsiBaseDriver {
             if (useMultipath) {
               device = await filesystem.getDeviceMapperDeviceFromSlaves(
                 iscsiDevices,
-                false
+                false,
               );
 
               if (!device) {
                 throw new GrpcError(
                   grpc.status.UNKNOWN,
-                  `failed to discover multipath device`
+                  `failed to discover multipath device`,
                 );
               }
             }
@@ -1110,14 +1110,14 @@ class CsiBaseDriver {
                   await GeneralUtils.retry(30, 2000, async () => {
                     await nvmeof.connectByNQNTransport(
                       nvmeofConnection.nqn,
-                      nvmeofConnection.transport
+                      nvmeofConnection.transport,
                     );
                   });
                 } catch (err) {
                   driver.ctx.logger.warn(
                     `error: ${JSON.stringify(err)} connecting to transport: ${
                       nvmeofConnection.transport
-                    }`
+                    }`,
                   );
                   continue;
                 }
@@ -1127,7 +1127,7 @@ class CsiBaseDriver {
                   await GeneralUtils.retry(30, 2000, async () => {
                     let state = await nvmeof.getSubsystemStateByNQNTransport(
                       nvmeofConnection.nqn,
-                      nvmeofConnection.transport
+                      nvmeofConnection.transport,
                     );
                     if (state != "live") {
                       throw new Error("nvmeof connection is not live");
@@ -1136,10 +1136,10 @@ class CsiBaseDriver {
                 } catch (err) {
                   driver.ctx.logger.warn(
                     `error: ${JSON.stringify(
-                      err
+                      err,
                     )} transport never became live: ${
                       nvmeofConnection.transport
-                    }`
+                    }`,
                   );
                   continue;
                 }
@@ -1151,7 +1151,7 @@ class CsiBaseDriver {
                     controllerDevice =
                       await nvmeof.controllerDevicePathByTransportNQN(
                         nvmeofConnection.transport,
-                        nvmeofConnection.nqn
+                        nvmeofConnection.nqn,
                       );
 
                     if (!controllerDevice) {
@@ -1161,8 +1161,8 @@ class CsiBaseDriver {
                 } catch (err) {
                   driver.ctx.logger.warn(
                     `error finding nvme controller device: ${JSON.stringify(
-                      err
-                    )}`
+                      err,
+                    )}`,
                   );
                   continue;
                 }
@@ -1179,7 +1179,7 @@ class CsiBaseDriver {
                       await nvmeof.namespaceDevicePathByTransportNQNNamespace(
                         nvmeofConnection.transport,
                         nvmeofConnection.nqn,
-                        nvmeofConnection.nsid
+                        nvmeofConnection.nsid,
                       );
                     if (!controllerDevice) {
                       throw new Error(`failed to find namespace device`);
@@ -1188,8 +1188,8 @@ class CsiBaseDriver {
                 } catch (err) {
                   driver.ctx.logger.warn(
                     `error finding nvme namespace device: ${JSON.stringify(
-                      err
-                    )}`
+                      err,
+                    )}`,
                   );
                   continue;
                 }
@@ -1221,7 +1221,7 @@ class CsiBaseDriver {
                   let current_time = Math.round(new Date().getTime() / 1000);
                   if (!result && current_time - timer_start > timer_max) {
                     driver.ctx.logger.warn(
-                      `hit timeout waiting for namespace device node to appear: ${namespaceDevice}`
+                      `hit timeout waiting for namespace device node to appear: ${namespaceDevice}`,
                     );
                     break;
                   }
@@ -1233,7 +1233,7 @@ class CsiBaseDriver {
                   nvmeofNamespaceDevices.push(namespaceDevice);
 
                   driver.ctx.logger.info(
-                    `successfully logged into nvmeof transport ${nvmeofConnection.transport} and created controller device: ${controllerDevice}, namespace device: ${namespaceDevice}`
+                    `successfully logged into nvmeof transport ${nvmeofConnection.transport} and created controller device: ${controllerDevice}, namespace device: ${namespaceDevice}`,
                   );
                 }
               }
@@ -1246,33 +1246,33 @@ class CsiBaseDriver {
               nvmeofNamespaceDevices = nvmeofNamespaceDevices.filter(
                 (value, index, self) => {
                   return self.indexOf(value) === index;
-                }
+                },
               );
 
               nvmeofControllerDevices = nvmeofControllerDevices.filter(
                 (value, index, self) => {
                   return self.indexOf(value) === index;
-                }
+                },
               );
 
               // only throw an error if we were not able to attach to *any* devices
               if (nvmeofNamespaceDevices.length < 1) {
                 throw new GrpcError(
                   grpc.status.UNKNOWN,
-                  `unable to attach any nvme devices`
+                  `unable to attach any nvme devices`,
                 );
               }
 
               if (nvmeofControllerDevices.length != nvmeofConnections.length) {
                 driver.ctx.logger.warn(
-                  `failed to attach all nvmeof devices/subsystems/transports`
+                  `failed to attach all nvmeof devices/subsystems/transports`,
                 );
 
                 // TODO: allow a parameter to control this behavior in some form
                 if (false) {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
-                    `unable to attach all iscsi devices`
+                    `unable to attach all iscsi devices`,
                   );
                 }
               }
@@ -1288,7 +1288,7 @@ class CsiBaseDriver {
                 if (nvmeofNamespaceDevices.length > 1) {
                   throw new GrpcError(
                     grpc.status.UNKNOWN,
-                    `too many nvme namespace devices, native multipath enabled therefore should only have 1`
+                    `too many nvme namespace devices, native multipath enabled therefore should only have 1`,
                   );
                 }
               } else {
@@ -1298,7 +1298,7 @@ class CsiBaseDriver {
                 let allDeviceMapperSlaves =
                   await filesystem.getAllDeviceMapperSlaveDevices();
                 let commonDevices = allDeviceMapperSlaves.filter((value) =>
-                  nvmeofNamespaceDevices.includes(value)
+                  nvmeofNamespaceDevices.includes(value),
                 );
 
                 const useDMMultipath =
@@ -1308,13 +1308,13 @@ class CsiBaseDriver {
                 if (useDMMultipath) {
                   device = await filesystem.getDeviceMapperDeviceFromSlaves(
                     nvmeofNamespaceDevices,
-                    false
+                    false,
                   );
 
                   if (!device) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
-                      `failed to discover multipath device`
+                      `failed to discover multipath device`,
                     );
                   }
                 } else {
@@ -1322,7 +1322,7 @@ class CsiBaseDriver {
                   if (nvmeofNamespaceDevices.length > 1) {
                     throw new GrpcError(
                       grpc.status.UNKNOWN,
-                      `too many nvme namespace devices, neither DM nor native multipath enabled`
+                      `too many nvme namespace devices, neither DM nor native multipath enabled`,
                     );
                   }
                 }
@@ -1361,15 +1361,14 @@ class CsiBaseDriver {
             if (!ofs_filesystem) {
               throw new GrpcError(
                 grpc.status.FAILED_PRECONDITION,
-                `missing ofs volume filesystem`
+                `missing ofs volume filesystem`,
               );
             }
 
             let ofs_object_store = env["OBJECTSTORE"];
             if (!ofs_object_store) {
-              ofs_object_store = await objectivefs.getObjectStoreFromFilesystem(
-                ofs_filesystem
-              );
+              ofs_object_store =
+                await objectivefs.getObjectStoreFromFilesystem(ofs_filesystem);
               if (ofs_object_store) {
                 env["OBJECTSTORE"] = ofs_object_store;
               }
@@ -1378,19 +1377,18 @@ class CsiBaseDriver {
             if (!ofs_object_store) {
               throw new GrpcError(
                 grpc.status.FAILED_PRECONDITION,
-                `missing required ofs volume env.OBJECTSTORE`
+                `missing required ofs volume env.OBJECTSTORE`,
               );
             }
 
             // normalize fs to not include objectstore
-            ofs_filesystem = await objectivefs.stripObjectStoreFromFilesystem(
-              ofs_filesystem
-            );
+            ofs_filesystem =
+              await objectivefs.stripObjectStoreFromFilesystem(ofs_filesystem);
 
             device = `${ofs_object_store}${ofs_filesystem}`;
             result = await mount.deviceIsMountedAtPath(
               device,
-              staging_target_path
+              staging_target_path,
             );
 
             if (result) {
@@ -1401,7 +1399,7 @@ class CsiBaseDriver {
               env,
               ofs_filesystem,
               staging_target_path,
-              mount_flags
+              mount_flags,
             );
 
             if (result) {
@@ -1410,7 +1408,7 @@ class CsiBaseDriver {
 
             throw new GrpcError(
               grpc.status.UNKNOWN,
-              `failed to mount objectivefs: ${device}`
+              `failed to mount objectivefs: ${device}`,
             );
 
             break;
@@ -1419,7 +1417,7 @@ class CsiBaseDriver {
             device = "oneclient";
             result = await mount.deviceIsMountedAtPath(
               device,
-              staging_target_path
+              staging_target_path,
             );
             if (result) {
               return {};
@@ -1447,7 +1445,7 @@ class CsiBaseDriver {
 
             result = await oneclient.mount(
               staging_target_path,
-              ["-H", volume_context.server].concat(mount_flags)
+              ["-H", volume_context.server].concat(mount_flags),
             );
 
             if (result) {
@@ -1456,7 +1454,7 @@ class CsiBaseDriver {
 
             throw new GrpcError(
               grpc.status.UNKNOWN,
-              `failed to mount oneclient: ${volume_context.server}`
+              `failed to mount oneclient: ${volume_context.server}`,
             );
 
             break;
@@ -1488,14 +1486,14 @@ class CsiBaseDriver {
               default:
                 throw new GrpcError(
                   grpc.status.UNKNOWN,
-                  `unknown zfs asset type: ${result.type.value}`
+                  `unknown zfs asset type: ${result.type.value}`,
                 );
             }
             break;
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
 
@@ -1527,7 +1525,7 @@ class CsiBaseDriver {
                 // to properly support expand/resize operations
                 device = await filesystem.getBlockDeviceLastPartition(device);
                 driver.ctx.logger.debug(
-                  `device has partitions, mount device is: ${device}`
+                  `device has partitions, mount device is: ${device}`,
                 );
 
                 await filesystem.expandPartition(device);
@@ -1549,12 +1547,11 @@ class CsiBaseDriver {
                     default:
                       throw new GrpcError(
                         grpc.status.INVALID_ARGUMENT,
-                        `unknown/unsupported ntfs_partition_label: ${ntfs_partition_label}`
+                        `unknown/unsupported ntfs_partition_label: ${ntfs_partition_label}`,
                       );
                   }
-                  device = await filesystem.getBlockDeviceLargestPartition(
-                    device
-                  );
+                  device =
+                    await filesystem.getBlockDeviceLargestPartition(device);
                 }
               }
 
@@ -1566,7 +1563,7 @@ class CsiBaseDriver {
                     ..._.get(
                       driver.options.node.format,
                       [fs_type, "customOptions"],
-                      []
+                      [],
                     ),
                   ];
                   if (!Array.isArray(formatOptions)) {
@@ -1591,7 +1588,7 @@ class CsiBaseDriver {
                 // fsck
                 result = await mount.deviceIsMountedAtPath(
                   device,
-                  staging_target_path
+                  staging_target_path,
                 );
                 if (!result) {
                   // https://github.com/democratic-csi/democratic-csi/issues/52#issuecomment-768463401
@@ -1602,7 +1599,7 @@ class CsiBaseDriver {
                       device,
                       fs_type,
                       checkFilesystem.customOptions || [],
-                      checkFilesystem.customFilesystemOptions || []
+                      checkFilesystem.customFilesystemOptions || [],
                     );
                   }
                 }
@@ -1633,7 +1630,7 @@ class CsiBaseDriver {
             // mount `device`
             result = await mount.deviceIsMountedAtPath(
               device,
-              staging_target_path
+              staging_target_path,
             );
             if (!result) {
               // expand fs if necessary
@@ -1676,7 +1673,7 @@ class CsiBaseDriver {
               await mount.mount(
                 device,
                 staging_target_path,
-                ["-t", mount_fs_type].concat(["-o", mount_flags.join(",")])
+                ["-t", mount_fs_type].concat(["-o", mount_flags.join(",")]),
               );
             }
 
@@ -1700,7 +1697,7 @@ class CsiBaseDriver {
                       err.stderr.includes("checksum does not match superblock")
                     ) {
                       driver.ctx.logger.warn(
-                        `successful mount, unsuccessful fs resize: attempting abnormal umount/mount/resize2fs to clear things up ${staging_target_path} (${device})`
+                        `successful mount, unsuccessful fs resize: attempting abnormal umount/mount/resize2fs to clear things up ${staging_target_path} (${device})`,
                       );
 
                       // try an unmount/mount/fsck cycle again just to clean things up
@@ -1708,7 +1705,7 @@ class CsiBaseDriver {
                       await mount.mount(
                         device,
                         staging_target_path,
-                        ["-t", fs_type].concat(["-o", mount_flags.join(",")])
+                        ["-t", fs_type].concat(["-o", mount_flags.join(",")]),
                       );
                       await filesystem.expandFilesystem(device, fs_type);
                     } else {
@@ -1721,7 +1718,7 @@ class CsiBaseDriver {
                   //await filesystem.checkFilesystem(device, fs_info.type);
                   await filesystem.expandFilesystem(
                     staging_target_path,
-                    fs_type
+                    fs_type,
                   );
                   break;
                 case "exfat":
@@ -1733,7 +1730,7 @@ class CsiBaseDriver {
                   // unsupported filesystem
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    `unsupported/unknown filesystem ${fs_type}`
+                    `unsupported/unknown filesystem ${fs_type}`,
                   );
               }
             }
@@ -1766,7 +1763,7 @@ class CsiBaseDriver {
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported access_type: ${access_type}`
+              `unknown/unsupported access_type: ${access_type}`,
             );
         }
         break;
@@ -1775,7 +1772,7 @@ class CsiBaseDriver {
         if (!["smb", "iscsi", "hostpath"].includes(node_attach_driver)) {
           throw new GrpcError(
             grpc.status.UNIMPLEMENTED,
-            `windows does not work with node_attach_driver: ${node_attach_driver}`
+            `windows does not work with node_attach_driver: ${node_attach_driver}`,
           );
         }
 
@@ -1783,7 +1780,7 @@ class CsiBaseDriver {
         if (fs_type && !["ntfs", "cifs"].includes(fs_type)) {
           throw new GrpcError(
             grpc.status.UNIMPLEMENTED,
-            `windows does not work with fs_type: ${fs_type}`
+            `windows does not work with fs_type: ${fs_type}`,
           );
         }
 
@@ -1823,7 +1820,7 @@ class CsiBaseDriver {
                   parts[2] != volume_context.share
                 ) {
                   throw new Error(
-                    `${target} mounted already at ${win_staging_target_path}`
+                    `${target} mounted already at ${win_staging_target_path}`,
                   );
                 } else {
                   // finish early, assured we have what we need
@@ -1834,14 +1831,14 @@ class CsiBaseDriver {
 
             try {
               result = await wutils.GetSmbGlobalMapping(
-                filesystem.covertUnixSeparatorToWindowsSeparator(device)
+                filesystem.covertUnixSeparatorToWindowsSeparator(device),
               );
               if (!result) {
                 // check for mount option cache=none and set -UseWriteThrough $true
                 await wutils.NewSmbGlobalMapping(
                   filesystem.covertUnixSeparatorToWindowsSeparator(device),
                   `${volume_context.server}\\${username}`,
-                  password
+                  password,
                 );
               }
             } catch (e) {
@@ -1853,7 +1850,7 @@ class CsiBaseDriver {
             try {
               await wutils.NewSmbLink(
                 filesystem.covertUnixSeparatorToWindowsSeparator(device),
-                win_staging_target_path
+                win_staging_target_path,
               );
             } catch (e) {
               let details = _.get(e, "stderr", "");
@@ -1919,13 +1916,13 @@ class CsiBaseDriver {
                   try {
                     await wutils.NewIscsiTargetPortal(
                       target_address,
-                      target_port
+                      target_port,
                     );
                   } catch (e) {
                     driver.ctx.logger.warn(
                       `failed adding target portal: ${JSON.stringify(
-                        iscsiConnection
-                      )}: ${e.stderr}`
+                        iscsiConnection,
+                      )}: ${e.stderr}`,
                     );
                     if (!multipath) {
                       throw e;
@@ -1994,19 +1991,19 @@ class CsiBaseDriver {
                       auth_type,
                       chap_username,
                       chap_secret,
-                      multipath
+                      multipath,
                     );
                   } catch (e) {
                     let details = _.get(e, "stderr", "");
                     if (
                       !details.includes(
-                        "The target has already been logged in via an iSCSI session"
+                        "The target has already been logged in via an iSCSI session",
                       )
                     ) {
                       driver.ctx.logger.warn(
                         `failed connection to ${JSON.stringify(
-                          iscsiConnection
-                        )}: ${e.stderr}`
+                          iscsiConnection,
+                        )}: ${e.stderr}`,
                       );
                       if (!multipath) {
                         throw e;
@@ -2023,7 +2020,7 @@ class CsiBaseDriver {
 
                 if (iscsiConnections.length != successful_logins) {
                   driver.ctx.logger.warn(
-                    `failed to login to all portals: total - ${iscsiConnections.length}, logins - ${successful_logins}`
+                    `failed to login to all portals: total - ${iscsiConnections.length}, logins - ${successful_logins}`,
                   );
                 }
 
@@ -2037,14 +2034,14 @@ class CsiBaseDriver {
                 // get device
                 let disks = await wutils.GetTargetDisksByIqnLun(
                   volume_context.iqn,
-                  volume_context.lun
+                  volume_context.lun,
                 );
                 let disk;
 
                 if (disks.length == 0) {
                   throw new GrpcError(
                     grpc.status.UNAVAILABLE,
-                    `0 disks created by ${successful_logins} successful logins`
+                    `0 disks created by ${successful_logins} successful logins`,
                   );
                 }
 
@@ -2057,7 +2054,7 @@ class CsiBaseDriver {
                     if (disk_number_set.length > 1) {
                       throw new GrpcError(
                         grpc.status.FAILED_PRECONDITION,
-                        "using multipath but mpio is not properly configured (multiple disk numbers with same iqn/lun)"
+                        "using multipath but mpio is not properly configured (multiple disk numbers with same iqn/lun)",
                       );
                     }
                     // find first disk that is online
@@ -2068,13 +2065,13 @@ class CsiBaseDriver {
                     if (!disk) {
                       throw new GrpcError(
                         grpc.status.FAILED_PRECONDITION,
-                        "using multipath but mpio is not properly configured (failed to detect an online disk)"
+                        "using multipath but mpio is not properly configured (failed to detect an online disk)",
                       );
                     }
                   } else {
                     throw new GrpcError(
                       grpc.status.FAILED_PRECONDITION,
-                      `not using multipath but discovered ${disks.length} disks (multiple disks with same iqn/lun)`
+                      `not using multipath but discovered ${disks.length} disks (multiple disks with same iqn/lun)`,
                     );
                   }
                 } else {
@@ -2084,7 +2081,7 @@ class CsiBaseDriver {
                 if (multipath && !disk.Path.startsWith("\\\\?\\mpio#")) {
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    "using multipath but mpio is not properly configured (discover disk is not an mpio disk)"
+                    "using multipath but mpio is not properly configured (discover disk is not an mpio disk)",
                   );
                 }
 
@@ -2092,12 +2089,12 @@ class CsiBaseDriver {
                 await wutils.PartitionDisk(disk.DiskNumber);
 
                 let partition = await wutils.GetLastPartitionByDiskNumber(
-                  disk.DiskNumber
+                  disk.DiskNumber,
                 );
 
                 let volume = await wutils.GetVolumeByDiskNumberPartitionNumber(
                   disk.DiskNumber,
-                  partition.PartitionNumber
+                  partition.PartitionNumber,
                 );
                 if (!volume) {
                   throw new Error("failed to create/discover volume for disk");
@@ -2126,7 +2123,7 @@ class CsiBaseDriver {
                   // mount up!
                   await wutils.MountVolume(
                     volume.UniqueId,
-                    win_staging_target_path
+                    win_staging_target_path,
                   );
                 }
                 break;
@@ -2134,7 +2131,7 @@ class CsiBaseDriver {
               default:
                 throw new GrpcError(
                   grpc.status.UNIMPLEMENTED,
-                  `access_type ${access_type} unsupported`
+                  `access_type ${access_type} unsupported`,
                 );
             }
             break;
@@ -2153,16 +2150,16 @@ class CsiBaseDriver {
             // create symlink
             fs.symlinkSync(
               filesystem.covertUnixSeparatorToWindowsSeparator(
-                volume_context.path
+                volume_context.path,
               ),
-              win_staging_target_path
+              win_staging_target_path,
             );
             return {};
             break;
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
@@ -2171,7 +2168,7 @@ class CsiBaseDriver {
         if (!["smb", "iscsi"].includes(node_attach_driver)) {
           throw new GrpcError(
             grpc.status.UNIMPLEMENTED,
-            `csi-proxy does not work with node_attach_driver: ${node_attach_driver}`
+            `csi-proxy does not work with node_attach_driver: ${node_attach_driver}`,
           );
         }
 
@@ -2179,7 +2176,7 @@ class CsiBaseDriver {
         if (fs_type && !["ntfs", "cifs"].includes(fs_type)) {
           throw new GrpcError(
             grpc.status.UNIMPLEMENTED,
-            `csi-proxy does not work with fs_type: ${fs_type}`
+            `csi-proxy does not work with fs_type: ${fs_type}`,
           );
         }
 
@@ -2194,13 +2191,11 @@ class CsiBaseDriver {
              *
              * if path exists but is NOT symlink delete it
              */
-            result = await csiProxyClient.FilesystemPathExists(
-              staging_target_path
-            );
+            result =
+              await csiProxyClient.FilesystemPathExists(staging_target_path);
             if (result) {
-              result = await csiProxyClient.FilesystemIsSymlink(
-                staging_target_path
-              );
+              result =
+                await csiProxyClient.FilesystemIsSymlink(staging_target_path);
               if (!result) {
                 await csiProxyClient.executeRPC("filesystem", "Rmdir", {
                   path: staging_target_path,
@@ -2234,7 +2229,7 @@ class CsiBaseDriver {
                 result = await csiProxyClient.executeRPC(
                   "filesystem",
                   "IsSymlink",
-                  { path: staging_target_path }
+                  { path: staging_target_path },
                 );
                 if (!_.get(result, "is_symlink", false)) {
                   throw e;
@@ -2367,7 +2362,7 @@ class CsiBaseDriver {
                     let details = _.get(e, "details", "");
                     if (
                       !details.includes(
-                        "The target has already been logged in via an iSCSI session"
+                        "The target has already been logged in via an iSCSI session",
                       )
                     ) {
                       throw e;
@@ -2389,7 +2384,7 @@ class CsiBaseDriver {
                     {
                       target_portal,
                       iqn: iscsiConnection.iqn,
-                    }
+                    },
                   );
 
                   // TODO: this is a gross assumption since we currently only allow 1 lun per target
@@ -2398,7 +2393,7 @@ class CsiBaseDriver {
                   let diskIds = _.get(result, "diskIDs", []);
                   if (diskIds.length != 1) {
                     throw new Error(
-                      `${diskIds.length} disks on the target, no way to know which is the relevant disk`
+                      `${diskIds.length} disks on the target, no way to know which is the relevant disk`,
                     );
                   }
                   let disk_number = diskIds[0];
@@ -2406,7 +2401,7 @@ class CsiBaseDriver {
                   result = await csiProxyClient.executeRPC(
                     "volume",
                     "ListVolumesOnDisk",
-                    { disk_number }
+                    { disk_number },
                   );
 
                   let node_volume_id;
@@ -2420,19 +2415,19 @@ class CsiBaseDriver {
                     });
                     node_volume_id =
                       await csiProxyClient.getVolumeIdFromDiskNumber(
-                        disk_number
+                        disk_number,
                       );
                   }
 
                   if (!node_volume_id) {
                     throw new Error(
-                      "failed to create/discover volume for disk"
+                      "failed to create/discover volume for disk",
                     );
                   }
                   result = await csiProxyClient.executeRPC(
                     "volume",
                     "IsVolumeFormatted",
-                    { volume_id: node_volume_id }
+                    { volume_id: node_volume_id },
                   );
 
                   // format device
@@ -2443,9 +2438,10 @@ class CsiBaseDriver {
                   }
 
                   // ensure staging path present
-                  result = await csiProxyClient.FilesystemPathExists(
-                    staging_target_path
-                  );
+                  result =
+                    await csiProxyClient.FilesystemPathExists(
+                      staging_target_path,
+                    );
                   if (!result) {
                     await csiProxyClient.executeRPC("filesystem", "Mkdir", {
                       path: staging_target_path,
@@ -2460,14 +2456,14 @@ class CsiBaseDriver {
                       {
                         volume_id: node_volume_id,
                         target_path: staging_target_path,
-                      }
+                      },
                     );
                   } catch (e) {
                     // assume for now that if something is mounted in the location it the desired volume
                     let details = _.get(e, "details", "");
                     if (
                       !details.includes(
-                        "The requested access path is already in use"
+                        "The requested access path is already in use",
                       )
                     ) {
                       throw e;
@@ -2488,21 +2484,21 @@ class CsiBaseDriver {
               default:
                 throw new GrpcError(
                   grpc.status.UNIMPLEMENTED,
-                  `access_type ${access_type} unsupported`
+                  `access_type ${access_type} unsupported`,
                 );
             }
             break;
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
       default:
         throw new GrpcError(
           grpc.status.UNIMPLEMENTED,
-          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`
+          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`,
         );
     }
 
@@ -2537,7 +2533,7 @@ class CsiBaseDriver {
     if (!staging_target_path) {
       throw new GrpcError(
         grpc.status.INVALID_ARGUMENT,
-        `missing staging_target_path`
+        `missing staging_target_path`,
       );
     }
     const block_path = staging_target_path + "/block_device";
@@ -2562,11 +2558,11 @@ class CsiBaseDriver {
            */
           if (err.timeout) {
             driver.ctx.logger.warn(
-              `detected stale mount, attempting to force unmount: ${normalized_staging_path}`
+              `detected stale mount, attempting to force unmount: ${normalized_staging_path}`,
             );
             await mount.umount(
               normalized_staging_path,
-              umount_args.concat(umount_force_extra_args)
+              umount_args.concat(umount_force_extra_args),
             );
             result = false; // assume we are *NOT* a block device at this point
           } else {
@@ -2607,23 +2603,23 @@ class CsiBaseDriver {
                     return true;
                   }
                 },
-              }
+              },
             );
           } catch (err) {
             if (err.timeout) {
               driver.ctx.logger.warn(
-                `hit timeout waiting to unmount path: ${normalized_staging_path}`
+                `hit timeout waiting to unmount path: ${normalized_staging_path}`,
               );
               result = await mount.getMountDetails(normalized_staging_path);
               switch (result.fstype) {
                 case "nfs":
                 case "nfs4":
                   driver.ctx.logger.warn(
-                    `detected stale nfs filesystem, attempting to force unmount: ${normalized_staging_path}`
+                    `detected stale nfs filesystem, attempting to force unmount: ${normalized_staging_path}`,
                   );
                   result = await mount.umount(
                     normalized_staging_path,
-                    umount_args.concat(umount_force_extra_args)
+                    umount_args.concat(umount_force_extra_args),
                   );
                   break;
                 default:
@@ -2640,16 +2636,16 @@ class CsiBaseDriver {
           let realBlockDeviceInfos = [];
           // detect if is a multipath device
           is_device_mapper = await filesystem.isDeviceMapperDevice(
-            block_device_info.path
+            block_device_info.path,
           );
 
           if (is_device_mapper) {
             let realBlockDevices = await filesystem.getDeviceMapperDeviceSlaves(
-              block_device_info.path
+              block_device_info.path,
             );
             for (const realBlockDevice of realBlockDevices) {
               realBlockDeviceInfos.push(
-                await filesystem.getBlockDevice(realBlockDevice)
+                await filesystem.getBlockDevice(realBlockDevice),
               );
             }
           } else {
@@ -2669,7 +2665,7 @@ class CsiBaseDriver {
                   ) {
                     let parent_block_device =
                       await filesystem.getBlockDeviceParent(
-                        block_device_info_i.path
+                        block_device_info_i.path,
                       );
 
                     // figure out which iscsi session this belongs to and logout
@@ -2696,7 +2692,7 @@ class CsiBaseDriver {
                                 return true;
                               }
                               return false;
-                            }
+                            },
                           );
                       }
 
@@ -2716,7 +2712,7 @@ class CsiBaseDriver {
                           } catch (err) {
                             await GeneralUtils.sleep(2000);
                             let current_time = Math.round(
-                              new Date().getTime() / 1000
+                              new Date().getTime() / 1000,
                             );
                             if (current_time - timer_start > timer_max) {
                               // not throwing error for now as future invocations would not enter code path anyhow
@@ -2736,13 +2732,13 @@ class CsiBaseDriver {
                           try {
                             await iscsi.iscsiadm.deleteNodeDBEntry(
                               session.target,
-                              session.persistent_portal
+                              session.persistent_portal,
                             );
                             deletedEntry = true;
                           } catch (err) {
                             await GeneralUtils.sleep(2000);
                             let current_time = Math.round(
-                              new Date().getTime() / 1000
+                              new Date().getTime() / 1000,
                             );
                             if (current_time - timer_start > timer_max) {
                               // not throwing error for now as future invocations would not enter code path anyhow
@@ -2765,7 +2761,7 @@ class CsiBaseDriver {
                     await filesystem.deviceIsNVMEoF(block_device_info_i.path)
                   ) {
                     let nqn = await nvmeof.nqnByNamespaceDeviceName(
-                      block_device_info_i.name
+                      block_device_info_i.name,
                     );
                     if (nqn) {
                       await nvmeof.disconnectByNQN(nqn);
@@ -2800,7 +2796,7 @@ class CsiBaseDriver {
                     return true;
                   }
                 },
-              }
+              },
             );
           }
         }
@@ -2820,7 +2816,7 @@ class CsiBaseDriver {
                   return true;
                 }
               },
-            }
+            },
           );
         }
         break;
@@ -2830,7 +2826,7 @@ class CsiBaseDriver {
 
         let win_normalized_staging_path =
           filesystem.covertUnixSeparatorToWindowsSeparator(
-            normalized_staging_path
+            normalized_staging_path,
           );
 
         async function removePath(p) {
@@ -2874,7 +2870,7 @@ class CsiBaseDriver {
               // consumers of the mapping/share (ie: smb-client scenarios, etc)
               if (!parts[3]) {
                 await wutils.RemoveSmbGlobalMapping(
-                  `\\\\${parts[1]}\\${parts[2]}`
+                  `\\\\${parts[1]}\\${parts[2]}`,
                 );
               }
               break;
@@ -2885,18 +2881,17 @@ class CsiBaseDriver {
               // unmount volume
               await wutils.UnmountVolume(
                 win_volume_id,
-                win_normalized_staging_path
+                win_normalized_staging_path,
               );
 
               // find sessions associated with volume/disks
-              let sessions = await wutils.GetIscsiSessionsByVolumeId(
-                win_volume_id
-              );
+              let sessions =
+                await wutils.GetIscsiSessionsByVolumeId(win_volume_id);
 
               // logout of sessions
               for (let session of sessions) {
                 await wutils.DisconnectIscsiTargetByNodeAddress(
-                  session.TargetNodeAddress
+                  session.TargetNodeAddress,
                 );
               }
 
@@ -2911,7 +2906,7 @@ class CsiBaseDriver {
             default:
               throw new GrpcError(
                 grpc.status.INVALID_ARGUMENT,
-                `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+                `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
               );
           }
         }
@@ -2928,7 +2923,7 @@ class CsiBaseDriver {
         if (!volume_context) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `unable to retrieve volume_context for volume: ${volume_id}`
+            `unable to retrieve volume_context for volume: ${volume_id}`,
           );
         }
 
@@ -2978,7 +2973,7 @@ class CsiBaseDriver {
             // ok to be null/undefined
             node_volume_id = await csiProxyClient.getVolumeIdFromIscsiTarget(
               target_portal,
-              iqn
+              iqn,
             );
 
             if (node_volume_id) {
@@ -3032,7 +3027,7 @@ class CsiBaseDriver {
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
 
@@ -3042,7 +3037,7 @@ class CsiBaseDriver {
       default:
         throw new GrpcError(
           grpc.status.UNIMPLEMENTED,
-          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`
+          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`,
         );
     }
 
@@ -3083,7 +3078,7 @@ class CsiBaseDriver {
       if (
         semver.satisfies(driver.ctx.csiVersion, ">=1.5.0") &&
         driver.options.service.node.capabilities.rpc.includes(
-          "VOLUME_MOUNT_GROUP"
+          "VOLUME_MOUNT_GROUP",
         )
       ) {
         volume_mount_group = capability.mount.volume_mount_group; // in k8s this is derrived from the fsgroup in the pod security context
@@ -3138,7 +3133,7 @@ class CsiBaseDriver {
               default:
                 throw new GrpcError(
                   grpc.status.INVALID_ARGUMENT,
-                  `unsupported/unknown access_type ${access_type}`
+                  `unsupported/unknown access_type ${access_type}`,
                 );
             }
 
@@ -3158,7 +3153,7 @@ class CsiBaseDriver {
               if (!result) {
                 throw new GrpcError(
                   grpc.status.FAILED_PRECONDITION,
-                  `staging path is not mounted: ${normalized_staging_path}`
+                  `staging path is not mounted: ${normalized_staging_path}`,
                 );
               }
 
@@ -3174,18 +3169,17 @@ class CsiBaseDriver {
                 if (access_type == "block") {
                   normalized_staging_device = "dev"; // special syntax for single file bind mounts
                 } else {
-                  normalized_staging_device = await mount.getMountPointDevice(
-                    staging_target_path
-                  );
+                  normalized_staging_device =
+                    await mount.getMountPointDevice(staging_target_path);
                 }
                 result = await mount.deviceIsMountedAtPath(
                   normalized_staging_device,
-                  target_path
+                  target_path,
                 );
                 if (!result) {
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    `it appears ${normalized_staging_device} is already mounted at ${target_path}, should be ${normalized_staging_path}`
+                    `it appears ${normalized_staging_device} is already mounted at ${target_path}, should be ${normalized_staging_path}`,
                   );
                 }
               }
@@ -3196,12 +3190,12 @@ class CsiBaseDriver {
             // unsupported filesystem
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `only staged configurations are valid`
+              `only staged configurations are valid`,
             );
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
@@ -3225,7 +3219,7 @@ class CsiBaseDriver {
               default:
                 throw new GrpcError(
                   grpc.status.INVALID_ARGUMENT,
-                  `unsupported/unknown access_type ${access_type}`
+                  `unsupported/unknown access_type ${access_type}`,
                 );
             }
 
@@ -3241,7 +3235,7 @@ class CsiBaseDriver {
 
               normalized_staging_path =
                 filesystem.covertUnixSeparatorToWindowsSeparator(
-                  normalized_staging_path
+                  normalized_staging_path,
                 );
 
               // source path
@@ -3249,7 +3243,7 @@ class CsiBaseDriver {
               if (!result) {
                 throw new GrpcError(
                   grpc.status.FAILED_PRECONDITION,
-                  `staging path is not mounted: ${normalized_staging_path}`
+                  `staging path is not mounted: ${normalized_staging_path}`,
                 );
               }
 
@@ -3260,7 +3254,7 @@ class CsiBaseDriver {
                 if (!(await filesystem.isSymbolicLink(target_path))) {
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    `target path exists but is not a symlink as it should be: ${target_path}`
+                    `target path exists but is not a symlink as it should be: ${target_path}`,
                   );
                 }
                 return {};
@@ -3274,12 +3268,12 @@ class CsiBaseDriver {
             // unsupported filesystem
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `only staged configurations are valid`
+              `only staged configurations are valid`,
             );
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
@@ -3300,7 +3294,7 @@ class CsiBaseDriver {
               default:
                 throw new GrpcError(
                   grpc.status.INVALID_ARGUMENT,
-                  `unsupported/unknown access_type ${access_type}`
+                  `unsupported/unknown access_type ${access_type}`,
                 );
             }
 
@@ -3318,12 +3312,12 @@ class CsiBaseDriver {
 
               // source path
               result = await csiProxyClient.FilesystemPathExists(
-                normalized_staging_path
+                normalized_staging_path,
               );
               if (!result) {
                 throw new GrpcError(
                   grpc.status.FAILED_PRECONDITION,
-                  `staging path is not mounted: ${normalized_staging_path}`
+                  `staging path is not mounted: ${normalized_staging_path}`,
                 );
               }
 
@@ -3335,7 +3329,7 @@ class CsiBaseDriver {
                 if (!result) {
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    `target path exists but is not a symlink as it should be: ${target_path}`
+                    `target path exists but is not a symlink as it should be: ${target_path}`,
                   );
                 }
                 return {};
@@ -3353,19 +3347,19 @@ class CsiBaseDriver {
             // unsupported filesystem
             throw new GrpcError(
               grpc.status.FAILED_PRECONDITION,
-              `only staged configurations are valid`
+              `only staged configurations are valid`,
             );
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
       default:
         throw new GrpcError(
           grpc.status.UNIMPLEMENTED,
-          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`
+          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`,
         );
     }
   }
@@ -3397,11 +3391,11 @@ class CsiBaseDriver {
           // so if timeout is hit we should be near certain it is indeed mounted
           if (err.timeout) {
             driver.ctx.logger.warn(
-              `detected stale mount, attempting to force unmount: ${target_path}`
+              `detected stale mount, attempting to force unmount: ${target_path}`,
             );
             await mount.umount(
               target_path,
-              umount_args.concat(umount_force_extra_args)
+              umount_args.concat(umount_force_extra_args),
             );
             result = false; // assume we have fully unmounted
           } else {
@@ -3424,12 +3418,12 @@ class CsiBaseDriver {
                     return true;
                   }
                 },
-              }
+              },
             );
           } catch (err) {
             if (err.timeout) {
               driver.ctx.logger.warn(
-                `hit timeout waiting to unmount path: ${target_path}`
+                `hit timeout waiting to unmount path: ${target_path}`,
               );
               // bind mounts do show the 'real' fs details
               result = await mount.getMountDetails(target_path);
@@ -3437,11 +3431,11 @@ class CsiBaseDriver {
                 case "nfs":
                 case "nfs4":
                   driver.ctx.logger.warn(
-                    `detected stale nfs filesystem, attempting to force unmount: ${target_path}`
+                    `detected stale nfs filesystem, attempting to force unmount: ${target_path}`,
                   );
                   result = await mount.umount(
                     target_path,
-                    umount_args.concat(umount_force_extra_args)
+                    umount_args.concat(umount_force_extra_args),
                   );
                   break;
                 default:
@@ -3469,7 +3463,7 @@ class CsiBaseDriver {
                     return true;
                   }
                 },
-              }
+              },
             );
           } else {
             result = await GeneralUtils.retry(
@@ -3478,7 +3472,7 @@ class CsiBaseDriver {
               async () => {
                 return await filesystem.rm([target_path]);
               },
-              { minExecutionTime: 1000 }
+              { minExecutionTime: 1000 },
             );
           }
         }
@@ -3498,7 +3492,7 @@ class CsiBaseDriver {
         if (!(await filesystem.isSymbolicLink(win_target_path))) {
           throw new GrpcError(
             grpc.status.FAILED_PRECONDITION,
-            `target path is not a symlink ${win_target_path}`
+            `target path is not a symlink ${win_target_path}`,
           );
         }
 
@@ -3519,7 +3513,7 @@ class CsiBaseDriver {
         if (!result.is_symlink) {
           throw new GrpcError(
             grpc.status.FAILED_PRECONDITION,
-            `target path is not a symlink ${target_path}`
+            `target path is not a symlink ${target_path}`,
           );
         }
 
@@ -3531,7 +3525,7 @@ class CsiBaseDriver {
       default:
         throw new GrpcError(
           grpc.status.UNIMPLEMENTED,
-          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`
+          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`,
         );
     }
 
@@ -3587,7 +3581,7 @@ class CsiBaseDriver {
             if (!(await mount.pathIsMounted(device_path))) {
               throw new GrpcError(
                 grpc.status.NOT_FOUND,
-                `nothing mounted at path: ${device_path}`
+                `nothing mounted at path: ${device_path}`,
               );
             }
             result = await mount.getMountDetails(device_path, [
@@ -3623,7 +3617,7 @@ class CsiBaseDriver {
             if (!(await filesystem.pathExists(device_path))) {
               throw new GrpcError(
                 grpc.status.NOT_FOUND,
-                `nothing mounted at path: ${device_path}`
+                `nothing mounted at path: ${device_path}`,
               );
             }
             result = await filesystem.getBlockDevice(device_path);
@@ -3638,7 +3632,7 @@ class CsiBaseDriver {
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unsupported/unknown access_type ${access_type}`
+              `unsupported/unknown access_type ${access_type}`,
             );
         }
 
@@ -3653,7 +3647,7 @@ class CsiBaseDriver {
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `volume_path ${win_volume_path} is not currently mounted`
+            `volume_path ${win_volume_path} is not currently mounted`,
           );
         }
 
@@ -3694,12 +3688,24 @@ class CsiBaseDriver {
             ];
             break;
           case "bypass":
-            res.usage = [{ total: 0, unit: "BYTES" }];
+            try {
+              const s = fs.statfsSync(win_volume_path);
+              res.usage = [
+                {
+                  total: s.blocks * s.bsize,
+                  available: s.bavail * s.bsize,
+                  used: (s.blocks - s.bfree) * s.bsize,
+                  unit: "BYTES",
+                },
+              ];
+            } catch (err) {
+              res.usage = [{ total: 0, unit: "BYTES" }];
+            }
             break;
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
@@ -3710,7 +3716,7 @@ class CsiBaseDriver {
         if (!volume_context) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `unable to retrieve volume_context for volume: ${volume_id}`
+            `unable to retrieve volume_context for volume: ${volume_id}`,
           );
         }
 
@@ -3721,7 +3727,7 @@ class CsiBaseDriver {
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `volume_path ${volume_path} is not currently mounted`
+            `volume_path ${volume_path} is not currently mounted`,
           );
         }
 
@@ -3733,14 +3739,14 @@ class CsiBaseDriver {
             let node_volume_id =
               await csiProxyClient.getVolumeIdFromIscsiTarget(
                 volume_context.portal,
-                volume_context.iqn
+                volume_context.iqn,
               );
             result = await csiProxyClient.executeRPC(
               "volume",
               "GetVolumeStats",
               {
                 volume_id: node_volume_id,
-              }
+              },
             );
             res.usage = [
               {
@@ -3754,14 +3760,14 @@ class CsiBaseDriver {
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
       default:
         throw new GrpcError(
           grpc.status.UNIMPLEMENTED,
-          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`
+          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`,
         );
     }
 
@@ -3829,7 +3835,7 @@ class CsiBaseDriver {
           if (err.code == 1) {
             throw new GrpcError(
               grpc.status.NOT_FOUND,
-              `volume_path ${volume_path} is not currently mounted`
+              `volume_path ${volume_path} is not currently mounted`,
             );
           }
         }
@@ -3840,9 +3846,8 @@ class CsiBaseDriver {
           is_device_mapper = await filesystem.isDeviceMapperDevice(device);
           if (is_device_mapper) {
             // NOTE: want to make sure we scan the dm device *after* all the underlying slaves
-            rescan_devices = await filesystem.getDeviceMapperDeviceSlaves(
-              device
-            );
+            rescan_devices =
+              await filesystem.getDeviceMapperDeviceSlaves(device);
           }
 
           rescan_devices.push(device);
@@ -3899,7 +3904,7 @@ class CsiBaseDriver {
                   // unsupported filesystem
                   throw new GrpcError(
                     grpc.status.FAILED_PRECONDITION,
-                    `unsupported/unknown filesystem ${fs_type}`
+                    `unsupported/unknown filesystem ${fs_type}`,
                   );
               }
             }
@@ -3933,7 +3938,7 @@ class CsiBaseDriver {
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `volume_path ${win_volume_path} is not currently mounted`
+            `volume_path ${win_volume_path} is not currently mounted`,
           );
         }
 
@@ -3966,7 +3971,7 @@ class CsiBaseDriver {
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
 
@@ -3978,7 +3983,7 @@ class CsiBaseDriver {
         if (!volume_context) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `unable to retrieve volume_context for volume: ${volume_id}`
+            `unable to retrieve volume_context for volume: ${volume_id}`,
           );
         }
 
@@ -3989,7 +3994,7 @@ class CsiBaseDriver {
         if (!result) {
           throw new GrpcError(
             grpc.status.NOT_FOUND,
-            `volume_path ${volume_path} is not currently mounted`
+            `volume_path ${volume_path} is not currently mounted`,
           );
         }
 
@@ -3998,18 +4003,18 @@ class CsiBaseDriver {
             const node_volume_id =
               await csiProxyClient.getVolumeIdFromIscsiTarget(
                 volume_context.portal,
-                volume_context.iqn
+                volume_context.iqn,
               );
             const disk_number =
               await csiProxyClient.getDiskNumberFromIscsiTarget(
                 volume_context.portal,
-                volume_context.iqn
+                volume_context.iqn,
               );
 
             if (node_volume_id) {
               const required_bytes = _.get(
                 call.request,
-                "capacity_range.required_bytes"
+                "capacity_range.required_bytes",
               );
               if (required_bytes) {
                 await csiProxyClient.executeRPC("disk", "Rescan");
@@ -4023,7 +4028,7 @@ class CsiBaseDriver {
                   // seems to be a false positive
                   if (
                     !details.includes(
-                      "The size of the extent is less than the minimum of 1MB"
+                      "The size of the extent is less than the minimum of 1MB",
                     )
                   ) {
                     throw e;
@@ -4038,7 +4043,7 @@ class CsiBaseDriver {
                     "GetVolumeStats",
                     {
                       volume_id: node_volume_id,
-                    }
+                    },
                   );
 
                   let diff = Math.abs(result.total_bytes - required_bytes);
@@ -4053,12 +4058,12 @@ class CsiBaseDriver {
                   driver.ctx.logger.debug(
                     "resize diff %s (%s%%)",
                     diff,
-                    percentage_diff
+                    percentage_diff,
                   );
                   if (diff > max_delta) {
                     throw new GrpcError(
                       grpc.status.OUT_OF_RANGE,
-                      `expanded size ${result.total_bytes} is too far off (${diff}) from requested size (${required_bytes})`
+                      `expanded size ${result.total_bytes} is too far off (${diff}) from requested size (${required_bytes})`,
                     );
                   }
                 }
@@ -4070,14 +4075,14 @@ class CsiBaseDriver {
           default:
             throw new GrpcError(
               grpc.status.INVALID_ARGUMENT,
-              `unknown/unsupported node_attach_driver: ${node_attach_driver}`
+              `unknown/unsupported node_attach_driver: ${node_attach_driver}`,
             );
         }
         break;
       default:
         throw new GrpcError(
           grpc.status.UNIMPLEMENTED,
-          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`
+          `unkown NODE OS DRIVER: ${driver.__getNodeOsDriver()}`,
         );
     }
 

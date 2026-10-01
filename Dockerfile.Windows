@@ -100,7 +100,7 @@ LABEL org.opencontainers.image.licenses MIT
 COPY --from=build /app /app
 WORKDIR /app
 
-ADD https://github.com/democratic-csi/democratic-csi/releases/download/v1.0.1/ctr-v2.0.4-windows-amd64.exe ./bin/ctr.exe
+ADD https://github.com/democratic-csi/democratic-csi/releases/download/v1.1.0/ctr-v2.0.4-windows-amd64.exe ./bin/ctr.exe
 COPY --from=build /nodejs/node.exe ./bin
 COPY --from=build /usr/local/bin/ ./bin
 

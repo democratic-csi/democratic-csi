@@ -10,10 +10,10 @@ spec:
       command: ["sh", "-c", 'echo "Hello, Kubernetes!" && sleep Infinity']
       resources:
         requests:
-          memory: "128Mi"
+          memory: "256Mi"
           cpu: "500m"
         limits:
-          memory: "128Mi"
+          memory: "256Mi"
           cpu: "500m"
       volumeMounts:
         - name: oci
@@ -21,7 +21,7 @@ spec:
   volumes:
     - name: oci
       csi:
-        driver: org.democratic-csi.containerd-oci-inline-ephemeral
+        driver: org.democratic-csi.containerd-oci-ephemeral-inline
         volumeAttributes:
           "image.reference": "ubuntu:24.04"
           # "image.platform": ""
