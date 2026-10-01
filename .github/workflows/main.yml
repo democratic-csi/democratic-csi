@@ -534,10 +534,18 @@ jobs:
             file: Dockerfile.Windows
     steps:
       - uses: actions/checkout@v4
+
+      - name: Docker diagnostics
+        shell: pwsh
+        run: |
+          Get-Service docker | Format-List Name,Status,StartType
+          Get-Service *docker*
+          docker version
+          docker info
+
       - name: docker build
         shell: bash
         run: |
-          docker info
           docker build --pull -f ${{ matrix.file }} --build-arg NANO_BASE_TAG=${{ matrix.nano_base_tag }} --build-arg CORE_BASE_TAG=${{ matrix.core_base_tag }} -t democratic-csi-windows:${GITHUB_RUN_ID}-${{ matrix.core_base_tag }} \
           --label "org.opencontainers.image.created=$(date -u --iso-8601=seconds)" \
           --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
