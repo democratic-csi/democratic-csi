@@ -3652,9 +3652,7 @@ class CsiBaseDriver {
         }
 
         try {
-          const s = await fs.promises.statfs(win_volume_path, {
-            bigint: true,
-          });
+          const s = await fs.promises.statfs(win_volume_path);
           res.usage = [
             {
               total: s.blocks * s.bsize,
