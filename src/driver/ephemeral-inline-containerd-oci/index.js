@@ -133,7 +133,7 @@ class EphemeralInlineContainerDOciDriver extends CsiBaseDriver {
     } catch (err) {
       throw new GrpcError(
         grpc.status.FAILED_PRECONDITION,
-        `containerd is not available: ${String(err)}`,
+        `containerd is not available: ${JSON.stringify(err)}`,
       );
     }
 
@@ -149,7 +149,7 @@ class EphemeralInlineContainerDOciDriver extends CsiBaseDriver {
       const driver = this;
       let options = _.get(driver.options, "containerd", {});
       options = options || {};
-      return new CTR(options);
+      return new CTR({ containerd: options });
     });
   }
 

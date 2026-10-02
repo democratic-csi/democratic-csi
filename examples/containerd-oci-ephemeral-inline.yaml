@@ -6,3 +6,5 @@ containerd:
   # use k8s.io to use the k8s ns
   #namespace: default
   #creds encryption key
+  #env:
+  # foo: bar
