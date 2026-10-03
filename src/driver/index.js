@@ -2637,6 +2637,7 @@ class CsiBaseDriver {
 
         if (is_block) {
           let breakdeviceloop = false;
+          let matched_session_by_device = false;
           let realBlockDeviceInfos = [];
           // detect if is a multipath device
           is_device_mapper = await filesystem.isDeviceMapperDevice(
@@ -2701,6 +2702,7 @@ class CsiBaseDriver {
                       }
 
                       if (is_attached_to_session) {
+                        matched_session_by_device = true;
                         let timer_start;
                         let timer_max;
 
@@ -2779,6 +2781,62 @@ class CsiBaseDriver {
                   }
                 }
                 break;
+            }
+          }
+
+          /**
+           * if the device(s) could not be correlated to a session above the
+           * logout never happened, leaving the session to reconnect forever
+           * (https://github.com/democratic-csi/democratic-csi/issues/536)
+           *
+           * fall back to the iqn from the volume_context, but only log out
+           * when that target has exactly 1 lun attached: with several luns on
+           * a single target (node-manual) a logout would tear down volumes
+           * still in use elsewhere
+           */
+          if (!matched_session_by_device) {
+            const volume_context = await driver.getDerivedVolumeContext(call);
+            const iqn = _.get(volume_context, "iqn");
+            if (iqn) {
+              const sessions = await iscsi.iscsiadm.getSessionsDetails();
+              for (const session of sessions) {
+                if (session.target != iqn) {
+                  continue;
+                }
+                const luns = _.get(
+                  session,
+                  "attached_scsi_devices.host.devices",
+                  []
+                ).length;
+                if (luns > 1) {
+                  driver.ctx.logger.warn(
+                    `refusing orphaned session logout, target has ${luns} luns attached: ${iqn}`
+                  );
+                  continue;
+                }
+                driver.ctx.logger.warn(
+                  `logging out of orphaned iscsi session: ${iqn}`
+                );
+                await GeneralUtils.retry(15, 2000, async () => {
+                  await iscsi.iscsiadm.logout(session.target, [
+                    session.persistent_portal,
+                  ]);
+                }).catch((err) => {
+                  driver.ctx.logger.warn(
+                    `failed to logout of orphaned session ${iqn}: ${err.message}`
+                  );
+                });
+                await GeneralUtils.retry(15, 2000, async () => {
+                  await iscsi.iscsiadm.deleteNodeDBEntry(
+                    session.target,
+                    session.persistent_portal
+                  );
+                }).catch((err) => {
+                  driver.ctx.logger.warn(
+                    `failed to delete node db entry ${iqn}: ${err.message}`
+                  );
+                });
+              }
             }
           }
         }
