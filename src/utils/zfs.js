@@ -1445,6 +1445,53 @@ class Zetabyte {
        * @param {*} dataset
        * @param {*} property
        */
+      /**
+       * zfs unmount [-f] filesystem|mountpoint
+       *
+       * Deliberately does NOT support -f. A forced unmount issues
+       * umount2(MNT_FORCE), which LXC's default seccomp profile rejects
+       * (`reject_force_umount`), so it fails with EPERM on containerised ZFS
+       * hosts. A plain unmount is permitted there and is sufficient.
+       *
+       * @param {*} dataset
+       * @param {*} options
+       */
+      unmount: function (dataset, options = {}) {
+        if (!(arguments.length >= 1)) throw Error("Invalid arguments");
+
+        return new Promise((resolve, reject) => {
+          const idempotent =
+            "idempotent" in options
+              ? options.idempotent
+              : "idempotent" in zb.options
+              ? zb.options.idempotent
+              : false;
+
+          let args = [];
+          args.push("unmount");
+          args.push(dataset);
+
+          zb.exec(
+            zb.options.paths.zfs,
+            args,
+            { timeout: zb.options.timeout },
+            function (error, stdout, stderr) {
+              if (
+                error &&
+                !(
+                  idempotent &&
+                  (stderr.includes("not currently mounted") ||
+                    stderr.includes("not a mountpoint") ||
+                    stderr.includes("dataset does not exist"))
+                )
+              )
+                return reject(zb.helpers.zfsError(error, stderr));
+              return resolve(stdout);
+            }
+          );
+        });
+      },
+
       inherit: function (dataset, property) {
         if (arguments.length != 2) throw Error("Invalid arguments");
 
