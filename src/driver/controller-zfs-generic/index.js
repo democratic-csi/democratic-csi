@@ -308,7 +308,6 @@ create /backstores/block/${assetName}
               basename = this.options.iscsi.shareStrategyPcs.basename;
               let pcs_group = this.options.iscsi.shareStrategyPcs.pcs_group;
 
-              let extraTerms = ['group', `${pcs_group}`, '--wait']; // The wait is important to avoid race conditions
               let createTargetTerms = [
                 'resource', 'create', '--future', '--force', `target-${assetName}`, 'ocf:heartbeat:iSCSITarget',
                 'implementation="lio-t"', 'portals=":::3260"', `iqn="${basename}:${assetName}"`
@@ -319,44 +318,55 @@ create /backstores/block/${assetName}
                 createTargetTerms.push(`incoming_password="${this.options.iscsi.shareStrategyPcs.auth.incoming_password}"`);
               }
 
-              await GeneralUtils.retry(
-                3,
-                2000,
-                async () => {
-                  await this.pcsCommand(createTargetTerms.concat(extraTerms));
-                },
-                {
-                  retryCondition: (err) => {
-                    if (err.stdout && err.stdout.includes("Timed Out")) {
-                      return true;
-                    }
-                    return false;
-                  },
-                }
+              createTargetTerms.push(
+                'op', 'start', 'timeout=30s',
+                'op', 'stop', 'timeout=30s',
+                'op', 'monitor', 'interval=10s', 'timeout=10s'
               );
+
+              // create stopped so constraints are in place before pacemaker starts it
+              createTargetTerms.push('meta', 'target-role=Stopped');
+
+              await this.pcsCommandWithTimeoutRetry(createTargetTerms);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'constraint', 'colocation', 'add',
+                `target-${assetName}`, 'with', pcs_group, 'INFINITY'
+              ]);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'constraint', 'order', pcs_group, 'then', `target-${assetName}`
+              ]);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'resource', 'enable', `target-${assetName}`
+              ]);
 
               let createLunTerms = [
                 'resource', 'create', '--future', `lun-${assetName}`, 'ocf:heartbeat:iSCSILogicalUnit',
                 'implementation="lio-t"', `target_iqn="${basename}:${assetName}"`, 'lun="0"',
-                `path="/dev/${extentDiskName}"`
+                `path="/dev/${extentDiskName}"`,
+                'op', 'start', 'timeout=30s',
+                'op', 'stop', 'timeout=30s',
+                'op', 'monitor', 'interval=10s', 'timeout=10s',
+                'meta', 'target-role=Stopped'
               ];
 
-              await GeneralUtils.retry(
-                3,
-                2000,
-                async () => {
-                  await this.pcsCommand(createLunTerms.concat(extraTerms));
-                },
-                {
-                  retryCondition: (err) => {
-                    if (err.stdout && err.stdout.includes("Timed Out")) {
-                      return true;
-                    }
-                    return false;
-                  },
-                }
-              );
-  
+              await this.pcsCommandWithTimeoutRetry(createLunTerms);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'constraint', 'colocation', 'add',
+                `lun-${assetName}`, 'with', `target-${assetName}`, 'INFINITY'
+              ]);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'constraint', 'order', `target-${assetName}`, 'then', `lun-${assetName}`
+              ]);
+
+              await this.pcsCommandWithTimeoutRetry([
+                'resource', 'enable', `lun-${assetName}`
+              ]);
+
               break;
 
           default:
@@ -755,45 +765,13 @@ delete ${assetName}
 
             break;
           case "pcs":
-            let deleteLunText = [
+            await this.pcsCommandWithTimeoutRetry([
               'resource', 'delete', `lun-${assetName}`
-            ];
+            ]);
 
-            await GeneralUtils.retry(
-              3,
-              2000,
-              async () => {
-                await this.pcsCommand(deleteLunText);
-              },
-              {
-                retryCondition: (err) => {
-                  if (err.stdout && err.stdout.includes("Timed Out")) {
-                    return true;
-                  }
-                  return false;
-                },
-              }
-            );
-
-            let deleteTargetText = [
+            await this.pcsCommandWithTimeoutRetry([
               'resource', 'delete', `target-${assetName}`
-            ];
-
-            await GeneralUtils.retry(
-              3,
-              2000,
-              async () => {
-                await this.pcsCommand(deleteTargetText);
-              },
-              {
-                retryCondition: (err) => {
-                  if (err.stdout && err.stdout.includes("Timed Out")) {
-                    return true;
-                  }
-                  return false;
-                },
-              }
-            );
+            ]);
 
             break;
 
@@ -1017,11 +995,41 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
         response.code = 0;
       }
 
+      // Handle idempotence for constraint commands
+      if (response.code == 1 && response.stdout.includes("duplicate")) {
+        driver.ctx.logger.verbose("pcs constraint duplicate, ignoring error (setting response.code=0)");
+        response.code = 0;
+      }
+
+      // Handle idempotence for delete commands
+      if (response.code == 1 && response.stdout.includes("does not exist")) {
+        driver.ctx.logger.verbose("pcs resource does not exist, ignoring error (setting response.code=0)");
+        response.code = 0;
+      }
+
       if (response.code != 0) {
         throw response;
       }
       return response;
     });
+  }
+
+  async pcsCommandWithTimeoutRetry(commandTerms) {
+    return GeneralUtils.retry(
+      3,
+      2000,
+      async () => {
+        await this.pcsCommand(commandTerms);
+      },
+      {
+        retryCondition: (err) => {
+          if (err.stdout && err.stdout.includes("Timed Out")) {
+            return true;
+          }
+          return false;
+        },
+      }
+    );
   }
 
   async targetCliCommand(data) {
