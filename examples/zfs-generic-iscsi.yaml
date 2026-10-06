@@ -36,6 +36,15 @@ zfs:
   # do NOT comment this option out even if you don't plan to use snapshots, just leave it with dummy value
   detachedSnapshotsDatasetParentName: tanks/k8s/test-snapshots
 
+  # by default DeleteVolume refuses to destroy a zvol/dataset when *any* of
+  # its snapshots carry the democratic-csi:managed_resource property, but
+  # snapshots inherit user properties from their dataset so snapshots created
+  # outside of democratic-csi (sanoid, zfs-auto-snapshot, etc) block deletion
+  # forever; set to true to only consider snapshots with the property set
+  # directly (source local/received, i.e. snapshots democratic-csi created)
+  # and destroy foreign snapshots together with the volume
+  #deleteVolumeIgnoreForeignSnapshots: false
+
   # "" (inherit), lz4, gzip-9, etc
   zvolCompression:
   # "" (inherit), on, off, verify
