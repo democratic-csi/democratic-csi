@@ -52,7 +52,7 @@ zfs:
   datasetPermissionsUser: 0
   datasetPermissionsGroup: 0
   
-  # not supported yet in api
+  # not supported yet in api (silently ignored); use an SSH-based driver if you need dataset ACLs
   #datasetPermissionsAcls:
   #- "-m everyone@:full_set:allow"
   #- "-m u:kube:full_set:allow"
