@@ -72,6 +72,7 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
     switch (this.options.driver) {
       case "zfs-generic-nfs":
       case "zfs-generic-smb":
+      case "zfs-generic-virtiofs":
         return "filesystem";
       case "zfs-generic-iscsi":
       case "zfs-generic-nvmeof":
@@ -181,6 +182,34 @@ class ControllerZfsGenericDriver extends ControllerZfsBaseDriver {
           node_attach_driver: "smb",
           server: this.options.smb.shareHost,
           share,
+        };
+        return volume_context;
+
+      case "zfs-generic-virtiofs":
+        // For virtiofs, we get the remote mountpoint and convert it to a local path
+        properties = await zb.zfs.get(datasetName, ["mountpoint"]);
+        properties = properties[datasetName];
+        this.ctx.logger.debug("zfs props data: %j", properties);
+
+        // The remote mountpoint path needs to be converted to the local virtiofs path
+        // by replacing the remote base path with the local mount path
+        const remoteMountpoint = properties.mountpoint.value;
+        const remoteBasePath = this.options.virtiofs.remoteBasePath;
+        const localMountPath = this.options.virtiofs.localMountPath;
+
+        if (!remoteMountpoint.startsWith(remoteBasePath)) {
+          throw new GrpcError(
+            grpc.status.FAILED_PRECONDITION,
+            `dataset mountpoint ${remoteMountpoint} does not start with configured remoteBasePath ${remoteBasePath}`
+          );
+        }
+
+        // Replace remote base path with local mount path
+        const localPath = remoteMountpoint.replace(remoteBasePath, localMountPath);
+
+        volume_context = {
+          node_attach_driver: "hostpath",
+          path: localPath,
         };
         return volume_context;
 
@@ -686,6 +715,11 @@ save_config filename=${this.options.nvmeof.shareStrategySpdkCli.configPath}
               `invalid configuration: unknown shareStrategy ${this.options.smb.shareStrategy}`
             );
         }
+        break;
+
+      case "zfs-generic-virtiofs":
+        // For virtiofs, there's nothing to clean up
+        // The dataset will be destroyed by the base driver
         break;
 
       case "zfs-generic-iscsi": {

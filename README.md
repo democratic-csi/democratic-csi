@@ -28,6 +28,7 @@ have access to resizing, snapshots, clones, etc functionality.
   - `zfs-generic-iscsi` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-smb` (works with any ZoL installation...ie: Ubuntu)
   - `zfs-generic-nvmeof` (works with any ZoL installation...ie: Ubuntu)
+  - `zfs-generic-virtiofs` (works with ZoL + virtiofs passthrough)
   - `zfs-local-ephemeral-inline` (provisions node-local zfs datasets)
   - `zfs-local-dataset` (provision node-local volume as dataset)
   - `zfs-local-zvol` (provision node-local volume as zvol)
@@ -434,7 +435,7 @@ Issues to review:
 - https://jira.ixsystems.com/browse/NAS-108522
 - https://jira.ixsystems.com/browse/NAS-107219
 
-### ZoL (zfs-generic-nfs, zfs-generic-iscsi, zfs-generic-smb, zfs-generic-nvmeof)
+### ZoL (zfs-generic-nfs, zfs-generic-iscsi, zfs-generic-smb, zfs-generic-nvmeof, zfs-generic-virtiofs)
 
 Ensure ssh and zfs is installed on the nfs/iscsi server and that you have installed
 `targetcli`.

@@ -20,29 +20,30 @@ container_supported_filesystems=(
   "bind"
 )
 
-while getopts "t:" opt; do
-  case "$opt" in
-    t)
-      if [[ "x${USE_HOST_MOUNT_TOOLS}" == "x" ]]; then
-        [[ "${OPTARG,,}" == "zfs" ]] && USE_HOST_MOUNT_TOOLS=1
-        [[ "${OPTARG,,}" == "lustre" ]] && USE_HOST_MOUNT_TOOLS=1
-        [[ "${OPTARG,,}" == "onedata" ]] && USE_HOST_MOUNT_TOOLS=1
-        #(printf '%s\0' "${container_supported_filesystems[@]}" | grep -Fqxz -- "${OPTARG}") || USE_HOST_MOUNT_TOOLS=1
-      fi
-      ;;
-  esac
+# Parse arguments to detect filesystem type without consuming them
+for arg in "$@"; do
+  if [[ "$prev_arg" == "-t" ]]; then
+    if [[ "x${USE_HOST_MOUNT_TOOLS}" == "x" ]]; then
+      [[ "${arg,,}" == "zfs" ]] && USE_HOST_MOUNT_TOOLS=1
+      [[ "${arg,,}" == "lustre" ]] && USE_HOST_MOUNT_TOOLS=1
+      [[ "${arg,,}" == "onedata" ]] && USE_HOST_MOUNT_TOOLS=1
+      #(printf '%s\0' "${container_supported_filesystems[@]}" | grep -Fqxz -- "${arg}") || USE_HOST_MOUNT_TOOLS=1
+    fi
+    break
+  fi
+  prev_arg="$arg"
 done
 
 if [[ ${USE_HOST_MOUNT_TOOLS} -eq 1 ]]; then
   for p in $(echo $P | cut -d ":" -f 1- --output-delimiter=" "); do
     if [[ -f "/host${p}/mount" ]]; then
-      chroot /host "${p}/mount" "${@:1}"
+      chroot /host "${p}/mount" "$@"
       exit $?
     fi
   done
-  chroot /host /usr/bin/env -i PATH="${P}" mount "${@:1}"
+  chroot /host /usr/bin/env -i PATH="${P}" mount "$@"
   exit $?
 else
-  /usr/bin/env -i PATH="${PL}" mount "${@:1}"
+  /usr/bin/env -i PATH="${PL}" mount "$@"
   exit $?
 fi
