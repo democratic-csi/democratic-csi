@@ -1,14 +1,14 @@
 # Nomad Support
 
-While `democratic-csi` fully implements the CSI spec, Nomad currently supports the CSI in a limited capability. Nomad can utilize CSI volumes, but it can not automatically create, destroy, or manage them in any capacity. Volumes have to be created externally and then registered with Nomad. Once Nomad supports the full spec, all `democratic-csi` features should work out of the box. However, these instructions can be used as a temporary solution.
+Nomad implements the majority of the CSI specification. Most notably it allows the creation, expansion, deletion of volumes, as well as the creation of snapshots. Most `democratic-csi` features should work out of the box. The official Nomad documentation can be found [here](https://developer.hashicorp.com/nomad/docs/architecture/storage/csi).
 
 These instructions have should work with any share type, but they have only been tested with nfs shares. The detailed discussion can be found at [this issue](https://github.com/democratic-csi/democratic-csi/issues/40).
 
 ## Nomad Jobs
 
-`democratic-csi` has to be deployed on Nomad as a set of jobs. The controller job runs as a single instance. The node job runs on every node and manages mounting the volume.
+`democratic-csi` has to be deployed on Nomad as a set of jobs. The controller job runs as a single instance, while node jobs run on every node (`system` jobs) and manage volume mounting and umounting.
 
-The following job files can be used as an example. Make sure to substitute the config from the [examples](/examples). __The example exposes the CSI gRPC interface! Please secure it in a production environment!__
+The following job files can be used as an example. Make sure to substitute the config from the [examples](/examples).
 
 `storage-controller.nomad`
 ```hcl
@@ -30,11 +30,11 @@ job "storage-controller" {
       driver = "docker"
 
       config {
-        image = "democraticcsi/democratic-csi:latest"
+        image = "democraticcsi/democratic-csi:latest" # use specific versions
         ports = ["grpc"]
 
         args = [
-          "--csi-version=1.2.0",
+          "--csi-version=1.5.0",
           "--csi-name=org.democratic-csi.nfs",
           "--driver-config-file=${NOMAD_TASK_DIR}/driver-config-file.yaml",
           "--log-level=debug",
@@ -44,11 +44,10 @@ job "storage-controller" {
           "--server-port=9000",
         ]
 
-        privileged = true
       }
 
       csi_plugin {
-        id        = "truenas"
+        id        = "org.democratic-csi.nfs"
         type      = "controller"
         mount_dir = "/csi-data"
       }
@@ -82,10 +81,10 @@ job "storage-node" {
       driver = "docker"
 
       config {
-        image = "democraticcsi/democratic-csi:latest"
+        image = "democraticcsi/democratic-csi:latest" # use specific versions
 
         args = [
-          "--csi-version=1.2.0",
+          "--csi-version=1.5.0",
           "--csi-name=org.democratic-csi.nfs",
           "--driver-config-file=${NOMAD_TASK_DIR}/driver-config-file.yaml",
           "--log-level=debug",
@@ -97,7 +96,7 @@ job "storage-node" {
       }
 
       csi_plugin {
-        id        = "truenas"
+        id        = "org.democratic-csi.nfs"
         type      = "node"
         mount_dir = "/csi-data"
       }
@@ -122,52 +121,43 @@ EOH
 
 ## Creating and registering the volumes
 
-To create the volumes, we are going to use the [csc](https://github.com/rexray/gocsi/tree/master/csc) utility. It can be installed via `go`.
-
-```
-GO111MODULE=off go get -u github.com/rexray/gocsi/csc
-```
-
-To actually volume, use the following command. `csc` can do a lot more, including listing, expanding and deleting volumes, so please take a look at its docs.
-
-```
-csc -e tcp://<host>:<port> controller create-volume --req-bytes <volume size in bytes> <volume name>
-```
-
-Output
-```
-"<volume name>"	<volume size in bytes>	"node_attach_driver"="nfs"	"provisioner_driver"="freenas-nfs"	"server"="<server>"	"share"="<share>"
-```
-
-While the volume can be registered using the [Nomad cli](https://www.nomadproject.io/docs/commands/volume/register), it is easier to use Terraform and the [Nomad provider](https://registry.terraform.io/providers/hashicorp/nomad/latest/docs), mapping the output to the following template.
-
-- Access mode can be changed. See [point 2](https://github.com/democratic-csi/democratic-csi/issues/40#issuecomment-751613596).
-- Mount flags can be specified. See the [provider docs](https://registry.terraform.io/providers/hashicorp/nomad/latest/docs/resources/volume#mount_flags) and [point 3](https://github.com/democratic-csi/democratic-csi/issues/40#issuecomment-751613596)
+To create a new volume, register an existing one, or update an existing one, we need a [volume specification file](https://developer.hashicorp.com/nomad/docs/other-specifications/volume/csi).
 
 ```hcl
-provider "nomad" {
-  address = "<nomad address>"
+id        = "<volume name>"
+namespace = "<namespace name>"
+name      = "<volume name>"
+type      = "csi"
+plugin_id = "org.democratic-csi.nfs"
+
+# For 'nomad volume create', specify a snapshot ID or volume to clone. You can
+# specify only one of these two fields.
+#snapshot_id = "snap-12345"
+# clone_id    = "vol-abcdef"
+
+# Optional: for 'nomad volume create', specify a maximum and minimum capacity.
+# Registering an existing volume will record but ignore these fields.
+# Changing these and running `volume create` again will update the existing volume
+capacity_min = "5GiB"
+capacity_max = "5GiB"
+
+# Required (at least one): for 'nomad volume create', specify one or more
+# capabilities to validate. Registering an existing volume will record but
+# ignore these fields.
+capability {
+  access_mode     = "single-node-writer"
+  attachment_mode = "file-system"
 }
 
-resource "nomad_volume" "<volume name>" {
-  type                  = "csi"
-  plugin_id             = "truenas"
-  volume_id             = "<volume name>"
-  name                  = "<volume name>"
-  external_id           = "<volume name>"
-  access_mode           = "single-node-writer"
-  attachment_mode       = "file-system"
-  deregister_on_destroy = true
+# Optional: for 'nomad volume create', specify mount options to validate for
+# 'attachment_mode = "file-system". Registering an existing volume will record
+# but ignore these fields.
+#mount_options {
+#  fs_type     = "nfs"
+#  mount_flags = ["rw"]
+#}
 
-  mount_options = {
-    fs_type = "nfs"
-  }
-
-  context = {
-    node_attach_driver = "nfs"
-    provisioner_driver = "freenas-nfs"
-    server             = "<server>"
-    share              = "<share>"
-  }
-}
 ```
+
+Afterwards, run the correct Nomad command - either nomad `volume create`(https://developer.hashicorp.com/nomad/commands/volume/create) to create a new volume or update a previously created one; or nomad `volume register`(https://developer.hashicorp.com/nomad/commands/volume/register) to register an already existing one.
+
