@@ -33,6 +33,7 @@ class CsiBaseDriver {
   constructor(ctx, options) {
     this.ctx = ctx;
     this.options = options || {};
+    this.cleanup = [];
 
     if (!this.options.hasOwnProperty("node")) {
       this.options.node = {};
@@ -49,6 +50,10 @@ class CsiBaseDriver {
     if (!this.options.node.mount.hasOwnProperty("checkFilesystem")) {
       this.options.node.mount.checkFilesystem = {};
     }
+  }
+
+  getCleanupHandlers() {
+    return this.cleanup;
   }
 
   /**
