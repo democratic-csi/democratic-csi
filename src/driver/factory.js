@@ -21,9 +21,13 @@ const {
   EphemeralInlineVHDDriver,
 } = require("./ephemeral-inline-vhd");
 const { NodeManualDriver } = require("./node-manual");
+const { CsiProxyDriver } = require("./controller-proxy");
 
 function factory(ctx, options) {
+  ctx.factory = factory;
   switch (options.driver) {
+    case "proxy":
+      return new CsiProxyDriver(ctx, options);
     case "freenas-nfs":
     case "freenas-smb":
     case "freenas-iscsi":
