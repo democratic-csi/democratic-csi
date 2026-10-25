@@ -1462,9 +1462,16 @@ class FreeNASApiDriver extends CsiBaseDriver {
           // "democratic-csi:csi_snapshot_source_volume_id",
         ]);
 
+        // snapshots inherit user properties from their dataset, so a snapshot
+        // taken outside of democratic-csi (e.g. a TrueNAS periodic snapshot
+        // task) reports managed_resource=true with source INHERITED; only
+        // skip those, any other or unknown source still counts as managed
         if (
           snapshotData[MANAGED_PROPERTY_NAME] &&
-          snapshotData[MANAGED_PROPERTY_NAME].value.toLowerCase() == "true"
+          snapshotData[MANAGED_PROPERTY_NAME].value.toLowerCase() == "true" &&
+          !String(snapshotData[MANAGED_PROPERTY_NAME].source)
+            .toUpperCase()
+            .startsWith("INHERITED")
         ) {
           hasManagedSnapshot = true;
           break;

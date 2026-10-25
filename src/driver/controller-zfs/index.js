@@ -1437,19 +1437,21 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // have been created the destroy will succeed undesirably
     let hasManagedSnapshot = false;
     try {
-      let snapshots = await zb.zfs.list(
-        datasetName,
-        [
-          "name",
-          // "democratic-csi:csi_snapshot_name",
-          // "democratic-csi:csi_snapshot_source_volume_id",
-          MANAGED_PROPERTY_NAME,
-        ],
-        { types: ["snapshot"] }
-      );
+      // snapshots inherit user properties from their dataset, so a snapshot
+      // taken outside of democratic-csi (e.g. a periodic snapshot task)
+      // reports managed_resource=true as "inherited from <dataset>"; only skip
+      // those, any other or unknown source still counts as managed
+      let snapshots = await zb.zfs.get(datasetName, [MANAGED_PROPERTY_NAME], {
+        recurse: true,
+        types: ["snapshot"],
+      });
 
-      hasManagedSnapshot = snapshots.indexed.some((snapshot) => {
-        return snapshot[MANAGED_PROPERTY_NAME].toLowerCase() == "true";
+      hasManagedSnapshot = Object.values(snapshots).some((snapshot) => {
+        const property = snapshot[MANAGED_PROPERTY_NAME];
+        return (
+          property.value.toLowerCase() == "true" &&
+          !String(property.source).toLowerCase().startsWith("inherited")
+        );
       });
     } catch (err) {
       // ignore errors when the dataset is already deleted
