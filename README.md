@@ -584,7 +584,8 @@ helm search democratic-csi/
 helm search repo democratic-csi/
 
 # copy proper values file from https://github.com/democratic-csi/charts/tree/master/stable/democratic-csi/examples
-# edit as appropriate
+# edit as appropriate, see A note on credentials below
+#
 # examples are from helm v2, alter as appropriate for v3
 
 # add --create-namespace for helm v3
@@ -600,6 +601,14 @@ helm upgrade \
 --namespace democratic-csi \
 zfs-nfs democratic-csi/democratic-csi
 ```
+
+### A note on credentials
+In the [example configurations](examples/), there are placeholders for inline credentials.
+However, the configuration has support to read credentials[1] from evironment variables, preventing the situation where you commit credentials to your version control system.
+
+There is an example available in the [README.md](https://github.com/democratic-csi/charts/blob/master/stable/democratic-csi/README.md) of the `democratic-csi` helm chart.
+
+1: or any other setting under `driver.config` really
 
 ### A note on non standard kubelet paths
 
