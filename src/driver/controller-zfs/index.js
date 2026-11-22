@@ -116,6 +116,27 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       }
     }
 
+    // iSCSI attach modes: 0 = legacy (no ControllerPublish),
+    // 1 = Kubernetes-managed, stateless Publish/Unpublish.
+    // Mode 2 is reserved for a future implementation with volume ownership.
+    if (this.options.driver === "zfs-generic-iscsi") {
+      const mode = _.get(this.options, "iscsi.controllerPublishMode", 1);
+      if (mode !== 0 && mode !== 1) {
+        throw new Error(`unsupported iscsi.controllerPublishMode: ${mode}`);
+      }
+      if (mode === 1) {
+        const rpc = options.service.controller.capabilities.rpc;
+        if (!rpc.includes("PUBLISH_UNPUBLISH_VOLUME")) {
+          rpc.push("PUBLISH_UNPUBLISH_VOLUME");
+        }
+      } else {
+        options.service.controller.capabilities.rpc =
+          options.service.controller.capabilities.rpc.filter(
+            (capability) => capability !== "PUBLISH_UNPUBLISH_VOLUME"
+          );
+      }
+    }
+
     if (!("rpc" in options.service.node.capabilities)) {
       this.ctx.logger.debug("setting default node caps");
 
@@ -1508,6 +1529,61 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
    *
    * @param {*} call
    */
+  /**
+   * Stateless iSCSI attach: Kubernetes owns the VolumeAttachment lifecycle.
+   * This does not fence other initiators or provide storage-side exclusivity.
+   */
+  async ControllerPublishVolume(call) {
+    if (this.options.driver !== "zfs-generic-iscsi" ||
+        _.get(this.options, "iscsi.controllerPublishMode", 1) !== 1) {
+      throw new GrpcError(grpc.status.UNIMPLEMENTED, "controller publish is disabled");
+    }
+    const request = call.request || {};
+    if (!request.volume_id || !request.node_id || !request.volume_capability) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT,
+        "volume_id, node_id and volume_capability are required");
+    }
+    if (request.readonly) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT,
+        "readonly controller publish is not supported");
+    }
+    const datasetParentName = this.getVolumeParentDatasetName();
+    if (!datasetParentName) {
+      throw new GrpcError(grpc.status.FAILED_PRECONDITION,
+        "invalid configuration: missing datasetParentName");
+    }
+    const zb = await this.getZetabyte();
+    const datasetName = datasetParentName + "/" + request.volume_id;
+    try {
+      await zb.zfs.get(datasetName, ["type"]);
+    } catch (err) {
+      if (err.toString().includes("dataset does not exist")) {
+        throw new GrpcError(grpc.status.NOT_FOUND,
+          `volume not found: ${request.volume_id}`);
+      }
+      throw err;
+    }
+    this.ctx.logger.debug("stateless controller publish volume=%s node=%s",
+      request.volume_id, request.node_id);
+    return { publish_context: {} };
+  }
+
+  /** Stateless detach; no LIO ACLs or ownership state to remove. */
+  async ControllerUnpublishVolume(call) {
+    if (this.options.driver !== "zfs-generic-iscsi" ||
+        _.get(this.options, "iscsi.controllerPublishMode", 1) !== 1) {
+      throw new GrpcError(grpc.status.UNIMPLEMENTED, "controller unpublish is disabled");
+    }
+    const request = call.request || {};
+    if (!request.volume_id || !request.node_id) {
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT,
+        "volume_id and node_id are required");
+    }
+    this.ctx.logger.debug("stateless controller unpublish volume=%s node=%s",
+      request.volume_id, request.node_id);
+    return {};
+  }
+
   async ControllerExpandVolume(call) {
     const driver = this;
     const driverZfsResourceType = this.getDriverZfsResourceType();
