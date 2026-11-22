@@ -9,6 +9,7 @@ const Handlebars = require("handlebars");
 const uuidv4 = require("uuid").v4;
 const semver = require("semver");
 const yaml = require("js-yaml");
+const crypto = require("crypto");
 
 // zfs common properties
 const MANAGED_PROPERTY_NAME = "democratic-csi:managed_resource";
@@ -30,6 +31,8 @@ const VOLUME_CONTEXT_PROVISIONER_DRIVER_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_driver";
 const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_instance_id";
+
+const ISCSI_PUBLISH_OWNER_PROPERTY_NAME = "democratic-csi:publish_owner";
 
 const MAX_ZVOL_NAME_LENGTH_CACHE_KEY = "controller-zfs:max_zvol_name_length";
 
@@ -117,14 +120,15 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     }
 
     // iSCSI attach modes: 0 = legacy (no ControllerPublish),
-    // 1 = Kubernetes-managed, stateless Publish/Unpublish.
-    // Mode 2 is reserved for a future implementation with volume ownership.
+    // 1 = stateless; 2 = persistent exclusive node ownership.
+    // CSI ControllerPublish has node_id but no reliable pod_id.
+    // Use Kubernetes ReadWriteOncePod (RWOP) for pod exclusivity; no mode 3.
     if (this.options.driver === "zfs-generic-iscsi") {
       const mode = _.get(this.options, "iscsi.controllerPublishMode", 1);
-      if (mode !== 0 && mode !== 1) {
+      if (mode !== 0 && mode !== 1 && mode !== 2) {
         throw new Error(`unsupported iscsi.controllerPublishMode: ${mode}`);
       }
-      if (mode === 1) {
+      if (mode === 1 || mode === 2) {
         const rpc = options.service.controller.capabilities.rpc;
         if (!rpc.includes("PUBLISH_UNPUBLISH_VOLUME")) {
           rpc.push("PUBLISH_UNPUBLISH_VOLUME");
@@ -1526,16 +1530,56 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   }
 
   /**
-   *
-   * @param {*} call
+   * Mode 2 ownership is stored on the ZVOL and updated under a host-side
+   * flock. The lock is transient (released on process exit); the ZFS property
+   * persists across controller restarts. No timeout-based owner eviction.
+   * ControllerPublishVolume has node_id but no reliable pod_id: use RWOP
+   * for pod exclusivity. A CSI pod-locking mode is intentionally omitted.
    */
-  /**
-   * Stateless iSCSI attach: Kubernetes owns the VolumeAttachment lifecycle.
-   * This does not fence other initiators or provide storage-side exclusivity.
-   */
+  async updateIscsiPublishOwner(datasetName, nodeId, operation) {
+    const execClient = this.getExecClient();
+    const lockId = crypto.createHash("sha256").update(datasetName).digest("hex");
+    const lockPath = "/run/democratic-csi-publish-" + lockId + ".lock";
+    // Arguments are shell-escaped by the existing exec client's builder.
+    // One remote process performs read/compare/write under the same flock.
+    const script = [
+      'dataset="$1"; node="$2"; action="$3"; lock="$4"',
+      'exec 9>"$lock" || exit 43',
+      'flock -x -w 30 9 || exit 43',
+      'zfs list -H -o name "$dataset" >/dev/null 2>&1 || exit 44',
+      'owner=$(zfs get -H -o value democratic-csi:publish_owner "$dataset") || exit 43',
+      '[ "$owner" = "-" ] && owner=""',
+      'if [ "$action" = "publish" ]; then',
+      '  if [ -n "$owner" ] && [ "$owner" != "$node" ]; then exit 42; fi',
+      '  if [ -z "$owner" ]; then zfs set "democratic-csi:publish_owner=$node" "$dataset" || exit 43; fi',
+      'else',
+      '  if [ -n "$owner" ]; then',
+      '    if [ -n "$node" ] && [ "$owner" != "$node" ]; then exit 42; fi',
+      '    zfs inherit democratic-csi:publish_owner "$dataset" || exit 43',
+      '  fi',
+      'fi',
+    ].join("\n");
+    const command = execClient.buildCommand("sh", [
+      "-c", script, "--", datasetName, nodeId || "", operation, lockPath,
+    ]);
+    const response = await execClient.exec(command);
+    if (response.code === 42) {
+      throw new GrpcError(grpc.status.FAILED_PRECONDITION,
+        `volume is assigned to another node: ${datasetName}`);
+    }
+    if (response.code === 44) {
+      throw new GrpcError(grpc.status.NOT_FOUND,
+        `volume not found: ${datasetName}`);
+    }
+    if (response.code !== 0) {
+      throw new GrpcError(grpc.status.INTERNAL,
+        `iSCSI ownership operation failed (exit ${response.code}): ${response.stderr || ""}`);
+    }
+  }
+
   async ControllerPublishVolume(call) {
-    if (this.options.driver !== "zfs-generic-iscsi" ||
-        _.get(this.options, "iscsi.controllerPublishMode", 1) !== 1) {
+    const mode = _.get(this.options, "iscsi.controllerPublishMode", 1);
+    if (this.options.driver !== "zfs-generic-iscsi" || (mode !== 1 && mode !== 2)) {
       throw new GrpcError(grpc.status.UNIMPLEMENTED, "controller publish is disabled");
     }
     const request = call.request || {};
@@ -1552,35 +1596,48 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       throw new GrpcError(grpc.status.FAILED_PRECONDITION,
         "invalid configuration: missing datasetParentName");
     }
-    const zb = await this.getZetabyte();
     const datasetName = datasetParentName + "/" + request.volume_id;
-    try {
-      await zb.zfs.get(datasetName, ["type"]);
-    } catch (err) {
-      if (err.toString().includes("dataset does not exist")) {
-        throw new GrpcError(grpc.status.NOT_FOUND,
-          `volume not found: ${request.volume_id}`);
+    if (mode === 2) {
+      await this.updateIscsiPublishOwner(datasetName, request.node_id, "publish");
+    } else {
+      const zb = await this.getZetabyte();
+      try {
+        await zb.zfs.get(datasetName, ["type"]);
+      } catch (err) {
+        if (err.toString().includes("dataset does not exist")) {
+          throw new GrpcError(grpc.status.NOT_FOUND,
+            `volume not found: ${request.volume_id}`);
+        }
+        throw err;
       }
-      throw err;
     }
-    this.ctx.logger.debug("stateless controller publish volume=%s node=%s",
-      request.volume_id, request.node_id);
+    this.ctx.logger.debug("controller publish mode=%s volume=%s node=%s",
+      mode, request.volume_id, request.node_id);
     return { publish_context: {} };
   }
 
-  /** Stateless detach; no LIO ACLs or ownership state to remove. */
   async ControllerUnpublishVolume(call) {
-    if (this.options.driver !== "zfs-generic-iscsi" ||
-        _.get(this.options, "iscsi.controllerPublishMode", 1) !== 1) {
+    const mode = _.get(this.options, "iscsi.controllerPublishMode", 1);
+    if (this.options.driver !== "zfs-generic-iscsi" || (mode !== 1 && mode !== 2)) {
       throw new GrpcError(grpc.status.UNIMPLEMENTED, "controller unpublish is disabled");
     }
     const request = call.request || {};
     if (!request.volume_id) {
-      throw new GrpcError(grpc.status.INVALID_ARGUMENT,
-        "volume_id is required");
+      throw new GrpcError(grpc.status.INVALID_ARGUMENT, "volume_id is required");
     }
-    this.ctx.logger.debug("stateless controller unpublish volume=%s node=%s",
-      request.volume_id, request.node_id);
+    if (mode === 2) {
+      const datasetName = this.getVolumeParentDatasetName() + "/" + request.volume_id;
+      try {
+        await this.updateIscsiPublishOwner(datasetName, request.node_id, "unpublish");
+      } catch (err) {
+        // CSI unpublish is idempotent if the volume has already been deleted.
+        if (!(err instanceof GrpcError && err.code === grpc.status.NOT_FOUND)) {
+          throw err;
+        }
+      }
+    }
+    this.ctx.logger.debug("controller unpublish mode=%s volume=%s node=%s",
+      mode, request.volume_id, request.node_id);
     return {};
   }
 
