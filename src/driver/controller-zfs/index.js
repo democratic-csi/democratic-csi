@@ -1542,8 +1542,15 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     const lockPath = "/run/democratic-csi-publish-" + lockId + ".lock";
     // Arguments are shell-escaped by the existing exec client's builder.
     // One remote process performs read/compare/write under the same flock.
+    // Embed values as shell-quoted literals, then base64-encode the complete
+    // script. SSH exec may pass commands through another shell, which would
+    // otherwise expand $1..$4 before the inner "sh -c" receives them.
+    const shellQuote = (value) => "'" + String(value).replace(/'/g, "'\\''") + "'";
     const script = [
-      'dataset="$1"; node="$2"; action="$3"; lock="$4"',
+      "dataset=" + shellQuote(datasetName) +
+        "; node=" + shellQuote(nodeId || "") +
+        "; action=" + shellQuote(operation) +
+        "; lock=" + shellQuote(lockPath),
       'exec 9>"$lock" || exit 43',
       'flock -x -w 30 9 || exit 43',
       'zfs list -H -o name "$dataset" >/dev/null 2>&1 || exit 44',
@@ -1559,9 +1566,10 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       '  fi',
       'fi',
     ].join("\n");
-    const command = execClient.buildCommand("sh", [
-      "-c", script, "--", datasetName, nodeId || "", operation, lockPath,
-    ]);
+    // Only base64 characters cross the SSH command boundary; shell variable
+    // expansion happens exclusively inside the decoded script on the ZFS host.
+    const encoded = Buffer.from(script, "utf8").toString("base64");
+    const command = "printf %s " + encoded + " | base64 -d | bash";
     const response = await execClient.exec(command);
     if (response.code === 42) {
       throw new GrpcError(grpc.status.FAILED_PRECONDITION,
