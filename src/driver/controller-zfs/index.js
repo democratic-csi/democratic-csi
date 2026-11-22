@@ -1575,9 +1575,9 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       throw new GrpcError(grpc.status.UNIMPLEMENTED, "controller unpublish is disabled");
     }
     const request = call.request || {};
-    if (!request.volume_id || !request.node_id) {
+    if (!request.volume_id) {
       throw new GrpcError(grpc.status.INVALID_ARGUMENT,
-        "volume_id and node_id are required");
+        "volume_id is required");
     }
     this.ctx.logger.debug("stateless controller unpublish volume=%s node=%s",
       request.volume_id, request.node_id);
