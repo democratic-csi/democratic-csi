@@ -1561,7 +1561,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
       '  if [ -z "$owner" ]; then zfs set "democratic-csi:publish_owner=$node" "$dataset" || exit 43; fi',
       'else',
       '  if [ -n "$owner" ]; then',
-      '    if [ -n "$node" ] && [ "$owner" != "$node" ]; then exit 42; fi',
+      '    if [ -n "$node" ] && [ "$owner" != "$node" ]; then exit 0; fi',
       '    zfs inherit democratic-csi:publish_owner "$dataset" || exit 43',
       '  fi',
       'fi',
