@@ -33,6 +33,7 @@ const VOLUME_CONTEXT_PROVISIONER_INSTANCE_ID_PROPERTY_NAME =
   "democratic-csi:volume_context_provisioner_instance_id";
 
 const ISCSI_PUBLISH_OWNER_PROPERTY_NAME = "democratic-csi:publish_owner";
+const DEFAULT_ISCSI_CONTROLLER_PUBLISH_MODE = 2;
 
 const MAX_ZVOL_NAME_LENGTH_CACHE_KEY = "controller-zfs:max_zvol_name_length";
 
@@ -124,7 +125,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
     // CSI ControllerPublish has node_id but no reliable pod_id.
     // Use Kubernetes ReadWriteOncePod (RWOP) for pod exclusivity; no mode 3.
     if (this.options.driver === "zfs-generic-iscsi") {
-      const mode = _.get(this.options, "iscsi.controllerPublishMode", 2);
+      const mode = _.get(this.options, "iscsi.controllerPublishMode", DEFAULT_ISCSI_CONTROLLER_PUBLISH_MODE);
       if (mode !== 0 && mode !== 1 && mode !== 2) {
         throw new Error(`unsupported iscsi.controllerPublishMode: ${mode}`);
       }
@@ -1586,7 +1587,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   }
 
   async ControllerPublishVolume(call) {
-    const mode = _.get(this.options, "iscsi.controllerPublishMode", 2);
+    const mode = _.get(this.options, "iscsi.controllerPublishMode", DEFAULT_ISCSI_CONTROLLER_PUBLISH_MODE);
     if (this.options.driver !== "zfs-generic-iscsi" || (mode !== 1 && mode !== 2)) {
       throw new GrpcError(grpc.status.UNIMPLEMENTED, "controller publish is disabled");
     }
@@ -1625,7 +1626,7 @@ class ControllerZfsBaseDriver extends CsiBaseDriver {
   }
 
   async ControllerUnpublishVolume(call) {
-    const mode = _.get(this.options, "iscsi.controllerPublishMode", 2);
+    const mode = _.get(this.options, "iscsi.controllerPublishMode", DEFAULT_ISCSI_CONTROLLER_PUBLISH_MODE);
     if (this.options.driver !== "zfs-generic-iscsi" || (mode !== 1 && mode !== 2)) {
       throw new GrpcError(grpc.status.UNIMPLEMENTED, "controller unpublish is disabled");
     }
