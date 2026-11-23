@@ -1,31 +1,56 @@
-# CSI iSCSI Controller-Publish-Modi (Implementierungsstand Modus 2)
+# iSCSI controller publish modes
 
-Stand: 22.11.2026. Implementiert für `zfs-generic-iscsi` in `src/driver/controller-zfs/index.js`.
+Applies to `zfs-generic-iscsi`.
 
-## Konfiguration
+## Configuration
 
-Unter `iscsi`:
+Set `iscsi.controllerPublishMode` in the driver configuration:
 
 ```yaml
 iscsi:
-  controllerPublishMode: 1
+  controllerPublishMode: 2
 ```
 
-- **0:** Legacy-Modus. `PUBLISH_UNPUBLISH_VOLUME` wird nicht angeboten; Publish/Unpublish sind deaktiviert.
-- **1 (Standard):** CSI `ControllerPublishVolume` und `ControllerUnpublishVolume` werden angeboten. Kubernetes koordiniert die Attach-/Detach-Anforderungen. Keine Initiator-ACLs, keine Locks, kein eigener Besitzstand.
-- **2:** Persistente Node-Exklusivität. Pro ZVOL wird die ZFS-User-Property `democratic-csi:publish_owner` gespeichert. Ein anderer Node erhält `FAILED_PRECONDITION`; derselbe Node darf idempotent erneut publishen. Unpublish entfernt die Property. Gleichzeitige Controller-Anfragen werden durch ein kurzlebiges `flock` auf dem ZFS-Host serialisiert. Die Sperrdatei ist **nicht** der persistente Besitzerzustand.\n\n**Pod-Exklusivität:** `ControllerPublishVolume` erhält `node_id`, aber keine zuverlässige `pod_id`. Mehrere Pods auf demselben Node sind daher in Modus 2 zulässig. Für Pod-Exklusivität Kubernetes `ReadWriteOncePod` (RWOP) verwenden; ein Modus 3 wird bewusst nicht implementiert.\n\n**Betrieb und Grenzen von Modus 2:** Der Eigentümer bleibt nach Controller-Neustart und Node-Ausfall bestehen; es gibt keine automatische Timeout-Freigabe. Ein fehlender `node_id` bei `ControllerUnpublishVolume` ist CSI-konform und gibt den vorhandenen Besitzer frei. Eine solche Freigabe ist nur sicher, wenn Kubernetes den vorherigen Mount tatsächlich abgebaut hat. Ein abweichender, explizit angegebener Node wird abgewiesen. Keine Initiator-ACLs, kein Storage-Fencing: Bereits bestehende iSCSI-Sessions werden nicht durch eine Controller-Ablehnung beendet. Die Property verhindert nur konkurrierende CSI-ControllerPublish-Zuweisungen. Der Host benötigt `flock` und Schreibrechte auf `/run` und ZFS.
+The default is **2** when the option is omitted.
 
-Modus 1: Publish prüft Pflichtfelder und die Existenz des ZFS-Datasets, gibt dann einen leeren `publish_context` zurück. Unpublish ist idempotent und gibt Erfolg zurück, auch wenn das Dataset bereits gelöscht wurde. Es erfolgen **keine** LIO-Konfigurationsänderungen bei Publish/Unpublish. Die iSCSI-Target-/LUN-Erstellung bleibt Aufgabe des bestehenden CreateVolume-Pfads; Login/Mount erfolgen auf dem Node.
+| Mode | Behavior |
+| --- | --- |
+| `0` | Legacy behavior: no `PUBLISH_UNPUBLISH_VOLUME` capability; controller publish/unpublish disabled. |
+| `1` | Stateless controller publish/unpublish: validates the request and volume, without persistent node ownership. |
+| `2` | Persistent exclusive node ownership: records the CSI node ID in ZFS and rejects a conflicting publish. |
 
-**Sicherheitsgrenze:** Modus 1 bietet keine storage-seitige RWO-Exklusivität und kein Fencing. Ein bereits verbundener Initiator wird durch Unpublish nicht getrennt. Der Modus dient dem ersten Ende-zu-Ende-Test von CSI, ZFS-ZVOL und iSCSI und setzt ein geeignet isoliertes Testnetz voraus.
+## Mode 2 ownership semantics
 
-## Teststatus und offene Tests
+The ZVOL user property `democratic-csi:publish_owner` stores the current CSI node ID. A per-volume `flock` on the ZFS host serializes read/compare/write operations; the lock itself is transient, but the ZFS property persists across controller restarts.
 
-1. Installation des aktualisierten Controllers mit Modus 1 und dessen gemeldete CSI-Capabilities.
-2. Dynamisches Provisionieren eines neuen ZVOLs und erfolgreicher Pod-Mount mit Lese-/Schreibzugriff.
-3. Wiederholung von Publish/Unpublish und Controller-Neustart; CSI-Ablauf und Kubernetes VolumeAttachment beobachten.
-4. Node-Wechsel und Fehlerfälle beobachten, **bevor** ein persistenter Besitzerzustand (Modus 2) konzipiert wird.
+- Publish on an unowned volume assigns the requesting node.
+- Repeated publish by the same node succeeds.
+- Publish by a different node returns `FAILED_PRECONDITION`.
+- Unpublish by the owner releases the property.
+- Unpublish when unowned, or after the volume has been deleted, succeeds.
+- Unpublish with a different explicit node ID succeeds without clearing another node's ownership.
+- Unpublish without a node ID releases an existing owner; callers must ensure this is appropriate for the attachment lifecycle.
 
-## Bekannte LIO-Fehlerdiagnose
+No timeout-based eviction or automatic takeover is implemented. Recovery from a failed owner may require administrator intervention.
 
-Beim manuellen FileIO-Test war die LUN lesbar, aber zunächst nicht beschreibbar. Nach Umstellung auf eine explizite Initiator-ACL mit `mapped_lun0 ... (rw)` und erneutem iSCSI-Login gelang der Schreibtest. Die einzelne Ursache wurde damals nicht isoliert. Das ist **keine** Voraussetzung für Modus 1 und kein Beleg dafür, dass automatische LIO-ACLs grundsätzlich nur Lesen erlauben. LIO-Installation und allgemeine Fehlerbehebung verbleiben beim Storage-Administrator.
+## Scope and limitations
+
+Mode 2 enforces **CSI controller-level node ownership**, not storage-level fencing. It does not disconnect established iSCSI sessions or forcibly stop I/O from a former initiator. Target-specific LIO ACL/session fencing is not part of this implementation.
+
+CSI controller requests identify nodes, not individual pods. For pod-level exclusivity, use Kubernetes `ReadWriteOncePod` (RWOP) where supported. RWO alone is not a guarantee of one pod.
+
+The ZFS host must support `flock`, allow lock-file creation in `/run`, and permit the configured ZFS property operations. The existing CreateVolume and node-side iSCSI login/mount paths remain responsible for target creation and data access.
+
+## Validation
+
+End-to-end testing on Debian 13/k3s with ZFS/iSCSI verified:
+
+- Mode 2 attach and owner assignment on AMD64.
+- Rejection of a competing attach with `FAILED_PRECONDITION`.
+- Idempotent cleanup of a non-owner attachment request.
+- Regular detach, ownership release, and takeover by a different AMD64 node.
+- Native AMD64 and ARM64 image builds combined into an OCI multi-platform index.
+- Successful ARM64 CSI node-plugin rollout and AMD64-to-ARM64 volume takeover.
+- Preserved file content `persistent-volume-check` after the takeover and owner property set to `pi1`.
+
+These tests do not establish fencing guarantees or exhaustively cover node failure and recovery scenarios.
